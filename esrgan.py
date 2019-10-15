@@ -119,7 +119,7 @@ def main(opt):
     if opt.n_checkpoints != -1:
         opt.checkpoint_interval = np.inf
 
-    #if we don't use this setting, need to set to inf
+    # if we don't use this setting, need to set to inf
     if opt.n_batches == -1:
         opt.n_batches = np.inf
 
@@ -141,7 +141,8 @@ def main(opt):
     # ----------
     #  Training
     # ----------
-    total_batches = len(dataloader)*(opt.n_epochs-opt.epoch)
+    total_batches = len(dataloader)*(opt.n_epochs -
+                                     opt.epoch) if opt.n_batches == np.inf else opt.n_batches
     for epoch in range(opt.epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
 
@@ -247,8 +248,8 @@ def main(opt):
                 save_image(img_grid, os.path.join(opt.root, "images/training/%d.png" %
                                                   batches_done), nrow=1, normalize=False)
 
-            if batches_done % opt.checkpoint_interval == 0 or batches_done == total_batches // opt.n_batches:
-                number = epoch i
+            if batches_done % opt.checkpoint_interval == 0 or batches_done == total_batches // opt.n_checkpoints:
+                number = epoch if opt.n_batches == np.inf else batches_done
                 # Save model checkpoints
                 torch.save(generator.state_dict(),
                            os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, number)))
