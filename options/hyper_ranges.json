@@ -1,0 +1,26 @@
+{
+    "residual_blocks": {
+        "type": "discrete",
+        "value": [
+            10,
+            15,
+            23
+        ]
+    },
+    "lambda_adv": {
+        "type": "range",
+        "value": [
+            0.001,
+            0.01,
+            3
+        ]
+    },
+    "lambda_pixel": {
+        "type": "range",
+        "value": [
+            0.005,
+            0.1,
+            3
+        ]
+    }
+}

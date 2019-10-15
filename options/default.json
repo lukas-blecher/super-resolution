@@ -1,0 +1,21 @@
+{
+    "epoch": 0,
+    "n_epochs": 200,
+    "dataset_name": "stl-10/train",
+    "dataset_path": "data/",
+    "batch_size": 4,
+    "lr": 0.0002,
+    "b1": 0.9,
+    "b2": 0.999,
+    "n_cpu": 8,
+    "hr_height": 256,
+    "hr_width": 256,
+    "channels": 3,
+    "sample_interval": 100,
+    "checkpoint_interval": 500,
+    "residual_blocks": 23,
+    "warmup_batches": 500,
+    "lambda_adv": 0.005,
+    "lambda_pixel": 0.01,
+    "root": ""
+}
