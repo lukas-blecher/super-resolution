@@ -38,7 +38,7 @@ def main():
     args = parser.parse_args()
     print(args)
     results, args_dict = {}, {}
-
+    os.makedirs(os.path.split(args.results)[0], exist_ok=True)
     with open(args.options) as options_file:
         options = json.load(options_file)
     # convert list to linspace

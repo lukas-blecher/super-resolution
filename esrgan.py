@@ -1,12 +1,3 @@
-"""
-Super-resolution of CelebA using Generative Adversarial Networks.
-The dataset can be downloaded from: https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADIKlz8PR9zr6Y20qbkunrba/Img/img_align_celeba.zip?dl=0
-(if not available there see if options are listed at http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html)
-Instrustion on running the script:
-1. Download the dataset from the provided link
-2. Save the folder 'img_align_celeba' to '../../data/'
-4. Run the sript using command 'python3 esrgan.py'
-"""
 
 import argparse
 import os
@@ -33,11 +24,6 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-
-    # number of batches to train from instead of number of epochs.
-    # If specified the training will be interrupted after N_BATCHES of training.
-    parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
-    parser.add_argument("--n_checkpoints", default=-1, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
     parser.add_argument("--dataset_path", type=str, default="data/", help="path to the dataset")
     parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
@@ -57,6 +43,11 @@ def get_parser():
     parser.add_argument("--name", type=str, default=None, help='name of the model')
     parser.add_argument("--report_freq", type=int, default=10, help='report frequency determines how often the loss is printed')
     parser.add_argument("--model_path", type=str, default="saved_models", help="where the model is saved/should be saved")
+
+    # number of batches to train from instead of number of epochs.
+    # If specified the training will be interrupted after N_BATCHES of training.
+    parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
+    parser.add_argument("--n_checkpoints", default=-1, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
     opt = parser.parse_args()
     print(opt)
     return opt
@@ -126,10 +117,8 @@ def train(opt):
             imgs_hr = Variable(imgs["hr"].type(Tensor))
 
             # Adversarial ground truths
-            valid = Variable(Tensor(
-                np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-            fake = Variable(Tensor(
-                np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
 
             # ------------------
             #  Train Generators
@@ -159,8 +148,7 @@ def train(opt):
             pred_fake = discriminator(gen_hr)
 
             # Adversarial loss (relativistic average GAN)
-            loss_GAN = criterion_GAN(
-                pred_fake - pred_real.mean(0, keepdim=True), valid)
+            loss_GAN = criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), valid)
 
             # Content loss
             gen_features = feature_extractor(gen_hr)
@@ -168,8 +156,7 @@ def train(opt):
             loss_content = criterion_content(gen_features, real_features)
 
             # Total generator loss
-            loss_G = loss_content + opt.lambda_adv * \
-                loss_GAN + opt.lambda_pixel * loss_pixel
+            loss_G = loss_content + opt.lambda_adv * loss_GAN + opt.lambda_pixel * loss_pixel
 
             loss_G.backward()
             optimizer_G.step()
@@ -184,10 +171,8 @@ def train(opt):
             pred_fake = discriminator(gen_hr.detach())
 
             # Adversarial loss for real and fake images (relativistic average GAN)
-            loss_real = criterion_GAN(
-                pred_real - pred_fake.mean(0, keepdim=True), valid)
-            loss_fake = criterion_GAN(
-                pred_fake - pred_real.mean(0, keepdim=True), fake)
+            loss_real = criterion_GAN(pred_real - pred_fake.mean(0, keepdim=True), valid)
+            loss_fake = criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), fake)
 
             # Total loss
             loss_D = (loss_real + loss_fake) / 2
@@ -225,10 +210,8 @@ def train(opt):
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
                 number = epoch if n_batches == np.inf else (batches_done+1)//(total_batches//opt.n_checkpoints)
                 # Save model checkpoints
-                torch.save(generator.state_dict(),
-                           os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, number)))
-                torch.save(discriminator.state_dict(),
-                           os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, number)))
+                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, number)))
+                torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, number)))
 
             if batches_done == total_batches:
                 return
