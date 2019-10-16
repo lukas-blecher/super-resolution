@@ -17,5 +17,7 @@
     "warmup_batches": 500,
     "lambda_adv": 0.005,
     "lambda_pixel": 0.01,
-    "root": ""
+    "root": "",
+    "model_path":"saved_models",
+    "report_freq":10
 }

@@ -9,26 +9,18 @@ import cv2
 import glob
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--ground-truth", type=str, required=True, help="Folder containing ground truth images")
-    parser.add_argument("--generated",type=str, required=True, help="Folder containing generated images")
-    parser.add_argument("--suffix",type=str, default="", help="suffix of generated images")
-    parser.add_argument("--image-type",type=str, default="png", help="Image type (e.g. jpg, png, gif, etc.)")
-    parser.add_argument("--test_Y", type=bool, default=False, help="Test only the Y channel")
-    args = parser.parse_args()
-    print(args)
+def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=False):
 
     # Configurations
 
     # GT - Ground-truth;
     # Gen: Generated / Restored / Recovered images
-    folder_GT =  args.ground_truth
-    folder_Gen = args.generated
+    folder_GT = ground_truth
+    folder_Gen = generated
 
     crop_border = 4
-    suffix = args.suffix  # suffix for Gen images
-    test_Y = args.test_Y  # True: test Y channel only; False: test RGB channels
+    suffix = suffix  # suffix for Gen images
+    test_Y = test_Y  # True: test Y channel only; False: test RGB channels
 
     PSNR_all = []
     SSIM_all = []
@@ -42,9 +34,15 @@ def main():
     for i, img_path in enumerate(img_list):
         base_name = os.path.splitext(os.path.basename(img_path))[0]
         im_GT = cv2.imread(img_path) / 255.
-        im_Gen = cv2.imread(os.path.join(folder_Gen, base_name + suffix + '.' + args.image_type)) / 255.
 
-        if test_Y and im_GT.shape[2] == 3:  # evaluate on Y channel in YCbCr color space
+        im_Gen = cv2.imread(os.path.join(folder_Gen, base_name + suffix + '.' + image_type))
+        if im_Gen is None:
+            continue
+
+        im_Gen = im_Gen / 255.
+
+        # evaluate on Y channel in YCbCr color space
+        if test_Y and im_GT.shape[2] == 3:
             im_GT_in = bgr2ycbcr(im_GT)
             im_Gen_in = bgr2ycbcr(im_Gen)
         else:
@@ -53,25 +51,30 @@ def main():
 
         # crop borders
         if im_GT_in.ndim == 3:
-            cropped_GT = im_GT_in[crop_border:-crop_border, crop_border:-crop_border, :]
-            cropped_Gen = im_Gen_in[crop_border:-crop_border, crop_border:-crop_border, :]
+            cropped_GT = im_GT_in[crop_border:-
+                                  crop_border, crop_border:-crop_border, :]
+            cropped_Gen = im_Gen_in[crop_border:-
+                                    crop_border, crop_border:-crop_border, :]
         elif im_GT_in.ndim == 2:
-            cropped_GT = im_GT_in[crop_border:-crop_border, crop_border:-crop_border]
-            cropped_Gen = im_Gen_in[crop_border:-crop_border, crop_border:-crop_border]
+            cropped_GT = im_GT_in[crop_border:-
+                                  crop_border, crop_border:-crop_border]
+            cropped_Gen = im_Gen_in[crop_border:-
+                                    crop_border, crop_border:-crop_border]
         else:
-            raise ValueError('Wrong image dimension: {}. Should be 2 or 3.'.format(im_GT_in.ndim))
+            raise ValueError(
+                'Wrong image dimension: {}. Should be 2 or 3.'.format(im_GT_in.ndim))
 
         # calculate PSNR and SSIM
         PSNR = calculate_psnr(cropped_GT * 255, cropped_Gen * 255)
 
         SSIM = calculate_ssim(cropped_GT * 255, cropped_Gen * 255)
-        print('{:3d} - {:25}. \tPSNR: {:.6f} dB, \tSSIM: {:.6f}'.format(
-            i + 1, base_name, PSNR, SSIM))
+        #print('{:3d} - {:25}. \tPSNR: {:.6f} dB, \tSSIM: {:.6f}'.format(i + 1, base_name, PSNR, SSIM))
         PSNR_all.append(PSNR)
         SSIM_all.append(SSIM)
     print('Average: PSNR: {:.6f} dB, SSIM: {:.6f}'.format(
         sum(PSNR_all) / len(PSNR_all),
         sum(SSIM_all) / len(SSIM_all)))
+    return np.mean(PSNR_all), np.std(PSNR_all), np.mean(SSIM_all), np.std(SSIM_all)
 
 
 def calculate_psnr(img1, img2):
@@ -153,4 +156,12 @@ def bgr2ycbcr(img, only_y=True):
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ground_truth", type=str, required=True, help="Folder containing ground truth images")
+    parser.add_argument("--generated", type=str, required=True, help="Folder containing generated images")
+    parser.add_argument("--suffix", type=str, default="", help="suffix of generated images")
+    parser.add_argument("--image_type", type=str, default="png", help="Image type (e.g. jpg, png, gif, etc.)")
+    parser.add_argument("--test_Y", type=bool, default=False, help="Test only the Y channel")
+    args = parser.parse_args()
+    print(args)
+    get_metrics(args.ground_truth, args.generated, args.suffix, args.image_type, args.test_Y)
