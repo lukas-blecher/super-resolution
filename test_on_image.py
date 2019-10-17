@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_model", type=str, required=True, help="Path to checkpoint model")
     parser.add_argument("--channels", type=int, default=3, help="Number of image channels")
     parser.add_argument("--residual_blocks", type=int, default=23, help="Number of residual blocks in G")
-    parser.add_argument("--downsample", type=bool, default=False, help="Whether to downsample or not")
+    parser.add_argument("--downsample", action="store_true", help="Whether to downsample or not")
     opt = parser.parse_args()
     print(opt)
     test_image(opt)

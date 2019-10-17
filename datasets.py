@@ -104,6 +104,6 @@ class JetDataset(Dataset):
 
     def __getitem__(self, item):
         img = self.data[item]
-        img_lr = torch.nn.functional.interpolate(img[0][None, ...], scale_factor=(.25, .25), mode='bilinear')[0]
+        img_lr = torch.nn.functional.interpolate(img[None, ...], scale_factor=(.25, .25), mode='bilinear',align_corners=True)[0]
         img_hr = img
         return {"lr": img_lr, "hr": img_hr}

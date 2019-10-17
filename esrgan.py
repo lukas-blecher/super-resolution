@@ -25,6 +25,7 @@ def get_parser():
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../stl-10", help="path to the dataset")
+    parser.add_argument("--dataset_type", choices=["jet", "stl", "image"], default="jet")
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
@@ -96,9 +97,14 @@ def train(opt):
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
 
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
+    if opt.dataset_type == 'jet':
+        dataset = JetDataset(opt.dataset_path)
+    elif opt.dataset_type == 'stl':
+        dataset = STLDataset(opt.dataset_path)
+    elif opt.dataset_type == 'image':
+        dataset = ImageDataset(opt.dataset_path, hr_shape)
     dataloader = DataLoader(
-        #ImageDataset(opt.dataset_path, hr_shape=hr_shape),
-        STLDataset(opt.dataset_path),
+        dataset,
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu
