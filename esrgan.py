@@ -97,7 +97,8 @@ def train(opt):
 
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataloader = DataLoader(
-        ImageDataset(opt.dataset_path, hr_shape=hr_shape),
+        #ImageDataset(opt.dataset_path, hr_shape=hr_shape),
+        STLDataset(opt.dataset_path),
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu
@@ -212,7 +213,7 @@ def train(opt):
                 # Save model checkpoints
                 torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, number)))
                 torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, number)))
-
+                print('Saved model to %s' % opt.model_path)
             if batches_done == total_batches:
                 return
 

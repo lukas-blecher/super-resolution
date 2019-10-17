@@ -16,6 +16,8 @@ from evaluation.PSNR_SSIM_metric import get_metrics
 from esrgan import train
 '''
 The goal of this script is to find the best hyperparameters for the model.
+A grid search is performed over all the possible hyperparameter combinations that are defined in the argument 'options'.
+A fixed amount of checkpoints are saved during training and evaluated on two metrics. The results are saved in a json file.
 '''
 
 

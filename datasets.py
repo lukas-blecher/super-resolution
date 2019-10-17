@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as transforms
+from torchvision import datasets
 
 # Normalization parameters for pre-trained PyTorch models
 mean = np.array([0.485, 0.456, 0.406])
@@ -50,3 +51,35 @@ class ImageDataset(Dataset):
 
     def __len__(self):
         return len(self.files)
+
+
+class STLDataset(ImageDataset):
+    def __init__(self, root, train=True, download=True):
+        super(STLDataset, self).__init__(root, (96, 96))
+        if download:
+            # use torchvision to download
+            _ = datasets.STL10(root, download=True)
+        self.path = os.path.join(root, 'stl10_binary')
+        if train:
+            self.data = np.concatenate((self.load_images(os.path.join(self.path, 'train_X.bin')), self.load_images(os.path.join(self.path, 'unlabeled_X.bin'))))
+        else:
+            self.data = self.load_images(os.path.join(self.path, 'test_X.bin'))
+
+        self.PIL_Augmentation = transforms.Compose([transforms.ToPILImage(),
+                                                    transforms.ColorJitter(hue=.025, saturation=.15),
+                                                    transforms.RandomHorizontalFlip()])
+
+    def __len__(self):
+        return len(self.data)
+
+    def load_images(self, path):
+        # from stl10_input.py
+        with open(path, 'rb') as f:
+            return np.fromfile(f, dtype=np.uint8).reshape((-1, 3, 96, 96)).transpose((0, 3, 2, 1))
+
+    def __getitem__(self, item):
+        img = self.PIL_Augmentation(self.data[item])
+        img_lr = self.lr_transform(img)
+        img_hr = self.hr_transform(img)
+
+        return {"lr": img_lr, "hr": img_hr}
