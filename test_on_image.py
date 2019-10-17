@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from datasets import ImageDataset
 
 
-def test_image(opt):#image_path, checkpoint_model, output_path='images/outputs', channels=3, residual_blocks=23, downsample=False):
+def test_image(opt): 
 
     os.makedirs(opt.output_path, exist_ok=True)
 
@@ -25,10 +25,16 @@ def test_image(opt):#image_path, checkpoint_model, output_path='images/outputs',
     generator.eval()
 
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean, std)])
+    down_transform = transforms.Resize((hr_height // 4, hr_width // 4), Image.BICUBIC)
 
     def sr_image(im_path):
         # Prepare input
-        image_tensor = Variable(transform(Image.open(im_path))).to(device).unsqueeze(0)
+        image = Image.open(im_path)
+        if opt.downsample:
+            hr_height, hr_width = image.size
+            image = down_transform(image)
+
+        image_tensor = Variable(transform(image)).to(device).unsqueeze(0)
 
         # Upsample image
         with torch.no_grad():
@@ -51,9 +57,9 @@ def test_image(opt):#image_path, checkpoint_model, output_path='images/outputs',
                 num_workers=opt.n_cpu)
             for i, imgs in enumerate(dataloader):
                 with torch.no_grad():
-                    sr_image = denormalize(generator(imgs['lr'].to(device)).cpu())
-                for j in range(len(sr_image)):
-                    save_image(sr_image[j], os.path.join(opt.output_path, os.path.basename(files[i+j])))
+                    esr_image = denormalize(generator(imgs['lr'].to(device)).cpu())
+                for j in range(len(esr_image)):
+                    save_image(esr_image[j], os.path.join(opt.output_path, os.path.basename(files[i+j])))
         else:
             for f in tqdm(files):
                 sr_image(f)

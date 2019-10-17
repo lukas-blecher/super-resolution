@@ -51,15 +51,11 @@ def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=Fal
 
         # crop borders
         if im_GT_in.ndim == 3:
-            cropped_GT = im_GT_in[crop_border:-
-                                  crop_border, crop_border:-crop_border, :]
-            cropped_Gen = im_Gen_in[crop_border:-
-                                    crop_border, crop_border:-crop_border, :]
+            cropped_GT = im_GT_in[crop_border:-crop_border, crop_border:-crop_border, :]
+            cropped_Gen = im_Gen_in[crop_border:-crop_border, crop_border:-crop_border, :]
         elif im_GT_in.ndim == 2:
-            cropped_GT = im_GT_in[crop_border:-
-                                  crop_border, crop_border:-crop_border]
-            cropped_Gen = im_Gen_in[crop_border:-
-                                    crop_border, crop_border:-crop_border]
+            cropped_GT = im_GT_in[crop_border:-crop_border, crop_border:-crop_border]
+            cropped_Gen = im_Gen_in[crop_border:-crop_border, crop_border:-crop_border]
         else:
             raise ValueError(
                 'Wrong image dimension: {}. Should be 2 or 3.'.format(im_GT_in.ndim))
@@ -105,8 +101,7 @@ def ssim(img1, img2):
     sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq
     sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2
 
-    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                                            (sigma1_sq + sigma2_sq + C2))
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
     return ssim_map.mean()
 
 
@@ -146,8 +141,7 @@ def bgr2ycbcr(img, only_y=True):
     if only_y:
         rlt = np.dot(img, [24.966, 128.553, 65.481]) / 255.0 + 16.0
     else:
-        rlt = np.matmul(img, [[24.966, 112.0, -18.214], [128.553, -74.203, -93.786],
-                              [65.481, -37.797, 112.0]]) / 255.0 + [16, 128, 128]
+        rlt = np.matmul(img, [[24.966, 112.0, -18.214], [128.553, -74.203, -93.786], [65.481, -37.797, 112.0]]) / 255.0 + [16, 128, 128]
     if in_img_type == np.uint8:
         rlt = rlt.round()
     else:
