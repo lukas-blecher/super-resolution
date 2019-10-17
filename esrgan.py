@@ -64,7 +64,7 @@ def train(opt):
 
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
-    discriminator = Discriminator(input_shape=(opt.channels, hr_shape[0], hr_shape[1])).to(device)
+    discriminator = Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     feature_extractor = FeatureExtractor().to(device)
 
     # Set feature extractor to inference mode
@@ -118,8 +118,8 @@ def train(opt):
             imgs_hr = Variable(imgs["hr"].type(Tensor))
 
             # Adversarial ground truths
-            valid = Variable(Tensor(np.ones((imgs_lr.size(0), discriminator.output_shape[0], discriminator.output_shape[1], discriminator.output_shape[2]))), requires_grad=False)
-            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), discriminator.output_shape[0], discriminator.output_shape[1], discriminator.output_shape[2]))), requires_grad=False)
+            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
 
             # ------------------
             #  Train Generators
