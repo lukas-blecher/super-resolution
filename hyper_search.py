@@ -21,6 +21,12 @@ A fixed amount of checkpoints are saved during training and evaluated on two met
 '''
 
 
+def merge_two_dicts(x, y):
+    z = x.copy()   # start with x's keys and values
+    z.update(y)    # modifies z with y's keys and values & returns None
+    return z
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batches', type=int, default=1500, help='number of batches to run')
@@ -69,10 +75,9 @@ def main():
         # new name for each hyperparameter set
         model_name = '-'.join(str(round(x, 4)).replace('.', '_') for x in hyperparameters.values())
 
-        # python 3.5 and higher
-        arguments = {**hyperparameters, **args_dict}
+        arguments = merge_two_dicts(hyperparameters, args_dict)  # {**hyperparameters, **args_dict}
         additional_arguments = {key: default_dict[key] for key in default_dict if key not in arguments}
-        arguments = {**arguments, **additional_arguments}
+        arguments = merge_two_dicts(arguments, additional_arguments)  # {**arguments, **additional_arguments}
         arguments['n_batches'] = args.batches
         arguments['name'] = model_name
         arguments['n_checkpoints'] = args.checkpoints

@@ -64,7 +64,7 @@ def train(opt):
 
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
-    discriminator = Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+    discriminator = Discriminator(input_shape=(opt.channels, hr_shape[0], hr_shape[1])).to(device)
     feature_extractor = FeatureExtractor().to(device)
 
     # Set feature extractor to inference mode
