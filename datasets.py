@@ -17,7 +17,7 @@ std = np.array([0.229, 0.224, 0.225])
 def denormalize(tensors):
     """ Denormalizes image tensors using mean and std """
     for c in range(3):
-        tensors[:, c].mul_(std[c]).add_(mean[c])
+        tensors[c,...].mul_(std[c]).add_(mean[c])
     return torch.clamp(tensors, 0, 255)
 
 
