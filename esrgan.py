@@ -118,8 +118,8 @@ def train(opt):
             imgs_hr = Variable(imgs["hr"].type(Tensor))
 
             # Adversarial ground truths
-            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            valid = Variable(Tensor(np.ones((imgs_lr.size(0), discriminator.output_shape[0], discriminator.output_shape[1], discriminator.output_shape[2]))), requires_grad=False)
+            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), discriminator.output_shape[0], discriminator.output_shape[1], discriminator.output_shape[2]))), requires_grad=False)
 
             # ------------------
             #  Train Generators
