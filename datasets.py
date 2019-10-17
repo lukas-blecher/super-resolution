@@ -2,7 +2,7 @@ import glob
 import random
 import os
 import numpy as np
-
+import h5py
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
@@ -16,8 +16,12 @@ std = np.array([0.229, 0.224, 0.225])
 
 def denormalize(tensors):
     """ Denormalizes image tensors using mean and std """
-    for c in range(3):
-        tensors[c,...].mul_(std[c]).add_(mean[c])
+    if len(tensors.shape)<4:
+        for c in range(3):
+            tensors[c, ...].mul_(std[c]).add_(mean[c])
+    else:
+        for c in range(3):
+            tensors[:, c].mul_(std[c]).add_(mean[c])
     return torch.clamp(tensors, 0, 255)
 
 
@@ -82,4 +86,24 @@ class STLDataset(ImageDataset):
         img_lr = self.lr_transform(img)
         img_hr = self.hr_transform(img)
 
+        return {"lr": img_lr, "hr": img_hr}
+
+
+class JetDataset(Dataset):
+    def __init__(self, file):
+        ''' file is a path to a h5 file containing the data'''
+        super(JetDataset, self).__init__()
+        with h5py.File(file, 'r') as f:
+            # List all groups
+            a_group_key = list(f.keys())[0]
+            # Get the data
+            self.data = torch.Tensor(f[a_group_key]).permute(0, 3, 1, 2)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        img = self.data[item]
+        img_lr = torch.nn.functional.interpolate(img[0][None, ...], scale_factor=(.25, .25), mode='bilinear')[0]
+        img_hr = img
         return {"lr": img_lr, "hr": img_hr}
