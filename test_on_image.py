@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from datasets import ImageDataset
 
 
-def test_image(opt): 
+def test_image(opt):  
 
     os.makedirs(opt.output_path, exist_ok=True)
 
@@ -25,14 +25,13 @@ def test_image(opt):
     generator.eval()
 
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean, std)])
-    down_transform = transforms.Resize((hr_height // 4, hr_width // 4), Image.BICUBIC)
-
+    
     def sr_image(im_path):
         # Prepare input
         image = Image.open(im_path)
         if opt.downsample:
             hr_height, hr_width = image.size
-            image = down_transform(image)
+            image = transforms.Resize((hr_height // 4, hr_width // 4), Image.BICUBIC)(image)
 
         image_tensor = Variable(transform(image)).to(device).unsqueeze(0)
 
