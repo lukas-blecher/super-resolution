@@ -11,7 +11,7 @@ from PIL import Image
 from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
 from datasets import ImageDataset
-
+from options.default import default
 
 def test_image(opt):  
 
@@ -48,20 +48,17 @@ def test_image(opt):
         sr_image(opt.image_path)
     else:
         files = sorted(glob.glob(opt.image_path + "/*.*"))
-        if opt.downsample:
-            dataloader = DataLoader(
-                ImageDataset(opt.image_path, hr_shape=(opt.hr_height, opt.hr_width)),
-                batch_size=opt.batch_size,
-                shuffle=False,
-                num_workers=opt.n_cpu)
-            for i, imgs in enumerate(dataloader):
-                with torch.no_grad():
-                    esr_image = denormalize(generator(imgs['lr'].to(device)).cpu())
-                for j in range(len(esr_image)):
-                    save_image(esr_image[j], os.path.join(opt.output_path, os.path.basename(files[i+j])))
-        else:
-            for f in tqdm(files):
-                sr_image(f)
+        hr_shape = Image.open(files[0]).size
+        dataloader = DataLoader(
+            ImageDataset(opt.image_path, hr_shape=hr_shape),
+            batch_size=opt.batch_size,
+            shuffle=False,
+            num_workers=default.n_cpu)
+        for i, imgs in enumerate(dataloader):
+            with torch.no_grad():
+                esr_image = denormalize(generator(imgs['lr' if opt.downsample else 'hr'].to(device)).cpu())
+            for j in range(len(esr_image)):
+                save_image(esr_image[j], os.path.join(opt.output_path, os.path.basename(files[i*opt.batch_size+j])))
 
 
 if __name__ == "__main__":
@@ -72,6 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--channels", type=int, default=3, help="Number of image channels")
     parser.add_argument("--residual_blocks", type=int, default=23, help="Number of residual blocks in G")
     parser.add_argument("--downsample", action="store_true", help="Whether to downsample or not")
+    parser.add_argument("--batch_size", type=int, default=4,help="Number of images per batch if 'image_path' is a folder.")
     opt = parser.parse_args()
     print(opt)
     test_image(opt)
