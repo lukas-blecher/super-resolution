@@ -16,7 +16,7 @@ std = np.array([0.229, 0.224, 0.225])
 
 def denormalize(tensors):
     """ Denormalizes image tensors using mean and std """
-    if len(tensors.shape)<4:
+    if len(tensors.shape) < 4:
         for c in range(3):
             tensors[c, ...].mul_(std[c]).add_(mean[c])
     else:
@@ -89,6 +89,23 @@ class STLDataset(ImageDataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
+def unpack_data_nfeaturemaps(data_x, etaBins=180, phiBins=180, phi_offset=0, nfeaturemaps=1):
+    img = torch.zeros(data_x.shape[0], etaBins, phiBins, nfeaturemaps)
+    for j in range(data_x.shape[0]):
+        for i in range(1, data_x.shape[1], nfeaturemaps+2):
+            temp = int(data_x[j, i])
+            if temp != 0 or i == 0:
+                eta = temp % phiBins
+                phi = (temp-eta)//phiBins
+                if phi_offset != 0:
+                    phi = (phi + phi_offset) % phiBins
+                for k in range(nfeaturemaps):
+                    img[j, eta, phi, k] = data_x[j, i+1+k]
+            else:
+                break
+    return img.float()
+
+
 class JetDataset(Dataset):
     def __init__(self, file):
         ''' file is a path to a h5 file containing the data'''
@@ -97,13 +114,13 @@ class JetDataset(Dataset):
             # List all groups
             a_group_key = list(f.keys())[0]
             # Get the data
-            self.data = torch.Tensor(f[a_group_key]).permute(0, 3, 1, 2)
+            self.data = torch.Tensor(f[a_group_key])
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, item):
-        img = self.data[item]
-        img_lr = torch.nn.functional.interpolate(img[None, ...], scale_factor=(.25, .25), mode='bilinear',align_corners=True)[0]
-        img_hr = img
-        return {"lr": img_lr, "hr": img_hr}
+        img = unpack_data_nfeaturemaps(self.data[item][None,...]).permute(0, 3, 1, 2)
+        img_lr = torch.nn.functional.interpolate(img, scale_factor=(.25, .25), mode='bilinear', align_corners=True)[0]
+        img_hr = img[0]
+        return {"lr": img_lr/img_lr.max(), "hr": img_hr/img_hr.max()}

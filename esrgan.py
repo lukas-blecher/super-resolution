@@ -31,8 +31,8 @@ def get_parser():
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--hr_height", type=int, default=96, help="high res. image height")
-    parser.add_argument("--hr_width", type=int, default=96, help="high res. image width")
+    parser.add_argument("--hr_height", type=int, default=180, help="high res. image height")
+    parser.add_argument("--hr_width", type=int, default=180, help="high res. image width")
     parser.add_argument("--channels", type=int, default=3, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=500, help="interval between saving image samples")
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
@@ -66,10 +66,6 @@ def train(opt):
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
     discriminator = Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
-    feature_extractor = FeatureExtractor().to(device)
-
-    # Set feature extractor to inference mode
-    feature_extractor.eval()
 
     # Losses
     criterion_GAN = torch.nn.BCEWithLogitsLoss().to(device)
@@ -95,21 +91,28 @@ def train(opt):
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-
+    jet = False
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     if opt.dataset_type == 'jet':
+        jet = True
         dataset = JetDataset(opt.dataset_path)
     elif opt.dataset_type == 'stl':
         dataset = STLDataset(opt.dataset_path)
     elif opt.dataset_type == 'image':
         dataset = ImageDataset(opt.dataset_path, hr_shape)
+
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu
     )
+    def dnorm(x): return x if jet else denormalize
+    if not jet:
+        feature_extractor = FeatureExtractor().to(device)
 
+        # Set feature extractor to inference mode
+        feature_extractor.eval()
     # ----------
     #  Training
     # ----------
@@ -122,7 +125,6 @@ def train(opt):
             # Configure model input
             imgs_lr = Variable(imgs["lr"].type(Tensor))
             imgs_hr = Variable(imgs["hr"].type(Tensor))
-
             # Adversarial ground truths
             valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
             fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
@@ -158,9 +160,12 @@ def train(opt):
             loss_GAN = criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), valid)
 
             # Content loss
-            gen_features = feature_extractor(gen_hr)
-            real_features = feature_extractor(imgs_hr).detach()
-            loss_content = criterion_content(gen_features, real_features)
+            if jet:
+                loss_content = 0
+            else:
+                gen_features = feature_extractor(gen_hr)
+                real_features = feature_extractor(imgs_hr).detach()
+                loss_content = criterion_content(gen_features, real_features)
 
             # Total generator loss
             loss_G = loss_content + opt.lambda_adv * loss_GAN + opt.lambda_pixel * loss_pixel
@@ -192,7 +197,7 @@ def train(opt):
             # --------------
             if batches_done % opt.report_freq == 0:
                 print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, content: %f, adv: %f, pixel: %f]"
+                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, adv: %f, pixel: %f]"
                     % (
                         epoch,
                         opt.n_epochs,
@@ -200,7 +205,7 @@ def train(opt):
                         len(dataloader),
                         loss_D.item(),
                         loss_G.item(),
-                        loss_content.item(),
+                        # loss_content.item(),
                         loss_GAN.item(),
                         loss_pixel.item(),
                     )
@@ -209,9 +214,8 @@ def train(opt):
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
-                img_grid = denormalize(torch.cat((imgs_lr, gen_hr), -1))
-                save_image(img_grid, os.path.join(opt.root, "images/training/%d.png" %
-                                                  batches_done), nrow=1, normalize=False)
+                img_grid = dnorm(torch.cat((imgs_hr, imgs_lr, gen_hr), -1))
+                save_image(img_grid, os.path.join(opt.root, "images/training/%d.png" % batches_done), nrow=1, normalize=False)
 
             if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
