@@ -123,4 +123,4 @@ class JetDataset(Dataset):
         img = unpack_data_nfeaturemaps(self.data[item][None,...]).permute(0, 3, 1, 2)
         img_lr = torch.nn.functional.interpolate(img, scale_factor=(.25, .25), mode='bilinear', align_corners=True)[0]
         img_hr = img[0]
-        return {"lr": img_lr/img_lr.max(), "hr": img_hr/img_hr.max()}
+        return {"lr": img_lr, "hr": img_hr}

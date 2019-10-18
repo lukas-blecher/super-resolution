@@ -33,7 +33,7 @@ def get_parser():
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--hr_height", type=int, default=180, help="high res. image height")
     parser.add_argument("--hr_width", type=int, default=180, help="high res. image width")
-    parser.add_argument("--channels", type=int, default=3, help="number of image channels")
+    parser.add_argument("--channels", type=int, default=1, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=500, help="interval between saving image samples")
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
     parser.add_argument("--residual_blocks", type=int, default=23, help="number of residual blocks in the generator")
@@ -108,6 +108,7 @@ def train(opt):
         num_workers=opt.n_cpu
     )
     def dnorm(x): return x if jet else denormalize
+    eps = 1e-10
     if not jet:
         feature_extractor = FeatureExtractor().to(device)
 
@@ -157,7 +158,7 @@ def train(opt):
             pred_fake = discriminator(gen_hr)
 
             # Adversarial loss (relativistic average GAN)
-            loss_GAN = criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), valid)
+            loss_GAN = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
 
             # Content loss
             if jet:
@@ -183,8 +184,8 @@ def train(opt):
             pred_fake = discriminator(gen_hr.detach())
 
             # Adversarial loss for real and fake images (relativistic average GAN)
-            loss_real = criterion_GAN(pred_real - pred_fake.mean(0, keepdim=True), valid)
-            loss_fake = criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), fake)
+            loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
+            loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
 
             # Total loss
             loss_D = (loss_real + loss_fake) / 2
