@@ -122,5 +122,5 @@ class JetDataset(Dataset):
     def __getitem__(self, item):
         img = unpack_data_nfeaturemaps(self.data[item][None,...]).permute(0, 3, 1, 2)
         img_lr = torch.nn.functional.interpolate(img, scale_factor=(.25, .25), mode='bilinear', align_corners=True)[0]
-        img_hr = img[0]
+        img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
