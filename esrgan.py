@@ -19,6 +19,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+def str_to_bool(value):
+    if value.lower() in {'false', 'f', '0', 'no', 'n'}:
+        return False
+    elif value.lower() in {'true', 't', '1', 'yes', 'y'}:
+        return True
+    raise ValueError(f'{value} is not a valid boolean value')
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -44,7 +50,8 @@ def get_parser():
     parser.add_argument("--name", type=str, default=None, help='name of the model')
     parser.add_argument("--report_freq", type=int, default=10, help='report frequency determines how often the loss is printed')
     parser.add_argument("--model_path", type=str, default="saved_models", help="where the model is saved/should be saved")
-
+    parser.add_argument("--discriminator", choices=['patch', 'standard'], default='patch', help="discriminator model to use")
+    parser.add_argument("--relativistic", type=str_to_bool,default=True, help="whether to use relativistic average GAN")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
@@ -65,7 +72,10 @@ def train(opt):
 
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
-    discriminator = Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+    if opt.discriminator == 'patch':
+        discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+    elif opt.discriminator == 'standard':
+        discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
 
     # Losses
     criterion_GAN = torch.nn.BCEWithLogitsLoss().to(device)
@@ -157,8 +167,11 @@ def train(opt):
             pred_real = discriminator(imgs_hr).detach()
             pred_fake = discriminator(gen_hr)
 
-            # Adversarial loss (relativistic average GAN)
-            loss_GAN = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+            if opt.relativistic:
+                # Adversarial loss (relativistic average GAN)
+                loss_GAN = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+            else:
+                loss_GAN = criterion_GAN(eps + pred_fake, valid)
 
             # Content loss
             if jet:
@@ -182,11 +195,14 @@ def train(opt):
 
             pred_real = discriminator(imgs_hr)
             pred_fake = discriminator(gen_hr.detach())
-
-            # Adversarial loss for real and fake images (relativistic average GAN)
-            loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
-            loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
-
+            if opt.relativistic:
+                # Adversarial loss for real and fake images (relativistic average GAN)
+                loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
+                loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
+            else:
+                loss_real = criterion_GAN(eps + pred_real, valid)
+                loss_fake = criterion_GAN(eps + pred_fake, fake)
+            #print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
             # Total loss
             loss_D = (loss_real + loss_fake) / 2
 
@@ -198,7 +214,7 @@ def train(opt):
             # --------------
             if batches_done % opt.report_freq == 0:
                 print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, adv: %f, pixel: %f]"
+                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f]"
                     % (
                         epoch,
                         opt.n_epochs,
@@ -211,7 +227,7 @@ def train(opt):
                         loss_pixel.item(),
                     )
                 )
-            #check if loss is NaN
+            # check if loss is NaN
             if any(l != l for l in [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item()]):
                 raise ValueError('loss is NaN')
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
@@ -232,8 +248,8 @@ def train(opt):
 
 
 if __name__ == "__main__":
-    print('cudnn version:',torch.backends.cudnn.version())
-    print('cuda version:',torch.version.cuda)
-    print('pytorch version:',torch.__version__)
+    print('cudnn version:', torch.backends.cudnn.version())
+    print('cuda version:', torch.version.cuda)
+    print('pytorch version:', torch.__version__)
     opt = get_parser()
     train(opt)
