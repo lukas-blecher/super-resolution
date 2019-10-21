@@ -19,12 +19,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+
 def str_to_bool(value):
     if value.lower() in {'false', 'f', '0', 'no', 'n'}:
         return False
     elif value.lower() in {'true', 't', '1', 'yes', 'y'}:
         return True
     raise ValueError(f'{value} is not a valid boolean value')
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -51,7 +53,7 @@ def get_parser():
     parser.add_argument("--report_freq", type=int, default=10, help='report frequency determines how often the loss is printed')
     parser.add_argument("--model_path", type=str, default="saved_models", help="where the model is saved/should be saved")
     parser.add_argument("--discriminator", choices=['patch', 'standard'], default='patch', help="discriminator model to use")
-    parser.add_argument("--relativistic", type=str_to_bool,default=True, help="whether to use relativistic average GAN")
+    parser.add_argument("--relativistic", type=str_to_bool, default=True, help="whether to use relativistic average GAN")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
@@ -63,7 +65,8 @@ def get_parser():
 
 def train(opt):
     model_name = '' if opt.name is None else (opt.name + '_')
-    os.makedirs(os.path.join(opt.root, "images/%straining"%model_name), exist_ok=True)
+    image_dir = os.path.join(opt.root, "images/%straining" % model_name)
+    os.makedirs(image_dir, exist_ok=True)
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -81,7 +84,7 @@ def train(opt):
     criterion_GAN = torch.nn.BCEWithLogitsLoss().to(device)
     criterion_content = torch.nn.L1Loss().to(device)
     criterion_pixel = torch.nn.L1Loss().to(device)
-    
+
     if opt.epoch != 0:
         # Load pretrained models
         generator.load_state_dict(torch.load(
@@ -234,7 +237,7 @@ def train(opt):
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
                 img_grid = dnorm(torch.cat((imgs_hr, imgs_lr, gen_hr), -1))
-                save_image(img_grid, os.path.join(opt.root, "images/training/%d.png" % batches_done), nrow=1, normalize=False)
+                save_image(img_grid, os.path.join(opt.root, image_dir, "%d.png" % batches_done), nrow=1, normalize=False)
 
             if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
