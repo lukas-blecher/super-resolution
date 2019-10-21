@@ -230,5 +230,8 @@ def train(opt):
 
 
 if __name__ == "__main__":
+    print('cudnn version:',torch.backends.cudnn.version())
+    print('cuda version:',torch.version.cuda)
+    print('pytorch version:',torch.__version__)
     opt = get_parser()
     train(opt)
