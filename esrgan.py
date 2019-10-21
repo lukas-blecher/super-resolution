@@ -211,7 +211,9 @@ def train(opt):
                         loss_pixel.item(),
                     )
                 )
-
+            #check if loss is NaN
+            if any(l != l for l in [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item()]):
+                raise ValueError('loss is NaN')
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
