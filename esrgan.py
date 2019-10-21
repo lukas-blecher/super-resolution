@@ -62,8 +62,8 @@ def get_parser():
 
 
 def train(opt):
-
-    os.makedirs(os.path.join(opt.root, "images/training"), exist_ok=True)
+    model_name = '' if opt.name is None else (opt.name + '_')
+    os.makedirs(os.path.join(opt.root, "images/%straining"%model_name), exist_ok=True)
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -81,7 +81,7 @@ def train(opt):
     criterion_GAN = torch.nn.BCEWithLogitsLoss().to(device)
     criterion_content = torch.nn.L1Loss().to(device)
     criterion_pixel = torch.nn.L1Loss().to(device)
-    model_name = '' if opt.name is None else (opt.name + '_')
+    
     if opt.epoch != 0:
         # Load pretrained models
         generator.load_state_dict(torch.load(
