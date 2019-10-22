@@ -9,7 +9,7 @@ import cv2
 import glob
 
 
-def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=False):
+def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=False, MAX=255):
 
     # Configurations
 
@@ -33,13 +33,13 @@ def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=Fal
 
     for i, img_path in enumerate(img_list):
         base_name = os.path.splitext(os.path.basename(img_path))[0]
-        im_GT = cv2.imread(img_path) / 255.
+        im_GT = cv2.imread(img_path) / MAX
 
         im_Gen = cv2.imread(os.path.join(folder_Gen, base_name + suffix + '.' + image_type))
         if im_Gen is None:
             continue
 
-        im_Gen = im_Gen / 255.
+        im_Gen = im_Gen / MAX
 
         # evaluate on Y channel in YCbCr color space
         if test_Y and im_GT.shape[2] == 3:
@@ -61,9 +61,9 @@ def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=Fal
                 'Wrong image dimension: {}. Should be 2 or 3.'.format(im_GT_in.ndim))
 
         # calculate PSNR and SSIM
-        PSNR = calculate_psnr(cropped_GT * 255, cropped_Gen * 255)
+        PSNR = calculate_psnr(cropped_GT * MAX, cropped_Gen * MAX, MAX=MAX)
 
-        SSIM = calculate_ssim(cropped_GT * 255, cropped_Gen * 255)
+        SSIM = calculate_ssim(cropped_GT * MAX, cropped_Gen * MAX, dynamic_range=MAX)
         #print('{:3d} - {:25}. \tPSNR: {:.6f} dB, \tSSIM: {:.6f}'.format(i + 1, base_name, PSNR, SSIM))
         PSNR_all.append(PSNR)
         SSIM_all.append(SSIM)
@@ -73,19 +73,20 @@ def get_metrics(ground_truth, generated, suffix='', image_type='png', test_Y=Fal
     return np.mean(PSNR_all), np.std(PSNR_all), np.mean(SSIM_all), np.std(SSIM_all)
 
 
-def calculate_psnr(img1, img2):
-    # img1 and img2 have range [0, 255]
+def calculate_psnr(img1, img2, MAX=255):
+    # img1 and img2 have range [0, MAX]
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
     mse = np.mean((img1 - img2)**2)
     if mse == 0:
         return float('inf')
-    return 20 * math.log10(255.0 / math.sqrt(mse))
+    return 20 * math.log10(MAX / math.sqrt(mse))
 
 
-def ssim(img1, img2):
-    C1 = (0.01 * 255)**2
-    C2 = (0.03 * 255)**2
+def ssim(img1, img2, dynamic_range=255):
+
+    C1 = (0.01 * dynamic_range)**2
+    C2 = (0.03 * dynamic_range)**2
 
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
@@ -105,7 +106,7 @@ def ssim(img1, img2):
     return ssim_map.mean()
 
 
-def calculate_ssim(img1, img2):
+def calculate_ssim(img1, img2, dynamic_range=255):
     '''calculate SSIM
     the same outputs as MATLAB's
     img1, img2: [0, 255]
@@ -113,12 +114,12 @@ def calculate_ssim(img1, img2):
     if not img1.shape == img2.shape:
         raise ValueError('Input images must have the same dimensions.')
     if img1.ndim == 2:
-        return ssim(img1, img2)
+        return ssim(img1, img2, dynamic_range)
     elif img1.ndim == 3:
         if img1.shape[2] == 3:
             ssims = []
             for i in range(3):
-                ssims.append(ssim(img1, img2))
+                ssims.append(ssim(img1, img2, dynamic_range))
             return np.array(ssims).mean()
         elif img1.shape[2] == 1:
             return ssim(np.squeeze(img1), np.squeeze(img2))
