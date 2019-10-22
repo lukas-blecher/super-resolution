@@ -106,6 +106,19 @@ def unpack_data_nfeaturemaps(data_x, etaBins=180, phiBins=180, phi_offset=0, nfe
     return img.float()
 
 
+class SumPool2d(torch.nn.Module):
+    def __init__(self, k=4, stride=None):
+        '''Applies a 2D sum pooling over an input signal composed of several input planes'''
+        super(SumPool2d, self).__init__()
+        if stride is None:
+            stride = k
+        self.pool = torch.nn.AvgPool2d(k, stride=stride)
+        self.kernel_size = k*k
+
+    def forward(self, x):
+        return self.kernel_size*self.pool(x)
+
+
 class JetDataset(Dataset):
     def __init__(self, file):
         ''' file is a path to a h5 file containing the data'''
@@ -115,12 +128,14 @@ class JetDataset(Dataset):
             a_group_key = list(f.keys())[0]
             # Get the data
             self.data = torch.Tensor(f[a_group_key])
+        self.pool = SumPool2d()
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, item):
-        img = unpack_data_nfeaturemaps(self.data[item][None,...]).permute(0, 3, 1, 2)
-        img_lr = torch.nn.functional.interpolate(img, scale_factor=(.25, .25), mode='bilinear', align_corners=True)[0]
+        img = unpack_data_nfeaturemaps(self.data[item][None, ...]).permute(0, 3, 1, 2)
+        img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
+
