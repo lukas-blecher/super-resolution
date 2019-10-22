@@ -7,7 +7,7 @@ import itertools
 import sys
 
 import torchvision.transforms as transforms
-from torchvision.utils import save_image, make_grid
+from torchvision.utils import save_image
 
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
@@ -32,7 +32,7 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-    parser.add_argument("--dataset_path", type=str, default="../stl-10", help="path to the dataset")
+    parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
     parser.add_argument("--dataset_type", choices=["jet", "stl", "image"], default="jet")
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
@@ -118,7 +118,8 @@ def train(opt):
         dataset,
         batch_size=opt.batch_size,
         shuffle=True,
-        num_workers=opt.n_cpu
+        num_workers=opt.n_cpu,
+        pin_memory=True
     )
     def dnorm(x): return x if jet else denormalize
     eps = 1e-10
@@ -135,10 +136,10 @@ def train(opt):
         for i, imgs in enumerate(dataloader):
 
             batches_done = epoch * len(dataloader) + i
-
             # Configure model input
             imgs_lr = Variable(imgs["lr"].type(Tensor))
             imgs_hr = Variable(imgs["hr"].type(Tensor))
+
             # Adversarial ground truths
             valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
             fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
@@ -241,7 +242,7 @@ def train(opt):
 
             if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
-                number = epoch if n_batches == np.inf else (batches_done+1)//(total_batches//opt.n_checkpoints)
+                number = epoch if checkpoint_interval == np.inf else (batches_done+1)//(total_batches//opt.n_checkpoints)
                 # Save model checkpoints
                 torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, number)))
                 torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, number)))
