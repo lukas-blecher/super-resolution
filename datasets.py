@@ -95,7 +95,7 @@ def unpack_data_nfeaturemaps(data_x, etaBins=180, phiBins=180, phi_offset=0, nfe
         for i in range(1, data_x.shape[1], nfeaturemaps+2):
             temp = int(data_x[j, i])
             if temp != 0 or i == 0:
-                eta = temp % phiBins
+                eta = temp % etaBins
                 phi = (temp-eta)//phiBins
                 if phi_offset != 0:
                     phi = (phi + phi_offset) % phiBins
