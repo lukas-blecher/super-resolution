@@ -48,21 +48,21 @@ def calcualte_metrics(opt):
         shuffle=False,
         num_workers=opt.n_cpu
     )
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device).eval()
     generator.load_state_dict(torch.load(opt.checkpoint_model))
-    psnr, ssim, lr_similarity = [], [], []
+    psnr, ssim, lr_similarity, hr_similarity = [], [], [], []
     l1_criterion = nn.L1Loss()
     pool = SumPool2d()
     for i, imgs in enumerate(dataloader):
         # Configure model input
         imgs_lr = imgs["lr"].to(device)
-        imgs_hr = imgs["hr"].permute(0, 2, 3, 1).numpy()
-
+        imgs_hr = imgs["hr"]
+        imgs_hr_np = imgs_hr.permute(0, 2, 3, 1).numpy()
         # Generate a high resolution image from low resolution input
-        gen_hr = generator(imgs_lr).detach().permute(0, 2, 3, 1).cpu().numpy()
-
+        gen_hr = generator(imgs_lr).detach().cpu()
+        gen_hr_np = gen_hr.permute(0, 2, 3, 1).numpy()
         for j in range(len(imgs_hr)):
-            ground_truth, generated = imgs_hr[j], gen_hr[j]
+            ground_truth, generated = imgs_hr_np[j], gen_hr_np[j]
             #save generated hr image 
             if save_ims:
                 save_numpy(generated, os.path.join(opt.output_path,'%s.png'%(i*opt.batch_size+j)))
@@ -82,12 +82,15 @@ def calcualte_metrics(opt):
             
         # compare downsampled generated image with lr ground_truth using l1 loss
         with torch.no_grad():
+            #low resolution image L1 metric
             gen_lr = pool(imgs['hr'])
-            l1_loss = l1_criterion(imgs_lr.cpu(), gen_lr)
+            l1_loss = l1_criterion(gen_lr,imgs_lr.cpu())
             lr_similarity.append(l1_loss.item())
+            #high resolution image L1 metric
+            hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
 
     results = {}
-    for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1'], [psnr, ssim, lr_similarity]):
+    for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1', 'hr_l1'], [psnr, ssim, lr_similarity, hr_similarity]):
         results[metric_name] = np.mean(metric_values)
         results[metric_name+'_std'] = np.std(metric_values)
     return results
