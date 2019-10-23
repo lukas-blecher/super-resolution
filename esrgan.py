@@ -99,9 +99,10 @@ def train(opt):
         generator.load_state_dict(torch.load(opt.load_checkpoint))
         generator_file = os.path.basename(opt.load_checkpoint)
         discriminator.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator'))))
-        # extract model name
-        model_name = generator_file.split('generator')[0]
-        info_path = os.path.join(opt.model_path, model_name+'info.json')
+        # extract model name if no name specified
+        if model_name == '':
+            model_name = generator_file.split('generator')[0]
+            info_path = os.path.join(opt.model_path, model_name+'info.json')
         try:
             with open(info_path, 'r') as info_file:
                 info = json.load(info_file)
