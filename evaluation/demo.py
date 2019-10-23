@@ -35,7 +35,7 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks).to(device)
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks).to(device).eval()
     generator.load_state_dict(torch.load(args.model))
     criterion = torch.nn.L1Loss()
     sumpool = SumPool2d()
