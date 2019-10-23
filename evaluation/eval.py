@@ -35,13 +35,8 @@ def calcualte_metrics(opt):
     except AttributeError:
         crop_border = 4
     save_ims = 'output_path' in opt._asdict()
-    if opt.dataset_type == 'jet':
-        dataset = JetDataset(opt.dataset_path)
-    elif opt.dataset_type == 'stl':
-        dataset = STLDataset(opt.dataset_path)
-    elif opt.dataset_type == 'image':
-        dataset = ImageDataset(opt.dataset_path, (opt.hr_height, opt.hr_width))
-
+    dataset = JetDataset(opt.dataset_path)
+    
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,

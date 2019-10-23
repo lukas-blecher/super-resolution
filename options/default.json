@@ -1,8 +1,6 @@
 {
-    "epoch": 0,
     "n_epochs": 200,
     "dataset_path": "data/",
-    "dataset_type": "jet",
     "batch_size": 4,
     "lr": 0.0002,
     "b1": 0.9,
@@ -15,14 +13,15 @@
     "checkpoint_interval": 500,
     "residual_blocks": 23,
     "warmup_batches": 500,
-    "lambda_adv": 0.005,
-    "lambda_pixel": 0.01,
+    "lambda_adv": 0.05,
+    "lambda_lr": 0.1,
     "name":"",
     "root": "",
     "model_path":"saved_models",
     "report_freq":10,
     "discriminator":"patch", 
     "relativistic":true,
+    "save":true,
     "n_checkpoints":-1,
     "n_batches":-1
 }
