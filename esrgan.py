@@ -5,6 +5,7 @@ import numpy as np
 import math
 import itertools
 import sys
+import json
 
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
@@ -30,10 +31,8 @@ def str_to_bool(value):
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
-    parser.add_argument("--dataset_type", choices=["jet", "stl", "image"], default="jet")
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
@@ -55,6 +54,7 @@ def get_parser():
     parser.add_argument("--model_path", type=str, default="saved_models", help="directory where the model is saved/should be saved")
     parser.add_argument("--discriminator", choices=['patch', 'standard'], default='patch', help="discriminator model to use")
     parser.add_argument("--relativistic", type=str_to_bool, default=True, help="whether to use relativistic average GAN")
+    parser.add_argument("--save", type=str_to_bool, default=True, help="whether to save the model weights or not")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
@@ -66,6 +66,16 @@ def get_parser():
 
 def train(opt):
     model_name = '' if opt.name is None else (opt.name + '_')
+    start_epoch = 0
+    # create dictionary containing model infomation
+    info = {'epochs': start_epoch}
+    info_path = os.path.join(opt.model_path, model_name+'info.json')
+    try:
+        opt_dict = opt._asdict()
+    except AttributeError:
+        opt_dict = vars(opt)
+    for key in ['name', 'residual_blocks', 'lr', 'b1', 'b2', 'dataset_path', 'lambda_lr', 'lambda_adv', 'discriminator', 'relativistic']:
+        info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
@@ -91,6 +101,12 @@ def train(opt):
         discriminator.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator'))))
         # extract model name
         model_name = generator_file.split('generator')[0]
+        info_path = os.path.join(opt.model_path, model_name+'info.json')
+        try:
+            with open(info_path, 'r') as info_file:
+                info = json.load(info_file)
+        except FileNotFoundError:
+            pass
 
     image_dir = os.path.join(opt.root, "images/%straining" % model_name)
     os.makedirs(image_dir, exist_ok=True)
@@ -122,8 +138,8 @@ def train(opt):
     # ----------
     #  Training
     # ----------
-    total_batches = len(dataloader)*(opt.n_epochs - opt.epoch) if n_batches == np.inf else n_batches
-    for epoch in range(opt.epoch, opt.n_epochs):
+    total_batches = len(dataloader)*(opt.n_epochs - start_epoch) if n_batches == np.inf else n_batches
+    for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
 
             batches_done = epoch * len(dataloader) + i
@@ -212,7 +228,6 @@ def train(opt):
                         len(dataloader),
                         loss_D.item(),
                         loss_G.item(),
-                        # loss_content.item(),
                         loss_GAN.item(),
                         loss_pixel.item(),
                         loss_lr_pixel.item(),
@@ -226,21 +241,26 @@ def train(opt):
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
                 img_grid = torch.cat((imgs_hr, imgs_lr, gen_hr), -1)
                 save_image(img_grid, os.path.join(opt.root, image_dir, "%d.png" % batches_done), nrow=1, normalize=False)
+            if opt.save:
+                if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
+                        checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
+                    # Save model checkpoints
+                    torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
+                    torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
+                    print('Saved model to %s' % opt.model_path)
+                    with open(info_path, 'w') as outfile:
+                        json.dump(info, outfile)
 
-            if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
-                    checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
-                number = epoch if checkpoint_interval == np.inf else (batches_done+1)//(total_batches//opt.n_checkpoints)
-                # Save model checkpoints
-                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, number)))
-                torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, number)))
-                print('Saved model to %s' % opt.model_path)
             if batches_done == total_batches:
                 return
+        info['epochs'] += 1
 
 
 if __name__ == "__main__":
-    print('cudnn version:', torch.backends.cudnn.version())
-    print('cuda version:', torch.version.cuda)
     print('pytorch version:', torch.__version__)
+    print('GPU:', torch.cuda.get_device_name('cuda'))
+    print('cuda version:', torch.version.cuda)
+    print('cudnn version:', torch.backends.cudnn.version())
+
     opt = get_parser()
     train(opt)
