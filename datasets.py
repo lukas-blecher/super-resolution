@@ -110,8 +110,6 @@ class SumPool2d(torch.nn.Module):
     def __init__(self, k=4, stride=None):
         '''Applies a 2D sum pooling over an input signal composed of several input planes'''
         super(SumPool2d, self).__init__()
-        if stride is None:
-            stride = k
         self.pool = torch.nn.AvgPool2d(k, stride=stride)
         self.kernel_size = k*k
 
