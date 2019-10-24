@@ -18,10 +18,12 @@
     "name":"",
     "root": "",
     "model_path":"saved_models",
+    "load_checkpoint":null,
     "report_freq":10,
     "discriminator":"patch", 
     "relativistic":true,
     "save":true,
+    "validate":null,
     "n_checkpoints":-1,
     "n_batches":-1
 }
