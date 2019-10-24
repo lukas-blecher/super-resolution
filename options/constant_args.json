@@ -1,17 +1,10 @@
 {
-    "epoch": 0,
-    "n_epochs": 200,
-    "dataset_path": "C:/Users/user/Desktop/ML/stl-10/train",
+    "n_epochs": 20,
     "model_path": "saved_models",
     "batch_size": 4,
-    "lr": 0.0002,
-    "b1": 0.9,
-    "b2": 0.999,
-    "n_cpu": 8,
-    "hr_height": 96,
-    "hr_width": 96,
+    "n_cpu": 0,
     "sample_interval": -1,
-    "checkpoint_interval": 500,
-    "residual_blocks": 23,
+    "report_freq":10,
+    "residual_blocks": 10,
     "warmup_batches": 0
 }

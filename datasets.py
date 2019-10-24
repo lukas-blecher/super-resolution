@@ -89,7 +89,7 @@ class STLDataset(ImageDataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
-def unpack_data_nfeaturemaps(data_x, etaBins=180, phiBins=180, phi_offset=0, nfeaturemaps=1):
+def unpack_data_nfeaturemaps(data_x, etaBins=100, phiBins=200, phi_offset=0, nfeaturemaps=1):
     img = torch.zeros(data_x.shape[0], etaBins, phiBins, nfeaturemaps)
     for j in range(data_x.shape[0]):
         for i in range(1, data_x.shape[1], nfeaturemaps+2):
@@ -118,9 +118,11 @@ class SumPool2d(torch.nn.Module):
 
 
 class JetDataset(Dataset):
-    def __init__(self, file, amount=None):
+    def __init__(self, file, amount=None, etaBins=100, phiBins=200):
         ''' file is a path to a h5 file containing the data'''
         super(JetDataset, self).__init__()
+        self.phiBins = phiBins
+        self.etaBins = etaBins
         with h5py.File(file, 'r') as f:
             # List all groups
             a_group_key = list(f.keys())[0]
@@ -134,8 +136,7 @@ class JetDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, item):
-        img = unpack_data_nfeaturemaps(self.data[item][None, ...]).permute(0, 3, 1, 2)
+        img = unpack_data_nfeaturemaps(self.data[item][None, ...], self.etaBins, self.phiBins).permute(0, 3, 1, 2)
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
-
