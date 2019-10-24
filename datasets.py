@@ -118,7 +118,7 @@ class SumPool2d(torch.nn.Module):
 
 
 class JetDataset(Dataset):
-    def __init__(self, file):
+    def __init__(self, file, amount=None):
         ''' file is a path to a h5 file containing the data'''
         super(JetDataset, self).__init__()
         with h5py.File(file, 'r') as f:
@@ -126,6 +126,8 @@ class JetDataset(Dataset):
             a_group_key = list(f.keys())[0]
             # Get the data
             self.data = torch.Tensor(f[a_group_key])
+        if amount is not None:
+            self.data = self.data[:amount]
         self.pool = SumPool2d()
 
     def __len__(self):
