@@ -12,7 +12,6 @@ from sklearn.model_selection import ParameterGrid
 
 from test_on_image import test_image
 from options.default import *
-from evaluation.PSNR_SSIM_metric import get_metrics
 from evaluation.eval import call_metrics
 from esrgan import train
 '''
