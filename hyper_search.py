@@ -73,7 +73,7 @@ def main():
             args_dict = {key: args_dict[key] for key in args_dict if key not in options}
             results = args_dict.copy()
 
-    results['dataset_path'] = args.test_images
+    results['validation_path'] = args.test_images
     # perform grid search
     grid = ParameterGrid(parameters)
     print('Performing grid search for %i different sets of hyperparameters. Each trained for %i batches.' % (len(grid), args.batches))
