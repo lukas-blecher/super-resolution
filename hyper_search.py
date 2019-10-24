@@ -13,13 +13,14 @@ from sklearn.model_selection import ParameterGrid
 from test_on_image import test_image
 from options.default import *
 from evaluation.PSNR_SSIM_metric import get_metrics
-from evaluation.eval import calcualte_metrics
+from evaluation.eval import call_metrics
 from esrgan import train
 '''
 The goal of this script is to find the best hyperparameters for the model.
 A grid search is performed over all the possible hyperparameter combinations that are defined in the argument 'options'.
 A fixed amount of checkpoints are saved during training and evaluated on two metrics. The results are saved in a json file.
 '''
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -32,6 +33,7 @@ def main():
     parser.add_argument('--output_path', type=str, default='images/outputs', help='path to output images folder')
     parser.add_argument('--results', type=str, default='results/hyper_search_results.json', help='path to json file containing hyper_search results')
     parser.add_argument('--save_results', action='store_true', help='whether also to save results as images or to only save the metrics')
+    parser.add_argument('--save_checkpoints', action='store_true', help='whether to save checkpoints or not')
     '''
     options file should be a json file containing a dictionary where the keys are the parameter names in esrgan.py and the values
     are another dictionary. The keys are 'type', 'value' and 'coupled. 'type' can be one of 'range' or 'discrete'.
@@ -68,12 +70,13 @@ def main():
     if not args.arguments is None:
         with open(args.arguments) as f:
             args_dict = json.load(f)
-            results = {key: args_dict[key] for key in options if key not in options}
+            args_dict = {key: args_dict[key] for key in args_dict if key not in options}
+            results = args_dict.copy()
 
+    results['dataset_path'] = args.test_images
     # perform grid search
     grid = ParameterGrid(parameters)
-    print('Performing grid search for %i different sets of hyperparameters. Each trained for %i batches.' % (
-        len(grid), args.batches))
+    print('Performing grid search for %i different sets of hyperparameters. Each trained for %i batches.' % (len(grid), args.batches))
     info = []
     for hyperparameters in grid:
         # add any coupled parameters to the dictionary
@@ -83,44 +86,33 @@ def main():
             # get right value for c
             hyperparameters[c] = coupled[c]['value'][parameters[c_param].index(hyperparameters[c_param])]
 
-        print('testing hyperparameters: %s' % str(hyperparameters))
+        print('checking hyperparameters: %s' % str(hyperparameters))
         info.append(hyperparameters.copy())
         # new name for each hyperparameter set
         model_name = '-'.join(str(round(x, 4)).replace('.', '_') for x in hyperparameters.values())
-
         arguments = {**hyperparameters, **args_dict}
         additional_arguments = {key: default_dict[key] for key in default_dict if key not in arguments}
         arguments = {**arguments, **additional_arguments}
+        arguments['validation_path'] = args.test_images
         arguments['n_batches'] = args.batches
         arguments['name'] = model_name
         arguments['n_checkpoints'] = args.checkpoints
-        arguments_ntuple = namedtuple("arguments", arguments.keys())(*arguments.values())
-        train(arguments_ntuple)
-
-        # evaluate results
-        print('testing parameters')
+        arguments['save'] = args.save_checkpoints
+        if args.save_results:
+            arguments['output_path'] = args.output_path
         metric_results = []
-        model_path = args_dict['model_path'] if 'model_path' in args_dict else default.model_path
-        for i in range(args.checkpoints):
-            model_name_i = os.path.join(args.root, model_path, "%s_generator_%d.pth" % (model_name, i+1))
-            outpath = os.path.join(args.output_path, model_name)
-            test_dict = arguments.copy()
-            test_dict['checkpoint_model'] = model_name_i
-            test_dict['image_path'] = args.test_images
-            test_dict['downsample'] = True
+        arguments['metric_results'] = metric_results
+        arguments_ntuple = namedtuple("arguments", arguments.keys())(*arguments.values())
+        try:
+            torch.cuda.empty_cache()
+            info[-1]['metrics'] = train(arguments_ntuple)
+        except RuntimeError as e:
+            print('RuntimeError: %s' % e)
+        results['results'] = info
+        with open(args.results, 'w') as outfile:
+            json.dump(results, outfile)
 
-            if args.save_results:
-                os.makedirs(outpath, exist_ok=True)
-                test_dict['output_path'] = outpath
-
-            test_args = namedtuple("opt", test_dict.keys())(*test_dict.values())
-            metric_results.append(calcualte_metrics(test_args))
-            
-
-        info[-1]['metrics'] = metric_results
-        
     results['results'] = info
-
     with open(args.results, 'w') as outfile:
         json.dump(results, outfile)
 
