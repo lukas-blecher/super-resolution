@@ -6,8 +6,8 @@ if os.path.split(os.path.abspath('.'))[1] == 'super-resolution':
 else:
     sys.path.insert(0, '..')
 from datasets import *
-from evaluation.PSNR_SSIM_metric import calculate_ssim
-from evaluation.PSNR_SSIM_metric import calculate_psnr
+#from evaluation.PSNR_SSIM_metric import calculate_ssim
+#from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
 from models import GeneratorRRDB
 from options.default import default_dict
@@ -57,7 +57,7 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
         imgs_hr_np = imgs_hr.permute(0, 2, 3, 1).numpy()
         # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr).detach().cpu()
-        gen_hr_np = gen_hr.permute(0, 2, 3, 1).numpy()
+        '''gen_hr_np = gen_hr.permute(0, 2, 3, 1).numpy()
         for j in range(len(imgs_hr)):
             ground_truth, generated = imgs_hr_np[j], gen_hr_np[j]
             # save generated hr image
@@ -75,7 +75,7 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
                 raise ValueError(
                     'Wrong image dimension: {}. Should be 2 or 3.'.format(ground_truth.ndim))
             psnr.append(calculate_psnr(ground_truth, generated, MAX))
-            ssim.append(calculate_ssim(ground_truth, generated, MAX))
+            ssim.append(calculate_ssim(ground_truth, generated, MAX))'''
 
         # compare downsampled generated image with lr ground_truth using l1 loss
         with torch.no_grad():
@@ -87,7 +87,8 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
             hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
 
     results = {}
-    for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1', 'hr_l1'], [psnr, ssim, lr_similarity, hr_similarity]):
+    #for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1', 'hr_l1'], [psnr, ssim, lr_similarity, hr_similarity]):
+    for metric_name, metric_values in zip(['lr_l1', 'hr_l1'], [lr_similarity, hr_similarity]):
         results[metric_name] = {'mean':np.mean(metric_values),'std':np.std(metric_values)}
 
     return results
