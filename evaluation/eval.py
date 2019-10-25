@@ -12,15 +12,18 @@ from torch.utils.data import DataLoader
 from models import GeneratorRRDB
 from options.default import default_dict
 import argparse
+import json
 from collections import namedtuple
 import torch.nn as nn
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 
 
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
+
 
 def save_numpy(array, path):
     Image.fromarray(toUInt(array)).save(path)
@@ -29,7 +32,7 @@ def save_numpy(array, path):
 def call_metrics(opt):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dopt = dir(opt)
-    MAX = opt.max if 'max' in dopt else 80 # TODO get a theoretical estimate for the max number
+    MAX = opt.max if 'max' in dopt else 80  # TODO get a theoretical estimate for the max number
     crop_border = opt.crop_border if 'crop_border' in dopt else 4
     output_path = opt.output_path if 'output_path' in dopt else None
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
@@ -46,7 +49,7 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
         shuffle=False,
         num_workers=n_cpu
     )
-    
+
     psnr, ssim, lr_similarity, hr_similarity = [], [], [], []
     l1_criterion = nn.L1Loss()
     pool = SumPool2d()
@@ -87,23 +90,86 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
             hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
 
     results = {}
-    #for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1', 'hr_l1'], [psnr, ssim, lr_similarity, hr_similarity]):
+    # for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1', 'hr_l1'], [psnr, ssim, lr_similarity, hr_similarity]):
     for metric_name, metric_values in zip(['lr_l1', 'hr_l1'], [lr_similarity, hr_similarity]):
-        results[metric_name] = {'mean':np.mean(metric_values),'std':np.std(metric_values)}
+        results[metric_name] = {'mean': np.mean(metric_values), 'std': np.std(metric_values)}
 
     return results
 
 
+def hline(newline=False, n=100):
+    print('_'*n) if not newline else print('_'*n, '\n')
+
+
+def evaluate_results(file):
+    '''
+    plot results from the hyperparameter search
+        `file` should the path to the file containing the results
+    '''
+    with open(file) as f:
+        results = json.load(f)
+
+    def ts(l): return (len(l)-7)//8+2
+    tmax = ts(max(results.keys()))
+    # print constant arguments
+    hline()
+    for key, value in results.items():
+        if key != 'results':
+            print(key, '\t'*(2*tmax-ts(key)), value)
+    hline(True)
+
+    hyper_set = results['results']
+    assert len(hyper_set) > 0
+    p0 = hyper_set[0]['metrics'][0]
+    num_metrics = len(p0)-2
+    M = int(np.sqrt(num_metrics))
+    N = num_metrics//M
+    f, ax = plt.subplots(M, N)
+    ax = ax.flatten()
+    # iterate over every metric that was measured
+    for m, (key, value) in enumerate(p0.items()):
+        if key in ('epoch', 'batch'):
+            m -= 1
+            continue
+        splt = ax[m]
+        splt.set_title(key)
+        splt.set_xlabel('iterations')
+        # iterate over every set of hyperparameters that was investigated
+        for h in range(len(hyper_set)):
+            checkpoints = hyper_set[h]['metrics']
+            label = ''
+            for k, v in hyper_set[h].items():
+                if k not in ('epoch', 'batch', 'metrics'):
+                    label += '%s=%s ' % (k, v)
+            iterations = []  # will contain batch number
+            y = []
+            y_err = []
+            # iterate over every point in time that was measured
+            for i in range(len(checkpoints)):
+                p = checkpoints[i]  # point in time
+                iterations.append(p['batch'])
+                y.append(p[key]['mean'])
+                y_err.append(p[key]['std'])
+            splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
+            splt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_path", type=str, required=True, help="Path to image")
+    parser.add_argument("--dataset_path", type=str, default=None, help="Path to image")
     parser.add_argument("--output_path", type=str, default='images/outputs', help="Path where output will be saved")
-    parser.add_argument("--checkpoint_model", type=str, required=True, help="Path to checkpoint model")
+    parser.add_argument("--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
     parser.add_argument("--residual_blocks", type=int, default=23, help="Number of residual blocks in G")
+    parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
     opt = vars(parser.parse_args())
-
-    arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
-
-    opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
-    # print(opt)
-    print(call_metrics(opt))
+    if opt.hyper_results is not None:
+        evaluate_results(opt.hyper_results)
+    else:
+        if opt.dataset_path is None or opt.checkpoint_model is None:
+            raise ValueError("For evaluation dataset_path and checkpoint_model are required")
+        arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
+        opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
+        # print(opt)
+        print(call_metrics(opt))
