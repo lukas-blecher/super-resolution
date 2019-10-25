@@ -62,7 +62,7 @@ class GeneratorRRDB(nn.Module):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
-        self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=(1,0))
         # Residual blocks
         self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters) for _ in range(num_res_blocks)])
         # Second conv layer post residual blocks
@@ -84,6 +84,7 @@ class GeneratorRRDB(nn.Module):
         )
 
     def forward(self, x):
+        x = F.pad(x,(1,1,0,0),mode='circular') #phi padding
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
