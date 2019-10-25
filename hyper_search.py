@@ -111,10 +111,6 @@ def main():
         with open(args.results, 'w') as outfile:
             json.dump(results, outfile)
 
-    results['results'] = info
-    with open(args.results, 'w') as outfile:
-        json.dump(results, outfile)
-
 
 if __name__ == '__main__':
     main()
