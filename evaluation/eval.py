@@ -164,10 +164,10 @@ if __name__ == "__main__":
     parser.add_argument("--residual_blocks", type=int, default=23, help="Number of residual blocks in G")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
     opt = vars(parser.parse_args())
-    if opt.hyper_results is not None:
-        evaluate_results(opt.hyper_results)
+    if opt['hyper_results'] is not None:
+        evaluate_results(opt['hyper_results'])
     else:
-        if opt.dataset_path is None or opt.checkpoint_model is None:
+        if opt['dataset_path'] is None or opt['checkpoint_model'] is None:
             raise ValueError("For evaluation dataset_path and checkpoint_model are required")
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
