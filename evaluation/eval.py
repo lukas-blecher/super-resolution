@@ -150,7 +150,10 @@ def evaluate_results(file):
                 iterations.append(p['batch'])
                 y.append(p[key]['mean'])
                 y_err.append(p[key]['std'])
-            splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
+            _, caps, bars = splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
+            # loop through bars and caps and set the alpha value
+            [bar.set_alpha(0.5) for bar in bars]
+            [cap.set_alpha(0.5) for cap in caps]
             splt.legend()
     plt.tight_layout()
     plt.show()
