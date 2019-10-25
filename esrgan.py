@@ -46,7 +46,7 @@ def get_parser():
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
     parser.add_argument("--residual_blocks", type=int, default=23, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
-    parser.add_argument("--lambda_adv", type=float, default=1e-1, help="adversarial loss weight")
+    parser.add_argument("--lambda_adv", type=float, default=1e-2, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=3e-1, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--root", type=str, default='', help="root directory for the model")
     parser.add_argument("--name", type=str, default=None, help='name of the model')
@@ -143,10 +143,11 @@ def train(opt):
     #  Training
     # ----------
     total_batches = len(dataloader)*(opt.n_epochs - start_epoch) if n_batches == np.inf else n_batches
-    batches_done = 0
+    batches_done = -1
     for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
 
+            batches_done += 1
             #batches_done = epoch * len(dataloader) + i
             # Configure model input
             imgs_lr = Variable(imgs["lr"].type(Tensor))
@@ -265,7 +266,7 @@ def train(opt):
                         info['validation'].append(val_results)
                     except KeyError:
                         info['validation'] = [val_results]
-            batches_done += 1
+            
             if batches_done == total_batches:
                 if opt.validation_path:
                     return info['validation']
