@@ -73,7 +73,7 @@ def subplot(N, M, num, img, title=''):
     plt.xticks([])
     plt.yticks([])
     plt.ylabel('$\\eta$')
-    plt.xlabel('$\\phi$')
+    plt.xlabel('$\\varphi$')
     plt.imshow(img, cmap='gray_r')
 
 
