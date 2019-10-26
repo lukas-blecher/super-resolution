@@ -100,6 +100,15 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
 def hline(newline=False, n=100):
     print('_'*n) if not newline else print('_'*n, '\n')
 
+def clean_labels(label):
+    '''attempt to reduce legend size'''
+    #label = label.replace('lambda', '$\\lambda$')
+    if 'lambda' in label:
+        label = '$\\%s{%s}$' % (label[:7], label[7:])
+    else:
+        label = label.replace('residual','res')
+        label = label.replace('_',' ')
+    return label
 
 def evaluate_results(file):
     '''
@@ -140,7 +149,10 @@ def evaluate_results(file):
             label = ''
             for k, v in hyper_set[h].items():
                 if k not in ('epoch', 'batch', 'metrics'):
-                    label += '%s=%s ' % (k, v)
+                    vstr = str(v)
+                    if len(vstr) > 6:
+                        vstr = '%.4f' % v
+                    label += '%s=%s ' % (clean_labels(k), vstr)
             iterations = []  # will contain batch number
             y = []
             y_err = []
@@ -155,7 +167,6 @@ def evaluate_results(file):
             [bar.set_alpha(0.5) for bar in bars]
             [cap.set_alpha(0.5) for cap in caps]
             splt.legend()
-    plt.tight_layout()
     plt.show()
 
 
