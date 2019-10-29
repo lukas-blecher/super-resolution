@@ -37,6 +37,7 @@ def main():
     options file should be a json file containing a dictionary where the keys are the parameter names in esrgan.py and the values
     are another dictionary. The keys are 'type', 'value' and 'coupled. 'type' can be one of 'range' or 'discrete'.
         'range' should conteain the start, end and number of samples, e.g. [1,4,10] for start=1, end=4 and 10 samples in total.
+        'logrange' should contain the start, end and number of samples just as in 'range'. The difference is that the steps in between are logarithmically increasing.
         'discrete' should contain a list of discrete numbers that should be checked for the parameter.
         'coupled' should contain a list of the same length as the coupled parameter that needs to be saved under 'parameter'. (only compatible with 'discrete')
             This option can be used if you want to scale a parameter accordingly to another specified hyperparameter
@@ -55,6 +56,9 @@ def main():
         if d['type'] == 'range':
             assert len(x) == 3
             parameters[k] = np.linspace(x[0], x[1], x[2])
+        if d['type'] == 'logrange':
+            assert len(x) == 3
+            parameters[k] = logrange(x[0], x[1], x[2])
         elif d['type'] == 'discrete':
             parameters[k] = x
         elif d['type'] == 'coupled':
@@ -107,10 +111,13 @@ def main():
             info[-1]['metrics'] = train(arguments_ntuple)
         except RuntimeError as e:
             print('RuntimeError: %s' % e)
+            continue
         results['results'] = info
         with open(args.results, 'w') as outfile:
             json.dump(results, outfile)
 
+def logrange(a,b,c):
+    return np.logspace(np.log(a)/np.log(10),np.log(b)/np.log(10),c)
 
 if __name__ == '__main__':
     main()
