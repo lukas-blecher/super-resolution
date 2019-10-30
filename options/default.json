@@ -1,6 +1,7 @@
 {
     "n_epochs": 50,
     "dataset_path": "../data/1M_central_train.h5",
+    "dataset_type": "txt",
     "batch_size": 8,
     "lr": 0.0002,
     "b1": 0.9,
