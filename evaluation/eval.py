@@ -33,12 +33,13 @@ def call_metrics(opt):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
+    bins = opt.bins if 'bins' in dopt else 10
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
-    return calculate_metrics(opt.dataset_path, generator, device, output_path, opt.batch_size, opt.n_cpu)
+    return calculate_metrics(opt.dataset_path, generator, device, output_path, opt.batch_size, bins, opt.n_cpu)
 
 
-def calculate_metrics(dataset_path, generator, device, output_path=None, batch_size=4, n_cpu=0, amount=None):
+def calculate_metrics(dataset_path, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, amount=None):
     generator.eval()
     if 'h5' in dataset_path:
         dataset = JetDataset(dataset_path, amount)
@@ -76,8 +77,8 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
             real_nnz=imgs_hr[imgs_hr > 0]
             t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
             t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
-            gen_hist = torch.histc(gen_nnz, opt.bins, min=t_min, max=t_max).float()
-            real_hist = torch.histc(real_nnz, opt.bins, min=t_min, max=t_max).float()
+            gen_hist = torch.histc(gen_nnz, bins, min=t_min, max=t_max).float()
+            real_hist = torch.histc(real_nnz, bins, min=t_min, max=t_max).float()
             energy_dist.append(l2_criterion(gen_hist, real_hist))
 
 
