@@ -32,53 +32,35 @@ def save_numpy(array, path):
 def call_metrics(opt):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dopt = dir(opt)
-    MAX = opt.max if 'max' in dopt else 80  # TODO get a theoretical estimate for the max number
-    crop_border = opt.crop_border if 'crop_border' in dopt else 4
     output_path = opt.output_path if 'output_path' in dopt else None
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
-    return calculate_metrics(opt.dataset_path, generator, device, output_path, opt.batch_size, opt.n_cpu, crop_border, MAX)
+    return calculate_metrics(opt.dataset_path, generator, device, output_path, opt.batch_size, opt.n_cpu)
 
 
-def calculate_metrics(dataset_path, generator, device, output_path=None, batch_size=4, n_cpu=0, crop_border=4, MAX=80, amount=None):
+def calculate_metrics(dataset_path, generator, device, output_path=None, batch_size=4, n_cpu=0, amount=None):
     generator.eval()
-    dataset = JetDataset(dataset_path, amount)
+    if 'h5' in dataset_path:
+        dataset = JetDataset(dataset_path, amount)
+    else:
+        dataset = JetDatasetText(dataset_path, amount)
     dataloader = DataLoader(
         dataset,
-        batch_size=batch_size,
+        batch_size=1,
         shuffle=False,
         num_workers=n_cpu
     )
 
-    psnr, ssim, lr_similarity, hr_similarity = [], [], [], []
+    energy_dist, lr_similarity, hr_similarity = [], [], []
     l1_criterion = nn.L1Loss()
+    l2_criterion = nn.MSELoss()
     pool = SumPool2d()
-    for i, imgs in enumerate(dataloader):
+    for _, imgs in enumerate(dataloader):
         # Configure model input
         imgs_lr = imgs["lr"].to(device)
         imgs_hr = imgs["hr"]
-        imgs_hr_np = imgs_hr.permute(0, 2, 3, 1).numpy()
         # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr).detach().cpu()
-        '''gen_hr_np = gen_hr.permute(0, 2, 3, 1).numpy()
-        for j in range(len(imgs_hr)):
-            ground_truth, generated = imgs_hr_np[j], gen_hr_np[j]
-            # save generated hr image
-            if output_path:
-                save_numpy(generated, os.path.join(output_path, '%s.png' % (i*batch_size+j)))
-
-            # crop
-            if ground_truth.ndim == 3:
-                ground_truth = ground_truth[crop_border:-crop_border, crop_border:-crop_border, :]
-                generated = generated[crop_border:-crop_border, crop_border:-crop_border, :]
-            elif ground_truth.ndim == 2:
-                ground_truth = ground_truth[crop_border:-crop_border, crop_border:-crop_border]
-                generated = generated[crop_border:-crop_border, crop_border:-crop_border]
-            else:
-                raise ValueError(
-                    'Wrong image dimension: {}. Should be 2 or 3.'.format(ground_truth.ndim))
-            psnr.append(calculate_psnr(ground_truth, generated, MAX))
-            ssim.append(calculate_ssim(ground_truth, generated, MAX))'''
 
         # compare downsampled generated image with lr ground_truth using l1 loss
         with torch.no_grad():
@@ -89,9 +71,19 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
             # high resolution image L1 metric
             hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
 
+            #energy distribution
+            gen_nnz=gen_hr[gen_hr > 0]
+            real_nnz=imgs_hr[imgs_hr > 0]
+            t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
+            t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
+            gen_hist = torch.histc(gen_nnz, opt.bins, min=t_min, max=t_max).float()
+            real_hist = torch.histc(real_nnz, opt.bins, min=t_min, max=t_max).float()
+            energy_dist.append(l2_criterion(gen_hist, real_hist))
+
+
     results = {}
     # for metric_name, metric_values in zip(['psnr', 'ssim', 'lr_l1', 'hr_l1'], [psnr, ssim, lr_similarity, hr_similarity]):
-    for metric_name, metric_values in zip(['lr_l1', 'hr_l1'], [lr_similarity, hr_similarity]):
+    for metric_name, metric_values in zip(['lr_l1', 'hr_l1', 'energy distribution'], [lr_similarity, hr_similarity, energy_dist]):
         results[metric_name] = {'mean': np.mean(metric_values), 'std': np.std(metric_values)}
 
     return results
