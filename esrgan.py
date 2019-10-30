@@ -34,7 +34,7 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
-    parser.add_argument("--dataset_type", choices=['h5', 'txt'], default="h5", help="how is the dataset saved")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt'], default="txt", help="how is the dataset saved")
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
@@ -49,6 +49,9 @@ def get_parser():
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
     parser.add_argument("--lambda_adv", type=float, default=0.0015, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=0.05, help="pixel-wise loss weight for the low resolution L1 pixel loss")
+    parser.add_argument("--lambda_hist", type=float, default=0.01, help="energy distribution loss weight")
+    parser.add_argument("--batchwise_hist", type=str_to_bool, default=True, help="whether to use all images in a batch to calculate the energy distribution")
+    parser.add_argument("--bins", type=int, default=10, help="number of bins in the energy distribution histogram")
     parser.add_argument("--root", type=str, default='', help="root directory for the model")
     parser.add_argument("--name", type=str, default=None, help='name of the model')
     parser.add_argument("--load_checkpoint", type=str, default=None, help='path to the generator weights to start the training with')
@@ -94,8 +97,9 @@ def train(opt):
         discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
 
     # Losses
-    criterion_GAN = torch.nn.BCEWithLogitsLoss().to(device)
-    criterion_pixel = torch.nn.L1Loss().to(device)
+    criterion_GAN = nn.BCEWithLogitsLoss().to(device)
+    criterion_pixel = nn.L1Loss().to(device)
+    criterion_hist = nn.MSELoss().to(device)
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -197,8 +201,19 @@ def train(opt):
             else:
                 loss_GAN = criterion_GAN(eps + pred_fake, valid)
 
+            # calculate the energy distribution loss
+            # first calculate the both histograms
+            gen_nnz=gen_hr[gen_hr > 0]
+            real_nnz=imgs_hr[imgs_hr > 0]
+            t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
+            t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
+            histogram = SoftHistogram(opt.bins, t_min, t_max, batchwise=opt.batchwise_hist).to(device)
+            gen_hist = histogram(gen_nnz)
+            real_hist = histogram(real_nnz)
+            loss_hist = criterion_hist(gen_hist, real_hist).mean(0)
+            
             # Total generator loss
-            loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
+            loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_hist * loss_hist
 
             loss_G.backward()
             optimizer_G.step()
@@ -230,7 +245,7 @@ def train(opt):
             # --------------
             if batches_done % opt.report_freq == 0:
                 print(
-                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f]"
+                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %f]"
                     % (
                         i,
                         total_batches,
@@ -241,6 +256,7 @@ def train(opt):
                         loss_GAN.item(),
                         loss_pixel.item(),
                         loss_lr_pixel.item(),
+                        loss_hist.item(),
                     )
                 )
             # check if loss is NaN

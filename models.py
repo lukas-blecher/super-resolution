@@ -62,7 +62,7 @@ class GeneratorRRDB(nn.Module):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
-        self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=(1,0))
+        self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=(1, 0))
         # Residual blocks
         self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters) for _ in range(num_res_blocks)])
         # Second conv layer post residual blocks
@@ -81,11 +81,11 @@ class GeneratorRRDB(nn.Module):
             nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
-            nn.Softshrink(lambd=0.05)
+            nn.ReLU(),
         )
 
     def forward(self, x):
-        x = F.pad(x,(1,1,0,0),mode='circular') #phi padding
+        x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
@@ -148,3 +148,28 @@ class Standard_Discriminator(nn.Module):
 
     def forward(self, img):
         return self.fc(self.conv(img).view(img.shape[0], -1))
+
+
+class SoftHistogram(nn.Module):
+    '''Modified version of https://discuss.pytorch.org/t/differentiable-torch-histc/25865/2 by Tony-Y'''
+
+    def __init__(self, bins, min, max, sigma=25, batchwise=False):
+        super(SoftHistogram, self).__init__()
+        self.bins = bins
+        self.min = min
+        self.max = max
+        self.sigma = sigma
+        self.batchwise = batchwise
+        self.delta = float(max - min) / float(bins)
+        self.centers = float(min) + self.delta * (torch.arange(bins).float() + 0.5)
+
+    def forward(self, x):
+        batches = len(x) if (len(x.shape) == 4 and self.batchwise) else 1
+        x = x.view(batches, -1)
+        x = x[:, None, :] - self.centers[..., None]
+        x = torch.sigmoid(self.sigma * (x + self.delta/2)) - torch.sigmoid(self.sigma * (x - self.delta/2))
+        return x.sum(2)
+
+    def to(self, device):
+        self.centers = self.centers.to(device)
+        return self
