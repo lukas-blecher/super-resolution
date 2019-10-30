@@ -140,3 +140,35 @@ class JetDataset(Dataset):
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
+
+
+def extract(data, etaBins, phiBins, channels=1):
+    reconstruction = torch.zeros((channels, etaBins, phiBins))
+    for i in range(data.shape[1]):
+        pos_index = data[0, i]
+        phi = int(pos_index//etaBins)
+        eta = int(pos_index % etaBins)
+        reconstruction[0, eta, phi] = data[1, i]
+    return reconstruction.float()
+
+
+class JetDatasetText(Dataset):
+
+    def __init__(self, path, amount=None, etaBins=100, phiBins=200):
+        super(JetDatasetText, self).__init__()
+        self.phiBins = phiBins
+        self.etaBins = etaBins
+        if amount is not None:
+            self.data = self.data[:amount]
+        self.pool = SumPool2d()
+        self.files = sorted(glob.glob(os.path.join(path, '*.txt')))
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, item):
+        data = np.loadtxt(self.files[item], unpack=True, delimiter=' ', usecols=(0, 2))
+        img = extract(data, self.etaBins, self.phiBins)[None, ...]
+        img_lr = self.pool(img)[0]
+        img_hr = img[0].clone()
+        return {"lr": img_lr, "hr": img_hr}

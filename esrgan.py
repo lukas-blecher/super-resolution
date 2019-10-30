@@ -34,6 +34,7 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt'], default="h5", help="how is the dataset saved")
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
@@ -46,8 +47,8 @@ def get_parser():
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
     parser.add_argument("--residual_blocks", type=int, default=23, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
-    parser.add_argument("--lambda_adv", type=float, default=1e-2, help="adversarial loss weight")
-    parser.add_argument("--lambda_lr", type=float, default=3e-1, help="pixel-wise loss weight for the low resolution L1 pixel loss")
+    parser.add_argument("--lambda_adv", type=float, default=0.0015, help="adversarial loss weight")
+    parser.add_argument("--lambda_lr", type=float, default=0.05, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--root", type=str, default='', help="root directory for the model")
     parser.add_argument("--name", type=str, default=None, help='name of the model')
     parser.add_argument("--load_checkpoint", type=str, default=None, help='path to the generator weights to start the training with')
@@ -128,7 +129,10 @@ def train(opt):
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    dataset = JetDataset(opt.dataset_path)
+    if opt.dataset_type == 'h5':
+        dataset = JetDataset(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width)
+    elif opt.dataset_type == 'txt':
+        dataset = JetDatasetText(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -266,7 +270,7 @@ def train(opt):
                         info['validation'].append(val_results)
                     except KeyError:
                         info['validation'] = [val_results]
-            
+
             if batches_done == total_batches:
                 if opt.validation_path:
                     return info['validation']
