@@ -5,19 +5,19 @@ if os.path.split(os.path.abspath('.'))[1] == 'super-resolution':
     sys.path.insert(0, '.')
 else:
     sys.path.insert(0, '..')
-from datasets import *
-from evaluation.PSNR_SSIM_metric import calculate_ssim
-from evaluation.PSNR_SSIM_metric import calculate_psnr
-from torch.utils.data import DataLoader
-from models import GeneratorRRDB
-from options.default import default_dict
-import argparse
-from collections import namedtuple
-import torch.nn as nn
-import numpy as np
-import torch
-from PIL import Image
 import matplotlib.pyplot as plt
+from PIL import Image
+import torch
+import numpy as np
+import torch.nn as nn
+from collections import namedtuple
+import argparse
+from options.default import default_dict
+from models import GeneratorRRDB
+from torch.utils.data import DataLoader
+from datasets import *
+
+
 
 def toArray(x):
     if len(x.shape) == 4:
@@ -28,7 +28,10 @@ def toArray(x):
 
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = JetDataset(args.input)
+    if 'h5' in args.input:
+        dataset = JetDataset(args.input)
+    else:
+        dataset = JetDatasetText(args.input)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -38,6 +41,7 @@ def main(args):
     generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks).to(device).eval()
     generator.load_state_dict(torch.load(args.model))
     criterion = torch.nn.L1Loss()
+    mse = torch.nn.MSELoss()
     sumpool = SumPool2d()
     for i, imgs in enumerate(dataloader):
         # Configure model input
@@ -46,10 +50,16 @@ def main(args):
 
         # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr).detach()
-        
+
         with torch.no_grad():
             gen_lr = sumpool(gen_hr).detach()
-            print("HR L1Loss: %.3e, LR L1Loss: %.3e" % (criterion(gen_hr, imgs_hr).item(), criterion(gen_lr, imgs_lr).item()))
+            gen_nnz = gen_hr[gen_hr > 0].view(-1)
+            real_nnz = imgs_hr[imgs_hr > 0].view(-1)
+            e_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
+            e_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
+            gen_hist = torch.histc(gen_nnz, 10, min=e_min, max=e_max).float()
+            real_hist = torch.histc(real_nnz, 10, min=e_min, max=e_max).float()
+            print("HR L1Loss: %.3e, LR L1Loss: %.3e, Energy distribution loss %.3e" % (criterion(gen_hr, imgs_hr).item(), criterion(gen_lr, imgs_lr).item(), mse(gen_hist, real_hist)))
 
         show(imgs_lr, imgs_hr, gen_hr, gen_lr)
 
@@ -84,6 +94,6 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--residual_blocks", type=int, default=10, help="Number of residual blocks")
     parser.add_argument("-o", "--output", type=str, default=None, help="Where to save the images")
     parser.add_argument("-b", "--batch_size", type=int, default=1, help="Number of images to show at once")
-    parser.add_argument("--no_shuffle", action="store_false",help="Don't shuffle the images")
+    parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")
     args = parser.parse_args()
     main(args)

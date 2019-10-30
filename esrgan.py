@@ -205,9 +205,9 @@ def train(opt):
             # first calculate the both histograms
             gen_nnz=gen_hr[gen_hr > 0]
             real_nnz=imgs_hr[imgs_hr > 0]
-            t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
-            t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
-            histogram = SoftHistogram(opt.bins, t_min, t_max, batchwise=opt.batchwise_hist).to(device)
+            e_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
+            e_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
+            histogram = SoftHistogram(opt.bins, e_min, e_max, batchwise=opt.batchwise_hist).to(device)
             gen_hist = histogram(gen_nnz)
             real_hist = histogram(real_nnz)
             loss_hist = criterion_hist(gen_hist, real_hist).mean(0)
