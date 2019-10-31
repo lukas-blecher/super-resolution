@@ -35,18 +35,18 @@ def get_parser():
     parser.add_argument("--factor",type=int,default=2,help="factor to upsample the input image")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
-    parser.add_argument("--dataset_type", choices=['h5', 'txt'], default="txt", help="how is the dataset saved")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet'], default="jet", help="how is the dataset saved")
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--hr_height", type=int, default=100, help="high res. image height")
-    parser.add_argument("--hr_width", type=int, default=200, help="high res. image width")
+    parser.add_argument("--n_cpu", type=int, default=0, help="number of cpu threads to use during batch generation")
+    parser.add_argument("--hr_height", type=int, default=40, help="high res. image height")
+    parser.add_argument("--hr_width", type=int, default=40, help="high res. image width")
     parser.add_argument("--channels", type=int, default=1, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=500, help="interval between saving image samples")
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
-    parser.add_argument("--residual_blocks", type=int, default=23, help="number of residual blocks in the generator")
+    parser.add_argument("--residual_blocks", type=int, default=10, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
     parser.add_argument("--lambda_adv", type=float, default=0.0015, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=0.05, help="pixel-wise loss weight for the low resolution L1 pixel loss")
@@ -81,7 +81,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'lr', 'b1', 'b2', 'dataset_path', 'lambda_lr', 'lambda_adv', 'discriminator', 'relativistic']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'discriminator', 'relativistic']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -91,7 +91,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, opt.factor//2).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=opt.factor//2).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
@@ -134,10 +134,7 @@ def train(opt):
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    if opt.dataset_type == 'h5':
-        dataset = EventDataset(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width, factor=opt.factor)
-    elif opt.dataset_type == 'txt':
-        dataset = EventDatasetText(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width, factor=opt.factor)
+    dataset=get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -147,7 +144,7 @@ def train(opt):
     )
 
     eps = 1e-10
-    pool = SumPool2d().to(device)
+    pool = SumPool2d(opt.factor).to(device)
     # ----------
     #  Training
     # ----------
@@ -265,7 +262,7 @@ def train(opt):
                 raise ValueError('loss is NaN')
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
-                imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
+                imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
                 img_grid = torch.cat((imgs_hr, imgs_lr, gen_hr), -1)
                 save_image(img_grid, os.path.join(opt.root, image_dir, "%d.png" % batches_done), nrow=1, normalize=False)
 

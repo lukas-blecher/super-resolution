@@ -3,6 +3,7 @@ import random
 import os
 import numpy as np
 import h5py
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
@@ -173,3 +174,32 @@ class EventDatasetText(Dataset):
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
 
+
+class JetDataset(Dataset):
+
+    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2):
+        super(JetDataset, self).__init__()
+        self.phiBins = phiBins
+        self.etaBins = etaBins
+        if amount is not None:
+            self.data = self.data[:amount]
+        self.pool = SumPool2d(factor)
+        self.df = pd.read_hdf(path,'table')
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, item):
+        img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins, self.phiBins)
+        img_lr = self.pool(img)[0]
+        img_hr = img[0].clone()
+        return {"lr": img_lr, "hr": img_hr}
+
+
+def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2):
+    if dataset_type == 'h5':
+        return EventDataset(dataset_path, etaBins=hr_height, phiBins=hr_width, factor=factor)
+    elif dataset_type == 'txt':
+        return EventDatasetText(dataset_path, etaBins=hr_height, phiBins=hr_width, factor=factor)
+    elif dataset_type == 'jet':
+        return JetDataset(dataset_path, etaBins=hr_height, phiBins=hr_width, factor=factor)
