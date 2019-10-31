@@ -32,7 +32,7 @@ def str_to_bool(value):
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--factor",type=int,default=2,help="factor to upsample the input image")
+    parser.add_argument("--factor", type=int, default=2, help="factor to upsample the input image")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
     parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet'], default="jet", help="how is the dataset saved")
@@ -134,7 +134,7 @@ def train(opt):
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    dataset=get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -201,15 +201,15 @@ def train(opt):
 
             # calculate the energy distribution loss
             # first calculate the both histograms
-            gen_nnz=gen_hr[gen_hr > 0]
-            real_nnz=imgs_hr[imgs_hr > 0]
+            gen_nnz = gen_hr[gen_hr > 0]
+            real_nnz = imgs_hr[imgs_hr > 0]
             e_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
             e_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
             histogram = SoftHistogram(opt.bins, e_min, e_max, batchwise=opt.batchwise_hist).to(device)
             gen_hist = histogram(gen_nnz)
             real_hist = histogram(real_nnz)
             loss_hist = criterion_hist(gen_hist, real_hist).mean(0)
-            
+
             # Total generator loss
             loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_hist * loss_hist
 
