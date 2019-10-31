@@ -79,7 +79,7 @@ def calculate_metrics(dataset_path, generator, device, output_path=None, batch_s
             t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
             gen_hist = torch.histc(gen_nnz, bins, min=t_min, max=t_max).float()
             real_hist = torch.histc(real_nnz, bins, min=t_min, max=t_max).float()
-            energy_dist.append(l2_criterion(gen_hist, real_hist))
+            energy_dist.append(l2_criterion(gen_hist, real_hist).item())
 
 
     results = {}
