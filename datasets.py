@@ -117,10 +117,10 @@ class SumPool2d(torch.nn.Module):
         return self.kernel_size*self.pool(x)
 
 
-class JetDataset(Dataset):
-    def __init__(self, file, amount=None, etaBins=100, phiBins=200):
+class EventDataset(Dataset):
+    def __init__(self, file, amount=None, etaBins=100, phiBins=200, factor=2):
         ''' file is a path to a h5 file containing the data'''
-        super(JetDataset, self).__init__()
+        super(EventDataset, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
         with h5py.File(file, 'r') as f:
@@ -130,7 +130,7 @@ class JetDataset(Dataset):
             self.data = torch.Tensor(f[a_group_key])
         if amount is not None:
             self.data = self.data[:amount]
-        self.pool = SumPool2d()
+        self.pool = SumPool2d(factor)
 
     def __len__(self):
         return len(self.data)
@@ -152,15 +152,15 @@ def extract(data, etaBins, phiBins, channels=1):
     return reconstruction.float()
 
 
-class JetDatasetText(Dataset):
+class EventDatasetText(Dataset):
 
-    def __init__(self, path, amount=None, etaBins=100, phiBins=200):
-        super(JetDatasetText, self).__init__()
+    def __init__(self, path, amount=None, etaBins=100, phiBins=200, factor=2):
+        super(EventDatasetText, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
         if amount is not None:
             self.data = self.data[:amount]
-        self.pool = SumPool2d()
+        self.pool = SumPool2d(factor)
         self.files = sorted(glob.glob(os.path.join(path, '*.txt')))
 
     def __len__(self):
@@ -172,3 +172,4 @@ class JetDatasetText(Dataset):
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
+

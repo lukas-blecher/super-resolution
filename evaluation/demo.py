@@ -29,9 +29,9 @@ def toArray(x):
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if 'h5' in args.input:
-        dataset = JetDataset(args.input)
+        dataset = EventDataset(args.input)
     else:
-        dataset = JetDatasetText(args.input)
+        dataset = EventDatasetText(args.input)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,

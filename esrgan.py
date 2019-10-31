@@ -32,6 +32,7 @@ def str_to_bool(value):
 
 def get_parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--factor",type=int,default=2,help="factor to upsample the input image")
     parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
     parser.add_argument("--dataset_type", choices=['h5', 'txt'], default="txt", help="how is the dataset saved")
@@ -90,7 +91,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, opt.factor//2).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
@@ -134,9 +135,9 @@ def train(opt):
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     if opt.dataset_type == 'h5':
-        dataset = JetDataset(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width)
+        dataset = EventDataset(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width, factor=opt.factor)
     elif opt.dataset_type == 'txt':
-        dataset = JetDatasetText(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width)
+        dataset = EventDatasetText(opt.dataset_path, etaBins=opt.hr_height, phiBins=opt.hr_width, factor=opt.factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
