@@ -88,7 +88,7 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
     energy_dist, lr_similarity, hr_similarity = [], [], []
     l1_criterion = nn.L1Loss()
     l2_criterion = nn.MSELoss()
-    pool = SumPool2d()
+    pool = SumPool2d(factor)
     for _, imgs in enumerate(dataloader):
         # Configure model input
         imgs_lr = imgs["lr"].to(device)
@@ -102,6 +102,7 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
             gen_lr = pool(gen_hr)
             l1_loss = l1_criterion(gen_lr, imgs_lr.cpu())
             lr_similarity.append(l1_loss.item())
+            
             # high resolution image L1 metric
             hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
 
