@@ -276,7 +276,7 @@ def train(opt):
                 if opt.validation_path:
                     print('Validation')
                     output_path = opt.output_path if 'output_path' in dir(opt) else None
-                    val_results = calculate_metrics(opt.validation_path, generator, device, output_path, opt.batch_size, opt.n_cpu)
+                    val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor)
                     val_results['epoch'] = epoch
                     val_results['batch'] = batches_done
                     generator.train()
