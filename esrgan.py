@@ -52,7 +52,7 @@ def get_parser():
     parser.add_argument("--lambda_lr", type=float, default=0.05, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--lambda_hist", type=float, default=0.01, help="energy distribution loss weight")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=True, help="whether to use all images in a batch to calculate the energy distribution")
-    parser.add_argument("--bins", type=int, default=10, help="number of bins in the energy distribution histogram")
+    parser.add_argument("--bins", type=int, default=15, help="number of bins in the energy distribution histogram")
     parser.add_argument("--root", type=str, default='', help="root directory for the model")
     parser.add_argument("--name", type=str, default=None, help='name of the model')
     parser.add_argument("--load_checkpoint", type=str, default=None, help='path to the generator weights to start the training with')
@@ -74,6 +74,9 @@ def get_parser():
 def train(opt):
     model_name = '' if opt.name is None else (opt.name + '_')
     start_epoch = 0
+    # check if enough warmup_batches are specified
+    if opt.lambda_hist > 0:
+        assert opt.warmup_batches > 0, "if distribution learning is enabled, warmup_batches needs to be greater than 0."
     # create dictionary containing model infomation
     info = {'epochs': start_epoch}
     info_path = os.path.join(opt.model_path, model_name+'info.json')
@@ -145,6 +148,8 @@ def train(opt):
 
     eps = 1e-10
     pool = SumPool2d(opt.factor).to(device)
+    e_max = 50  # random initialization number for the maximal pixel value
+    nnz = []  # list with nonzero values during the first few batches
     # ----------
     #  Training
     # ----------
@@ -184,8 +189,18 @@ def train(opt):
                         "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
                         % (i, total_batches, epoch, opt.n_epochs,  loss_pixel.item())
                     )
+                if opt.lambda_hist > 0:
+                    # find a good value to cut off the distribution
+                    imgs_hr = imgs_hr.cpu().view(-1).numpy()
+                    nnz.extend(list(imgs_hr[imgs_hr > 0]))
+                    c, b = np.histogram(nnz, 100)
+                    e_max = b[(np.cumsum(c) > len(nnz)*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
                 continue
-
+            elif batches_done == opt.warmup_batches:
+                if opt.lambda_hist > 0:
+                    print("found e_max to be %.2f" % e_max)
+                    info['e_max'] = e_max
+                del nnz
             # Measure pixel-wise loss against ground truth for downsampled images
             loss_lr_pixel = criterion_pixel(pool(gen_hr), imgs_lr)
 
@@ -203,15 +218,16 @@ def train(opt):
             # first calculate the both histograms
             gen_nnz = gen_hr[gen_hr > 0]
             real_nnz = imgs_hr[imgs_hr > 0]
-            e_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
-            e_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
-            histogram = SoftHistogram(opt.bins, e_min, e_max, batchwise=opt.batchwise_hist).to(device)
+            histogram = SoftHistogram(opt.bins, 0, e_max, batchwise=opt.batchwise_hist).to(device)
             gen_hist = histogram(gen_nnz)
             real_hist = histogram(real_nnz)
             loss_hist = criterion_hist(gen_hist, real_hist).mean(0)
 
             # Total generator loss
-            loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_hist * loss_hist
+            if opt.lambda_hist>0:
+                loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_hist * loss_hist
+            else:
+                loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
 
             loss_G.backward()
             optimizer_G.step()
