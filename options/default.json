@@ -15,6 +15,7 @@
     "checkpoint_interval": 500,
     "residual_blocks": 10,
     "warmup_batches": 500,
+    "pixel_multiplier": 70,
     "lambda_adv": 0.05,
     "lambda_lr": 0.1,
     "lambda_hist": 0.01,

@@ -48,6 +48,7 @@ def get_parser():
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
     parser.add_argument("--residual_blocks", type=int, default=10, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
+    parser.add_argument("--pixel_multiplier", type=float, default=70, help="multiply the image by this factors")
     parser.add_argument("--lambda_adv", type=float, default=0.0015, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=0.05, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--lambda_hist", type=float, default=0.01, help="energy distribution loss weight")

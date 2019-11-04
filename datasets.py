@@ -190,7 +190,7 @@ class JetDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, item):
-        img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins, self.phiBins)
+        img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins, self.phiBins)*70
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
