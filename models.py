@@ -81,7 +81,6 @@ class GeneratorRRDB(nn.Module):
             nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
         )
 
     def forward(self, x):
