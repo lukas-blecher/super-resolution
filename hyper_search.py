@@ -91,7 +91,7 @@ def main():
         print('checking hyperparameters: %s' % str(hyperparameters))
         info.append(hyperparameters.copy())
         # new name for each hyperparameter set
-        model_name = '-'.join(str(round(x, 4)).replace('.', '_') for x in hyperparameters.values())
+        model_name = '-'.join((str(round(x, 4)) if x > 1e-4 else '%e'%x).replace('.', '_') for x in hyperparameters.values())
         arguments = {**hyperparameters, **args_dict}
         additional_arguments = {key: default_dict[key] for key in default_dict if key not in arguments}
         arguments = {**arguments, **additional_arguments}
