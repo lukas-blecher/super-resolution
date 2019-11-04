@@ -282,6 +282,19 @@ def train(opt):
                     generator.train()
                     try:
                         info['validation'].append(val_results)
+                        # check if all metrics yield the same results and interrupt training if true. likley no changes in future
+                        if len(info['validation']) == 3:  # only need to check once
+                            stop_training = True
+                            for key in val_results.keys():
+                                if key in ('epoch', 'batch') or not stop_training:
+                                    continue
+                                for i in range(len(info['validation'])-1):
+                                    if info['validation'][i][key] != info['validation'][i+1][key]:
+                                        stop_training = False
+                            if stop_training:
+                                print('stopping training because validation results are exactly the same')
+                                return info['validation']
+
                     except KeyError:
                         info['validation'] = [val_results]
 
