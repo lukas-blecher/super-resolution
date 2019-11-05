@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from PIL import Image
-
+from tqdm.auto import tqdm 
 
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
@@ -29,37 +29,36 @@ def save_numpy(array, path):
     Image.fromarray(toUInt(array)).save(path)
 
 
-class HHDist:
-    '''Highest value distribution'''
+class MultHist:
+    '''A class to collect data for any number of histograms
+    modes: 'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values
+    '''
 
-    def __init__(self):
-        self.pred = []
-        self.gt = []
+    def __init__(self, num, mode='max'):
+        self.num = num
+        self.list = [[] for _ in range(num)]
+        self.mode = mode
 
-    def append_gt(self, img):
-        self.gt.append(img.max().item())
-
-    def append_pred(self, img):
-        self.pred.append(img.max().item())
-
-    def append_pair(self, pred, gt):
-        self.append_gt(gt)
-        self.append_pred(pred)
-
+    def append(self, *argv):
+        assert len(argv) == self.num
+        for i,L in enumerate(argv):
+            if self.mode == 'max':
+                self.list[i].extend(list(L.max(1)[0].max(1)[0].max(1)[0].detach().cpu().numpy()))
+            elif self.mode == 'min':
+                self.list[i].extend(list(L.min(1)[0].min(1)[0].min(1)[0].detach().cpu().numpy()))
+            elif self.mode == 'mean':
+                self.list[i].extend(list(L.mean((1,2,3)).detach().cpu().numpy()))
+            elif self.mode == 'nnz':
+                self.list[i].extend(list((L>=.002).sum(1).sum(1).sum(1).detach().cpu().numpy()))
+        
     def get_range(self):
-        mi = min(self.pred) 
-        if min(self.gt) < mi:
-            mi = min(self.gt)
-        ma = max(self.pred)
-        if max(self.gt) > ma:
-            ma = max(self.gt)
-        return (mi, ma)
+        mins = [min(self.list[i]) for i in range(self.num)]
+        maxs = [max(self.list[i]) for i in range(self.num)]
+        return min(mins), max(maxs)
 
-    def histogram_gt(self, bins=10):
-        return np.histogram(self.gt, bins, range=self.get_range())
+    def histogram(self, L, bins=10):
+        return np.histogram(L, bins, range=self.get_range())
 
-    def histogram_pred(self, bins=10):
-        return np.histogram(self.pred, bins, range=self.get_range())
 
 
 def call_func(opt):
@@ -67,12 +66,13 @@ def call_func(opt):
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else 10
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=opt.factor//2).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor]
     if opt.histogram:
-        return highest_energy_distribution(opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor)
+        return distribution(*args, mode=opt.histogram)
     else:
-        return calculate_metrics(opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor)
+        return calculate_metrics(*args)
 
 
 def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None):
@@ -102,7 +102,7 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
             gen_lr = pool(gen_hr)
             l1_loss = l1_criterion(gen_lr, imgs_lr.cpu())
             lr_similarity.append(l1_loss.item())
-            
+
             # high resolution image L1 metric
             hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
 
@@ -131,35 +131,46 @@ def to_hist(data, bins):
     return x[1:-1], hist
 
 
-def highest_energy_distribution(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=300):
+def distribution(dataset_path, dataset_type, generator, device, output_path=None, 
+                                batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max'):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
     dataloader = DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=30,
         shuffle=False,
         num_workers=n_cpu
     )
 
-    hhd=HHDist()
+    hhd = MultHist(2 if mode=='mean' else 3, mode)
     print('collecting data from %s' % dataset_path)
-    for _, imgs in enumerate(dataloader):
+    for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
         # Configure model input
         imgs_lr = imgs["lr"].to(device)
         imgs_hr = imgs["hr"]
         # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr).detach()
-        hhd.append_pair(gen_hr, imgs_hr)
+        if mode == "mean":
+            hhd.append(gen_hr, imgs_hr)
+        else:
+            hhd.append(gen_hr, imgs_hr, imgs_lr)
 
     plt.figure()
-    plt.plot(*to_hist(*hhd.histogram_gt(bins)),label="ground truth")
-    plt.plot(*to_hist(*hhd.histogram_pred(bins)),'--',label="model prediction")
-    plt.title('highest energy distribution')
+    for i, (ls, lab) in enumerate(zip(['-','--','-.'], ["model prediction", "ground truth", "low resolution input"])):
+        if mode == 'mean' and i == 2:
+            continue
+        x,y = to_hist(*hhd.histogram(hhd.list[i], bins))
+        plt.plot(x, y, ls, label=lab)
+        std = np.sqrt(y)
+        std[y==0] = 0
+        plt.fill_between(x, y+std, y-std ,alpha=.2)
+    
+    
+    #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
     plt.legend()
     if output_path:
         plt.savefig(output_path)
     plt.show()
-    return hhd
 
 def hline(newline=False, n=100):
     print('_'*n) if not newline else print('_'*n, '\n')
@@ -241,11 +252,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, default='images/outputs', help="Path where output will be saved")
     parser.add_argument("--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
     parser.add_argument("--residual_blocks", type=int, default=10, help="Number of residual blocks in G")
-    parser.add_argument("--factor",type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
-    parser.add_argument("--hr_height",type=int, default=default_dict['hr_height'], help="input image height")
-    parser.add_argument("--hr_width",type=int, default=default_dict['hr_width'], help="input image width")
+    parser.add_argument("--factor", type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
+    parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
+    parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
-    parser.add_argument("--histogram", action="store_true", default=True, help="whether to show energy distribution histogram")
+    parser.add_argument("--histogram", choices=['max','nnz', 'min', 'mean'], default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=20, help="number of bins in the histogram")
 
     opt = vars(parser.parse_args())
