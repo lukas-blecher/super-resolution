@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch
 from torchvision.models import vgg19
 import math
+import numpy as np
 
 
 class FeatureExtractor(nn.Module):
@@ -149,26 +150,38 @@ class Standard_Discriminator(nn.Module):
         return self.fc(self.conv(img).view(img.shape[0], -1))
 
 
-class SoftHistogram(nn.Module):
-    '''Modified version of https://discuss.pytorch.org/t/differentiable-torch-histc/25865/2 by Tony-Y'''
+class DiffableHistogram(nn.Module):
+    '''Modified version of https://discuss.pytorch.org/t/differentiable-torch-histc/25865/2 by Tony-Y
+    If `bins` is a sequence the histogram will be defined by the edges specified in `bins`. If it is an integer 
+    the histogram will consist of equally sized bins.
+    `sigma` is a parameter of how strickly the differentiable histogram will approach the discrete histogram. For big values the gradients may explode.
+    `batchwise` is a boolean that indicates whether the histogram will be taken over the whole data or batchwise.
 
-    def __init__(self, bins, min, max, sigma=25, batchwise=False):
-        super(SoftHistogram, self).__init__()
-        self.bins = bins
-        self.min = min
-        self.max = max
+    The input data should be in the shape of [batch_size, channels, height, width]
+    The output data will be in the shape of [batch_size, -1] if `batchwise` is True else [1, -1]
+    '''
+
+    def __init__(self, bins, min=0, max=1, sigma=25, batchwise=False):
+        super(DiffableHistogram, self).__init__()
+        self.bins = torch.Tensor(bins)
+
         self.sigma = sigma
         self.batchwise = batchwise
-        self.delta = float(max - min) / float(bins)
-        self.centers = float(min) + self.delta * (torch.arange(bins).float() + 0.5)
+        if type(bins) is int:
+            self.delta = (max-min)/bins*torch.ones(bins-1)
+            self.centers = float(min) + self.delta * (torch.arange(bins).float() + 0.5)
+        else:
+            self.delta = torch.Tensor([np.diff(bins)])
+            self.centers = self.bins[:-1]+.5*self.delta
 
     def forward(self, x):
         batches = len(x) if (len(x.shape) == 4 and self.batchwise) else 1
         x = x.view(batches, -1)
         x = x[:, None, :] - self.centers[..., None]
-        x = torch.sigmoid(self.sigma * (x + self.delta/2)) - torch.sigmoid(self.sigma * (x - self.delta/2))
+        x = torch.sigmoid(self.sigma * (x + self.delta[..., None]/2)) - torch.sigmoid(self.sigma * (x - self.delta[..., None]/2))
         return x.sum(2)
 
     def to(self, device):
         self.centers = self.centers.to(device)
+        self.delta = self.delta.to(device)
         return self
