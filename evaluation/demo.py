@@ -35,11 +35,11 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=args.factor//2).to(device).eval()
     generator.load_state_dict(torch.load(args.model))
     criterion = torch.nn.L1Loss()
     mse = torch.nn.MSELoss()
-    sumpool = SumPool2d()
+    sumpool = SumPool2d(args.factor)
     for i, imgs in enumerate(dataloader):
         # Configure model input
         imgs_lr = imgs["lr"].to(device)

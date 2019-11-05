@@ -181,10 +181,11 @@ class JetDataset(Dataset):
         super(JetDataset, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
-        if amount is not None:
-            self.data = self.data[:amount]
+        
         self.pool = SumPool2d(factor)
         self.df = pd.read_hdf(path,'table')
+        if amount is not None:
+            self.df = self.df.iloc[:amount]
 
     def __len__(self):
         return len(self.df)
@@ -196,10 +197,10 @@ class JetDataset(Dataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
-def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2):
+def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None):
     if dataset_type == 'h5':
-        return EventDataset(dataset_path, etaBins=hr_height, phiBins=hr_width, factor=factor)
+        return EventDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'txt':
-        return EventDatasetText(dataset_path, etaBins=hr_height, phiBins=hr_width, factor=factor)
+        return EventDatasetText(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'jet':
-        return JetDataset(dataset_path, etaBins=hr_height, phiBins=hr_width, factor=factor)
+        return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
