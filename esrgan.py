@@ -6,6 +6,7 @@ import math
 import itertools
 import sys
 import json
+from sklearn.cluster import KMeans
 
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
@@ -49,10 +50,11 @@ def get_parser():
     parser.add_argument("--residual_blocks", type=int, default=10, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
     parser.add_argument("--pixel_multiplier", type=float, default=70, help="multiply the image by this factors")
-    parser.add_argument("--lambda_adv", type=float, default=0.0015, help="adversarial loss weight")
-    parser.add_argument("--lambda_lr", type=float, default=0.05, help="pixel-wise loss weight for the low resolution L1 pixel loss")
+    parser.add_argument("--lambda_adv", type=float, default=0.001, help="adversarial loss weight")
+    parser.add_argument("--lambda_lr", type=float, default=0.1, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--lambda_hist", type=float, default=0.01, help="energy distribution loss weight")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=True, help="whether to use all images in a batch to calculate the energy distribution")
+    parser.add_argument("--sigma", type=float, default=400, help="Sigma parameter for the differentiable histogram")
     parser.add_argument("--bins", type=int, default=15, help="number of bins in the energy distribution histogram")
     parser.add_argument("--root", type=str, default='', help="root directory for the model")
     parser.add_argument("--name", type=str, default=None, help='name of the model')
@@ -151,6 +153,7 @@ def train(opt):
     pool = SumPool2d(opt.factor).to(device)
     e_max = 50  # random initialization number for the maximal pixel value
     nnz = []  # list with nonzero values during the first few batches
+    binedges = []  # list with bin edges for energy distribution training
     # ----------
     #  Training
     # ----------
@@ -200,7 +203,13 @@ def train(opt):
             elif batches_done == opt.warmup_batches:
                 if opt.lambda_hist > 0:
                     print("found e_max to be %.2f" % e_max)
-                    info['e_max'] = e_max
+                    info['e_max'] = float(e_max)
+                    sorted_nnz = np.sort(nnz)
+                    sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
+                    k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
+                    binedges = np.sort(k_mean.cluster_centers_.flatten())
+                    binedges = np.array([0, *(np.diff(binedges)/2+binedges[:-1]), e_max])
+                    info['binedges'] =list(binedges)
                 del nnz
             # Measure pixel-wise loss against ground truth for downsampled images
             loss_lr_pixel = criterion_pixel(pool(gen_hr), imgs_lr)
@@ -219,13 +228,13 @@ def train(opt):
             # first calculate the both histograms
             gen_nnz = gen_hr[gen_hr > 0]
             real_nnz = imgs_hr[imgs_hr > 0]
-            histogram = SoftHistogram(opt.bins, 0, e_max, batchwise=opt.batchwise_hist).to(device)
+            histogram = DiffableHistogram(binedges, sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
             gen_hist = histogram(gen_nnz)
             real_hist = histogram(real_nnz)
             loss_hist = criterion_hist(gen_hist, real_hist).mean(0)
 
             # Total generator loss
-            if opt.lambda_hist>0:
+            if opt.lambda_hist > 0:
                 loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_hist * loss_hist
             else:
                 loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
@@ -316,6 +325,9 @@ def train(opt):
                         info['validation'] = [val_results]
 
             if batches_done == total_batches:
+                if opt.save:
+                    with open(info_path, 'w') as outfile:
+                        json.dump(info, outfile)
                 if opt.validation_path:
                     return info['validation']
                 else:
