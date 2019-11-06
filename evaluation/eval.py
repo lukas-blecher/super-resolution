@@ -31,25 +31,33 @@ def save_numpy(array, path):
 
 class MultHist:
     '''A class to collect data for any number of histograms
-    modes: 'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values
+    modes: 'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values,
+           'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels
     '''
 
     def __init__(self, num, mode='max'):
         self.num = num
         self.list = [[] for _ in range(num)]
         self.mode = mode
+        self.thres = 0.002
 
     def append(self, *argv):
         assert len(argv) == self.num
         for i,L in enumerate(argv):
+            Ln = L.detach().cpu().numpy()
             if self.mode == 'max':
-                self.list[i].extend(list(L.max(1)[0].max(1)[0].max(1)[0].detach().cpu().numpy()))
+                self.list[i].extend(list(Ln.max((1,2,3))))
             elif self.mode == 'min':
-                self.list[i].extend(list(L.min(1)[0].min(1)[0].min(1)[0].detach().cpu().numpy()))
+                self.list[i].extend(list(Ln.min((1,2,3))))
             elif self.mode == 'mean':
-                self.list[i].extend(list(L.mean((1,2,3)).detach().cpu().numpy()))
+                self.list[i].extend(list(Ln.mean((1,2,3))))
             elif self.mode == 'nnz':
-                self.list[i].extend(list((L>=.002).sum(1).sum(1).sum(1).detach().cpu().numpy()))
+                self.list[i].extend(list((L>=self.thres).sum(1).sum(1).sum(1).detach().cpu().numpy()))
+            elif self.mode == 'sum':
+                self.list[i].extend(list(Ln.sum((1,2,3))))
+            elif self.mode == 'meannnz':
+                for j in range(len(Ln)):
+                    self.list[i].append(Ln[j][Ln[j]>self.thres].mean())
         
     def get_range(self):
         mins = [min(self.list[i]) for i in range(self.num)]
@@ -66,7 +74,7 @@ def call_func(opt):
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else 10
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=opt.factor//2).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
     args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor]
     if opt.histogram:
@@ -142,7 +150,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         num_workers=n_cpu
     )
 
-    hhd = MultHist(2 if mode=='mean' else 3, mode)
+    hhd = MultHist(2 if "mean" in mode else 3, mode)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
         # Configure model input
@@ -150,14 +158,14 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         imgs_hr = imgs["hr"]
         # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr).detach()
-        if mode == "mean":
+        if "mean" in mode:
             hhd.append(gen_hr, imgs_hr)
         else:
             hhd.append(gen_hr, imgs_hr, imgs_lr)
 
     plt.figure()
     for i, (ls, lab) in enumerate(zip(['-','--','-.'], ["model prediction", "ground truth", "low resolution input"])):
-        if mode == 'mean' and i == 2:
+        if "mean" in mode and i == 2:
             continue
         x,y = to_hist(*hhd.histogram(hhd.list[i], bins))
         plt.plot(x, y, ls, label=lab)
@@ -256,7 +264,7 @@ if __name__ == "__main__":
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
-    parser.add_argument("--histogram", choices=['max','nnz', 'min', 'mean'], default=None, help="what histogram to show if any")
+    parser.add_argument("--histogram", choices=['max','nnz', 'min', 'mean', 'sum', 'meannnz'], default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=20, help="number of bins in the histogram")
 
     opt = vars(parser.parse_args())
