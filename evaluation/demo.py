@@ -35,7 +35,7 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=args.factor//2).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor))).to(device).eval()
     generator.load_state_dict(torch.load(args.model))
     criterion = torch.nn.L1Loss()
     mse = torch.nn.MSELoss()
@@ -51,12 +51,15 @@ def main(args):
         with torch.no_grad():
             gen_lr = sumpool(gen_hr).detach()
             gen_nnz = gen_hr[gen_hr > 0].view(-1)
-            real_nnz = imgs_hr[imgs_hr > 0].view(-1)
-            e_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
-            e_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
-            gen_hist = torch.histc(gen_nnz, 10, min=e_min, max=e_max).float()
-            real_hist = torch.histc(real_nnz, 10, min=e_min, max=e_max).float()
-            print("HR L1Loss: %.3e, LR L1Loss: %.3e, Energy distribution loss %.3e" % (criterion(gen_hr, imgs_hr).item(), criterion(gen_lr, imgs_lr).item(), mse(gen_hist, real_hist)))
+            en_loss=0
+            if len(gen_nnz) > 0:
+                real_nnz = imgs_hr[imgs_hr > 0].view(-1)
+                e_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
+                e_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
+                gen_hist = torch.histc(gen_nnz, 10, min=e_min, max=e_max).float()
+                real_hist = torch.histc(real_nnz, 10, min=e_min, max=e_max).float()
+                en_loss=mse(gen_hist, real_hist)
+            print("HR L1Loss: %.3e, LR L1Loss: %.3e, Energy distribution loss %.3e" % (criterion(gen_hr, imgs_hr).item(), criterion(gen_lr, imgs_lr).item(), en_loss))
 
         show(imgs_lr, imgs_hr, gen_hr, gen_lr)
 
