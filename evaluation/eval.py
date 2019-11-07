@@ -98,14 +98,15 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
     l2_criterion = nn.MSELoss()
     pool = SumPool2d(factor)
     for _, imgs in enumerate(dataloader):
-        # Configure model input
-        imgs_lr = imgs["lr"].to(device)
-        imgs_hr = imgs["hr"]
-        # Generate a high resolution image from low resolution input
-        gen_hr = generator(imgs_lr).detach().cpu()
-
-        # compare downsampled generated image with lr ground_truth using l1 loss
         with torch.no_grad():
+            # Configure model input
+            imgs_lr = imgs["lr"].to(device)
+            imgs_hr = imgs["hr"]
+            # Generate a high resolution image from low resolution input
+            gen_hr = generator(imgs_lr).detach().cpu()
+
+            # compare downsampled generated image with lr ground_truth using l1 loss
+        
             # low resolution image L1 metric
             gen_lr = pool(gen_hr)
             l1_loss = l1_criterion(gen_lr, imgs_lr.cpu())
@@ -209,48 +210,54 @@ def evaluate_results(file):
     for key, value in results.items():
         if key != 'results':
             print(key, '\t'*(2*tmax-ts(key)), value)
-    hline(True)
-
+    hline()
+    max_lines_per_plot = 6
     hyper_set = results['results']
-    assert len(hyper_set) > 0
+    num_lines = len(hyper_set)
+    assert num_lines > 0
     p0 = hyper_set[0]['metrics'][0]
     num_metrics = len(p0)-2
-    M = int(np.sqrt(num_metrics))
-    N = num_metrics//M
+    N = num_metrics #int(np.sqrt(num_metrics))
+    M = int(num_lines%max_lines_per_plot!=0)+num_lines//max_lines_per_plot
     f, ax = plt.subplots(M, N)
     ax = ax.flatten()
+    max_lines_per_plot = num_lines//M
+    set_indices=[i if i < num_lines else num_lines for i in range(0,num_lines+max_lines_per_plot,max_lines_per_plot)]
     # iterate over every metric that was measured
-    for m, (key, value) in enumerate(p0.items()):
-        if key in ('epoch', 'batch'):
-            m -= 1
-            continue
-        splt = ax[m]
-        splt.set_title(key)
-        splt.set_xlabel('iterations')
-        # iterate over every set of hyperparameters that was investigated
-        for h in range(len(hyper_set)):
-            checkpoints = hyper_set[h]['metrics']
-            label = ''
-            for k, v in hyper_set[h].items():
-                if k not in ('epoch', 'batch', 'metrics'):
-                    vstr = str(v)
-                    if len(vstr) > 6:
-                        vstr = '%.4f' % v
-                    label += '%s=%s ' % (clean_labels(k), vstr)
-            iterations = []  # will contain batch number
-            y = []
-            y_err = []
-            # iterate over every point in time that was measured
-            for i in range(len(checkpoints)):
-                p = checkpoints[i]  # point in time
-                iterations.append(p['batch'])
-                y.append(p[key]['mean'])
-                y_err.append(p[key]['std'])
-            _, caps, bars = splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
-            # loop through bars and caps and set the alpha value
-            [bar.set_alpha(0.5) for bar in bars]
-            [cap.set_alpha(0.5) for cap in caps]
-            splt.legend()
+    for l in range(M):
+        for m, (key, value) in enumerate(p0.items()):
+            if key in ('epoch', 'batch'):
+                m -= 1
+                continue
+            splt = ax[m+N*l]
+            if l==0:
+                splt.set_title(key)
+            if l ==M-1:
+                splt.set_xlabel('iterations')
+            # iterate over every set of hyperparameters that was investigated
+            for h in range(set_indices[l],set_indices[l+1]):
+                checkpoints = hyper_set[h]['metrics']
+                label = ''
+                for k, v in hyper_set[h].items():
+                    if k not in ('epoch', 'batch', 'metrics'):
+                        vstr = str(v)
+                        if len(vstr) > 6:
+                            vstr = '%.4f' % v
+                        label += '%s=%s ' % (clean_labels(k), vstr)
+                iterations = []  # will contain batch number
+                y = []
+                y_err = []
+                # iterate over every point in time that was measured
+                for i in range(len(checkpoints)):
+                    p = checkpoints[i]  # point in time
+                    iterations.append(p['batch'])
+                    y.append(p[key]['mean'])
+                    y_err.append(p[key]['std'])
+                _, caps, bars = splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
+                # loop through bars and caps and set the alpha value
+                [bar.set_alpha(0.5) for bar in bars]
+                [cap.set_alpha(0.5) for cap in caps]
+        splt.legend(loc=(1, 0),fontsize='x-small')
     plt.show()
 
 
@@ -265,7 +272,7 @@ if __name__ == "__main__":
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
     parser.add_argument("--histogram", choices=['max','nnz', 'min', 'mean', 'sum', 'meannnz'], default=None, help="what histogram to show if any")
-    parser.add_argument("--bins", type=int, default=20, help="number of bins in the histogram")
+    parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
 
     opt = vars(parser.parse_args())
     if opt['hyper_results'] is not None:
