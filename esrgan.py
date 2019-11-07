@@ -229,7 +229,7 @@ def train(opt):
 
             # Total generator loss
             loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
-            loss_hist, loss_nnz = np.nan, np.nan
+            loss_hist, loss_nnz = torch.Tensor([0]), torch.Tensor([0])
             
             if opt.lambda_hist > 0:
                 # calculate the energy distribution loss
