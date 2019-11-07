@@ -92,7 +92,10 @@ class GeneratorRRDB(nn.Module):
         out = torch.add(out1, out2)
         out = self.upsampling(out)
         out = self.conv3(out)
-        return out
+        if self.training:
+            return out
+        else:
+            return F.relu(out)
 
 
 def discriminator_block(in_filters, out_filters, first_block=False):
