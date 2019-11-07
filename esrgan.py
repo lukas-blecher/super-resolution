@@ -49,10 +49,12 @@ def get_parser():
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
     parser.add_argument("--residual_blocks", type=int, default=10, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
+    parser.add_argument("--learn_warmup", type=str_to_bool, default=True, help="whether to learn during warmup phase or not")
     parser.add_argument("--pixel_multiplier", type=float, default=70, help="multiply the image by this factors")
     parser.add_argument("--lambda_adv", type=float, default=0.001, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=0.1, help="pixel-wise loss weight for the low resolution L1 pixel loss")
-    parser.add_argument("--lambda_hist", type=float, default=0.01, help="energy distribution loss weight")
+    parser.add_argument("--lambda_hist", type=float, default=1e-6, help="energy distribution loss weight")
+    parser.add_argument("--lambda_nnz", type=float, default=1e-6, help="")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=True, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=400, help="Sigma parameter for the differentiable histogram")
     parser.add_argument("--bins", type=int, default=15, help="number of bins in the energy distribution histogram")
@@ -186,13 +188,14 @@ def train(opt):
 
             if batches_done < opt.warmup_batches:
                 # Warm-up (pixel-wise loss only)
-                loss_pixel.backward()
-                optimizer_G.step()
-                if batches_done % opt.report_freq == 0:
-                    print(
-                        "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
-                        % (i, total_batches, epoch, opt.n_epochs,  loss_pixel.item())
-                    )
+                if opt.learn_warmup:
+                    loss_pixel.backward()
+                    optimizer_G.step()
+                    if batches_done % opt.report_freq == 0:
+                        print(
+                            "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
+                            % (i, total_batches, epoch, opt.n_epochs,  loss_pixel.item())
+                        )
                 if opt.lambda_hist > 0:
                     # find a good value to cut off the distribution
                     imgs_hr = imgs_hr.cpu().view(-1).numpy()
@@ -209,7 +212,7 @@ def train(opt):
                     k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
                     binedges = np.sort(k_mean.cluster_centers_.flatten())
                     binedges = np.array([0, *(np.diff(binedges)/2+binedges[:-1]), e_max])
-                    info['binedges'] =list(binedges)
+                    info['binedges'] = list(binedges)
                 del nnz
             # Measure pixel-wise loss against ground truth for downsampled images
             loss_lr_pixel = criterion_pixel(pool(gen_hr), imgs_lr)
@@ -224,20 +227,25 @@ def train(opt):
             else:
                 loss_GAN = criterion_GAN(eps + pred_fake, valid)
 
-            # calculate the energy distribution loss
-            # first calculate the both histograms
-            gen_nnz = gen_hr[gen_hr > 0]
-            real_nnz = imgs_hr[imgs_hr > 0]
-            histogram = DiffableHistogram(binedges, sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
-            gen_hist = histogram(gen_nnz)
-            real_hist = histogram(real_nnz)
-            loss_hist = criterion_hist(gen_hist, real_hist).mean(0)
-
             # Total generator loss
+            loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
+            loss_hist, loss_nnz = np.nan, np.nan
+            
             if opt.lambda_hist > 0:
-                loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_hist * loss_hist
-            else:
-                loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
+                # calculate the energy distribution loss
+                # first calculate the both histograms
+                gen_nnz = gen_hr[gen_hr > 0]
+                real_nnz = imgs_hr[imgs_hr > 0]
+                histogram = DiffableHistogram(binedges, sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
+                gen_hist = histogram(gen_nnz)
+                real_hist = histogram(real_nnz)
+                loss_hist = criterion_hist(gen_hist, real_hist)
+                loss_G = loss_G + opt.lambda_hist * loss_hist
+            if opt.lambda_nnz > 0:
+                gen_nnz = softgreater(gen_hr, 0, 50000).sum(1).sum(1).sum(1)
+                target = (imgs_hr>0).sum(1).sum(1).sum(1).float().to(device)
+                loss_nnz = criterion_hist(gen_nnz, target)
+                loss_G = loss_G + opt.lambda_nnz * loss_nnz
 
             loss_G.backward()
             optimizer_G.step()
@@ -269,7 +277,7 @@ def train(opt):
             # --------------
             if batches_done % opt.report_freq == 0:
                 print(
-                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %f]"
+                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f]"
                     % (
                         i,
                         total_batches,
@@ -281,6 +289,7 @@ def train(opt):
                         loss_pixel.item(),
                         loss_lr_pixel.item(),
                         loss_hist.item(),
+                        loss_nnz.item(),
                     )
                 )
             # check if loss is NaN
@@ -336,6 +345,11 @@ def train(opt):
         if opt.save:
             with open(info_path, 'w') as outfile:
                 json.dump(info, outfile)
+
+
+def softgreater(x, val, sigma=5000, delta=0):
+    # differentiable verions of torch.where(x>val)
+    return torch.sigmoid(sigma * (x-val+delta))
 
 
 if __name__ == "__main__":
