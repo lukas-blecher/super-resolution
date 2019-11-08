@@ -135,7 +135,7 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
 
     results = {}
     for metric_name, metric_values in zip(['hr_l1', 'lr_l1', 'energy distribution', 'non-zero'], [lr_similarity, hr_similarity, energy_dist, nnz]):
-        results[metric_name] = {'mean': np.mean(metric_values), 'std': np.std(metric_values)}
+        results[metric_name] = {'mean': float(np.mean(metric_values)), 'std': float(np.std(metric_values))}
 
     return results
 
