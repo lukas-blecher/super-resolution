@@ -215,7 +215,10 @@ def evaluate_results(file):
     hyper_set = results['results']
     num_lines = len(hyper_set)
     assert num_lines > 0
-    p0 = hyper_set[0]['metrics'][0]
+    for i in range(num_lines):
+        if 'metrics' in hyper_set[i].keys():
+            p0 = hyper_set[i]['metrics'][0]
+            break
     num_metrics = len(p0)-2
     N = num_metrics #int(np.sqrt(num_metrics))
     M = int(num_lines%max_lines_per_plot!=0)+num_lines//max_lines_per_plot
@@ -236,13 +239,15 @@ def evaluate_results(file):
                 splt.set_xlabel('iterations')
             # iterate over every set of hyperparameters that was investigated
             for h in range(set_indices[l],set_indices[l+1]):
+                if not 'metrics' in hyper_set[h].keys():
+                    continue
                 checkpoints = hyper_set[h]['metrics']
                 label = ''
                 for k, v in hyper_set[h].items():
                     if k not in ('epoch', 'batch', 'metrics'):
                         vstr = str(v)
                         if len(vstr) > 6:
-                            vstr = '%.4f' % v
+                            vstr = '%.4f' % v if v > 1e-3 else '%.2e' % v
                         label += '%s=%s ' % (clean_labels(k), vstr)
                 iterations = []  # will contain batch number
                 y = []
@@ -257,7 +262,7 @@ def evaluate_results(file):
                 # loop through bars and caps and set the alpha value
                 [bar.set_alpha(0.5) for bar in bars]
                 [cap.set_alpha(0.5) for cap in caps]
-        splt.legend(loc=(1, 0),fontsize='x-small')
+        splt.legend(loc=(1, 0))
     plt.show()
 
 
