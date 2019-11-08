@@ -16,6 +16,7 @@ from torch.autograd import Variable
 
 from models import *
 from datasets import *
+from options.default import default
 from evaluation.eval import calculate_metrics
 
 import torch.nn as nn
@@ -33,44 +34,44 @@ def str_to_bool(value):
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--factor", type=int, default=2, help="factor to upsample the input image")
-    parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-    parser.add_argument("--dataset_path", type=str, default="../data/train.h5", help="path to the dataset")
-    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet'], default="jet", help="how is the dataset saved")
-    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
-    parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--n_cpu", type=int, default=0, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--hr_height", type=int, default=40, help="high res. image height")
-    parser.add_argument("--hr_width", type=int, default=40, help="high res. image width")
-    parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-    parser.add_argument("--sample_interval", type=int, default=500, help="interval between saving image samples")
-    parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
-    parser.add_argument("--residual_blocks", type=int, default=10, help="number of residual blocks in the generator")
-    parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
-    parser.add_argument("--learn_warmup", type=str_to_bool, default=True, help="whether to learn during warmup phase or not")
-    parser.add_argument("--pixel_multiplier", type=float, default=70, help="multiply the image by this factors")
-    parser.add_argument("--lambda_adv", type=float, default=0.001, help="adversarial loss weight")
-    parser.add_argument("--lambda_lr", type=float, default=0.1, help="pixel-wise loss weight for the low resolution L1 pixel loss")
-    parser.add_argument("--lambda_hist", type=float, default=1e-6, help="energy distribution loss weight")
-    parser.add_argument("--lambda_nnz", type=float, default=1e-6, help="")
-    parser.add_argument("--batchwise_hist", type=str_to_bool, default=True, help="whether to use all images in a batch to calculate the energy distribution")
-    parser.add_argument("--sigma", type=float, default=400, help="Sigma parameter for the differentiable histogram")
-    parser.add_argument("--bins", type=int, default=15, help="number of bins in the energy distribution histogram")
-    parser.add_argument("--root", type=str, default='', help="root directory for the model")
-    parser.add_argument("--name", type=str, default=None, help='name of the model')
-    parser.add_argument("--load_checkpoint", type=str, default=None, help='path to the generator weights to start the training with')
-    parser.add_argument("--report_freq", type=int, default=10, help='report frequency determines how often the loss is printed')
-    parser.add_argument("--model_path", type=str, default="saved_models", help="directory where the model is saved/should be saved")
-    parser.add_argument("--discriminator", choices=['patch', 'standard'], default='patch', help="discriminator model to use")
-    parser.add_argument("--relativistic", type=str_to_bool, default=True, help="whether to use relativistic average GAN")
-    parser.add_argument("--save", type=str_to_bool, default=True, help="whether to save the model weights or not")
-    parser.add_argument("--validation_path", type=str, default=None, help="Path to validation data. Validating when creating a new checkpoint")
+    parser.add_argument("--factor", type=int, default=default.factor, help="factor to upsample the input image")
+    parser.add_argument("--n_epochs", type=int, default=default.n_epochs, help="number of epochs of training")
+    parser.add_argument("--dataset_path", type=str, default=default.dataset_path, help="path to the dataset")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet'], default=default.dataset_type, help="how is the dataset saved")
+    parser.add_argument("--batch_size", type=int, default=default.batch_size, help="size of the batches")
+    parser.add_argument("--lr", type=float, default=default.lr, help="adam: learning rate")
+    parser.add_argument("--b1", type=float, default=default.b1, help="adam: decay of first order momentum of gradient")
+    parser.add_argument("--b2", type=float, default=default.b2, help="adam: decay of first order momentum of gradient")
+    parser.add_argument("--n_cpu", type=int, default=default.n_cpu, help="number of cpu threads to use during batch generation")
+    parser.add_argument("--hr_height", type=int, default=default.hr_height, help="high res. image height")
+    parser.add_argument("--hr_width", type=int, default=default.hr_width, help="high res. image width")
+    parser.add_argument("--channels", type=int, default=default.channels, help="number of image channels")
+    parser.add_argument("--sample_interval", type=int, default=default.sample_interval, help="interval between saving image samples")
+    parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
+    parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
+    parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
+    parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
+    parser.add_argument("--pixel_multiplier", type=float, default=default.pixel_multiplier, help="multiply the image by this factors")
+    parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
+    parser.add_argument("--lambda_lr", type=float, default=default.lambda_lr, help="pixel-wise loss weight for the low resolution L1 pixel loss")
+    parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
+    parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="")
+    parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
+    parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
+    parser.add_argument("--bins", type=int, default=default.bins, help="number of bins in the energy distribution histogram")
+    parser.add_argument("--root", type=str, default=default.root, help="root directory for the model")
+    parser.add_argument("--name", type=str, default=default.name, help='name of the model')
+    parser.add_argument("--load_checkpoint", type=str, default=default.load_checkpoint, help='path to the generator weights to start the training with')
+    parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
+    parser.add_argument("--model_path", type=str, default=default.model_path, help="directory where the model is saved/should be saved")
+    parser.add_argument("--discriminator", choices=['patch', 'standard'], default=default.discriminator, help="discriminator model to use")
+    parser.add_argument("--relativistic", type=str_to_bool, default=default.relativistic, help="whether to use relativistic average GAN")
+    parser.add_argument("--save", type=str_to_bool, default=default.save, help="whether to save the model weights or not")
+    parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
-    parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
-    parser.add_argument("--n_checkpoints", default=-1, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
+    parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
+    parser.add_argument("--n_checkpoints", default=default.n_checkpoints, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
     opt = parser.parse_args()
     print(opt)
     return opt
@@ -230,7 +231,7 @@ def train(opt):
             # Total generator loss
             loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
             loss_hist, loss_nnz = torch.Tensor([0]), torch.Tensor([0])
-            
+
             if opt.lambda_hist > 0:
                 # calculate the energy distribution loss
                 # first calculate the both histograms
@@ -243,7 +244,7 @@ def train(opt):
                 loss_G = loss_G + opt.lambda_hist * loss_hist
             if opt.lambda_nnz > 0:
                 gen_nnz = softgreater(gen_hr, 0, 50000).sum(1).sum(1).sum(1)
-                target = (imgs_hr>0).sum(1).sum(1).sum(1).float().to(device)
+                target = (imgs_hr > 0).sum(1).sum(1).sum(1).float().to(device)
                 loss_nnz = criterion_hist(gen_nnz, target)
                 loss_G = loss_G + opt.lambda_nnz * loss_nnz
 

@@ -1,6 +1,6 @@
 {
     "n_epochs": 50,
-    "dataset_path": "../data/1M_central_train.h5",
+    "dataset_path": "../data/train_tops.h5",
     "dataset_type": "jet",
     "batch_size": 8,
     "factor": 2,
@@ -19,6 +19,7 @@
     "lambda_adv": 0.001,
     "lambda_lr": 0.1,
     "lambda_hist": 0.0000001,
+    "lambda_nnz": 0.0000001,
     "batchwise_hist": false,
     "learn_warmup": true,
     "sigma": 500,
@@ -26,6 +27,7 @@
     "name": "",
     "root": "",
     "model_path": "saved_models",
+    "validation_path": null,
     "load_checkpoint": null,
     "report_freq": 10,
     "discriminator": "patch",
