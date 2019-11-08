@@ -22,12 +22,12 @@ def denormalize(tensors):
 
 
 class ImageDataset(Dataset):
-    def __init__(self, root, hr_shape):
+    def __init__(self, root, hr_shape, factor=4):
         hr_height, hr_width = hr_shape
         # Transforms for low resolution images and high resolution images
         self.lr_transform = transforms.Compose(
             [
-                transforms.Resize((hr_height // 4, hr_height // 4), Image.BICUBIC),
+                transforms.Resize((hr_height // factor, hr_height // factor), Image.BICUBIC),
                 transforms.ToTensor(),
                 transforms.Normalize(mean, std),
             ]
@@ -54,8 +54,8 @@ class ImageDataset(Dataset):
 
 
 class STLDataset(ImageDataset):
-    def __init__(self, root, train=True, download=True):
-        super(STLDataset, self).__init__(root, (96, 96))
+    def __init__(self, root, factor=4, train=True, download=True):
+        super(STLDataset, self).__init__(root, (96, 96), factor)
         if download:
             # use torchvision to download
             _ = datasets.STL10(root, download=True)

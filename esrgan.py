@@ -12,6 +12,7 @@ from torchvision.utils import save_image, make_grid
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
+from options.default import default
 from models import *
 from datasets import *
 
@@ -22,32 +23,34 @@ import torch
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-    parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-    parser.add_argument("--dataset_path", type=str, default="data/", help="path to the dataset")
-    parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
-    parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
-    parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
-    parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-    parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
-    parser.add_argument("--checkpoint_interval", type=int, default=500, help="batch interval between model checkpoints")
-    parser.add_argument("--residual_blocks", type=int, default=23, help="number of residual blocks in the generator")
-    parser.add_argument("--warmup_batches", type=int, default=500, help="number of batches with pixel-wise loss only")
-    parser.add_argument("--lambda_adv", type=float, default=5e-3, help="adversarial loss weight")
-    parser.add_argument("--lambda_pixel", type=float, default=1e-2, help="pixel-wise loss weight")
-    parser.add_argument("--root", type=str, default='', help="root directory for the model")
-    parser.add_argument("--name", type=str, default=None, help='name of the model')
-    parser.add_argument("--report_freq", type=int, default=10, help='report frequency determines how often the loss is printed')
-    parser.add_argument("--model_path", type=str, default="saved_models", help="where the model is saved/should be saved")
+    parser.add_argument("--epoch", type=int, default=default.epoch, help="epoch to start training from")
+    parser.add_argument("--n_epochs", type=int, default=default.n_epochs, help="number of epochs of training")
+    parser.add_argument("--dataset_path", type=str, default=default.dataset_path, help="path to the dataset")
+    parser.add_argument("--batch_size", type=int, default=default.batch_size, help="size of the batches")
+    parser.add_argument("--factor", type=int, default=default.factor, help="upscaling factor")
+    parser.add_argument("--lr", type=float, default=default.lr, help="adam: learning rate")
+    parser.add_argument("--b1", type=float, default=default.b1, help="adam: decay of first order momentum of gradient")
+    parser.add_argument("--b2", type=float, default=default.b2, help="adam: decay of second order momentum offirst order momentum of gradient")
+    parser.add_argument("--n_cpu", type=int, default=default.n_cpu, help="number of cpu threads to use during batch generation")
+    parser.add_argument("--hr_height", type=int, default=default.hr_height, help="high res. image height")
+    parser.add_argument("--hr_width", type=int, default=default.hr_width, help="high res. image width")
+    parser.add_argument("--channels", type=int, default=default.channels, help="number of image channels")
+    parser.add_argument("--sample_interval", type=int, default=default.sample_interval, help="interval between saving image samples")
+    parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
+    parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
+    parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
+    parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
+    parser.add_argument("--lambda_pixel", type=float, default=default.lambda_pixel, help="pixel-wise loss weight")
+    parser.add_argument("--lambda_cont", type=float,default=default.lambda_cont, help="content loss weight")
+    parser.add_argument("--root", type=str, default=default.root, help="root directory for the model")
+    parser.add_argument("--name", type=str, default=default.name, help='name of the model')
+    parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
+    parser.add_argument("--model_path", type=str, default=default.model_path, help="where the model is saved/should be saved")
 
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
-    parser.add_argument("--n_batches", type=int, default=-1, help="number of batches of training")
-    parser.add_argument("--n_checkpoints", default=-1, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
+    parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
+    parser.add_argument("--n_checkpoints", default=default.n_checkpoints, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
     opt = parser.parse_args()
     print(opt)
     return opt
@@ -55,7 +58,7 @@ def get_parser():
 
 def train(opt):
 
-    os.makedirs(os.path.join(opt.root, "images/training"), exist_ok=True)
+    
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,7 +66,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     discriminator = Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     feature_extractor = FeatureExtractor().to(device)
 
@@ -75,6 +78,7 @@ def train(opt):
     criterion_content = torch.nn.L1Loss().to(device)
     criterion_pixel = torch.nn.L1Loss().to(device)
     model_name = '' if opt.name is None else (opt.name + '_')
+    os.makedirs(os.path.join(opt.root, "images/%straining"%model_name), exist_ok=True)
     if opt.epoch != 0:
         # Load pretrained models
         generator.load_state_dict(torch.load(
@@ -98,7 +102,7 @@ def train(opt):
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataloader = DataLoader(
         #ImageDataset(opt.dataset_path, hr_shape=hr_shape),
-        STLDataset(opt.dataset_path),
+        STLDataset(opt.dataset_path,factor=opt.factor),
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu
@@ -202,10 +206,9 @@ def train(opt):
 
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
-                imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
-                img_grid = denormalize(torch.cat((imgs_lr, gen_hr), -1))
-                save_image(img_grid, os.path.join(opt.root, "images/training/%d.png" %
-                                                  batches_done), nrow=1, normalize=False)
+                imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
+                img_grid = denormalize(torch.cat((imgs_hr, imgs_lr, gen_hr), -1))
+                save_image(img_grid, os.path.join(opt.root, "images/%straining/%d.png" %(model_name, batches_done)), nrow=1, normalize=False)
 
             if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
