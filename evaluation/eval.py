@@ -10,7 +10,7 @@ from datasets import *
 #from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
 from models import GeneratorRRDB
-from options.default import default_dict
+from options.default import *
 import argparse
 import json
 from collections import namedtuple
@@ -73,10 +73,11 @@ def call_func(opt):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
-    bins = opt.bins if 'bins' in dopt else 10
+    bins = opt.bins if 'bins' in dopt else default.bins
+
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
-    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor]
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.batch_size]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
     else:
@@ -85,16 +86,16 @@ def call_func(opt):
 
 def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
     dataloader = DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=batch_size,
         shuffle=False,
         num_workers=n_cpu
     )
 
-    energy_dist, lr_similarity, hr_similarity = [], [], []
-    l1_criterion = nn.L1Loss()
+    energy_dist, lr_similarity, hr_similarity, nnz = [], [], [], []
+    l1_criterion = nn.L1Loss(reduction='none')
     l2_criterion = nn.MSELoss()
     pool = SumPool2d(factor)
     for _, imgs in enumerate(dataloader):
@@ -110,22 +111,30 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
             # low resolution image L1 metric
             gen_lr = pool(gen_hr)
             l1_loss = l1_criterion(gen_lr, imgs_lr.cpu())
-            lr_similarity.append(l1_loss.item())
+            lr_similarity.extend(list(l1_loss.numpy().mean((1,2,3))))
 
             # high resolution image L1 metric
-            hr_similarity.append(l1_criterion(gen_hr, imgs_hr).item())
+            hr_similarity.extend(list(l1_criterion(gen_hr, imgs_hr).numpy().mean((1,2,3))))
 
+            
             # energy distribution
-            gen_nnz = gen_hr[gen_hr > 0]
-            real_nnz = imgs_hr[imgs_hr > 0]
-            t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
-            t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
-            gen_hist = torch.histc(gen_nnz, bins, min=t_min, max=t_max).float()
-            real_hist = torch.histc(real_nnz, bins, min=t_min, max=t_max).float()
-            energy_dist.append(l2_criterion(gen_hist, real_hist).item())
+            for i in range(len(imgs_lr)):                
+                gen_nnz = gen_hr[i][gen_hr[i] > 0]
+                if len(gen_nnz) > 0:
+                    real_nnz = imgs_hr[i][imgs_hr[i] > 0]
+                    t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
+                    t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
+                    gen_hist = torch.histc(gen_nnz, bins, min=t_min, max=t_max).float()
+                    real_hist = torch.histc(real_nnz, bins, min=t_min, max=t_max).float()
+                    energy_dist.append(l2_criterion(gen_hist, real_hist).item())
+
+                # non-zero pixels
+                real_amount_nnz = (imgs_hr.numpy()>0).sum((1,2,3))
+                pred_amount_nnz = (gen_hr.numpy()>0).sum((1,2,3))
+                nnz.extend(np.abs(real_amount_nnz-pred_amount_nnz))
 
     results = {}
-    for metric_name, metric_values in zip(['lr_l1', 'hr_l1', 'energy distribution'], [lr_similarity, hr_similarity, energy_dist]):
+    for metric_name, metric_values in zip(['hr_l1', 'lr_l1', 'energy distribution', 'non-zero'], [lr_similarity, hr_similarity, energy_dist, nnz]):
         results[metric_name] = {'mean': np.mean(metric_values), 'std': np.std(metric_values)}
 
     return results
@@ -146,7 +155,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
     dataloader = DataLoader(
         dataset,
-        batch_size=30,
+        batch_size=batch_size,
         shuffle=False,
         num_workers=n_cpu
     )
@@ -272,6 +281,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, default='images/outputs', help="Path where output will be saved")
     parser.add_argument("--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
     parser.add_argument("--residual_blocks", type=int, default=10, help="Number of residual blocks in G")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size during evaluation")
     parser.add_argument("--factor", type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
