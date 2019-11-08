@@ -137,7 +137,7 @@ def train(opt):
         checkpoint_interval = np.inf
 
     validation_interval = opt.validation_interval
-    if opt.n_validation != -1:
+    if opt.n_validations != -1:
         validation_interval = np.inf
 
     # if we don't use this setting, need to set to inf
