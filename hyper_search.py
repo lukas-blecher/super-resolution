@@ -98,7 +98,7 @@ def main():
         arguments['validation_path'] = args.test_images
         arguments['n_batches'] = args.batches
         arguments['name'] = model_name
-        arguments['n_checkpoints'] = args.checkpoints
+        arguments['n_validations'] = args.checkpoints
         arguments['save'] = args.save_checkpoints
         if args.save_results:
             arguments['output_path'] = args.output_path

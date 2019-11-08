@@ -13,6 +13,7 @@
     "channels": 1,
     "sample_interval": 500,
     "checkpoint_interval": 500,
+    "validation_interval": 500,
     "residual_blocks": 10,
     "warmup_batches": 500,
     "pixel_multiplier": 70,
@@ -35,5 +36,6 @@
     "save": true,
     "validate": null,
     "n_checkpoints": -1,
-    "n_batches": -1
+    "n_batches": -1,
+    "n_validations": -1
 }

@@ -48,6 +48,7 @@ def get_parser():
     parser.add_argument("--channels", type=int, default=default.channels, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=default.sample_interval, help="interval between saving image samples")
     parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
+    parser.add_argument("--validation_interval", type=int, default=default.validation_interval, help="batch interval between validation samples")
     parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
@@ -72,6 +73,7 @@ def get_parser():
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
     parser.add_argument("--n_checkpoints", default=default.n_checkpoints, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
+    parser.add_argument("--n_validations", type=int, default=default.n_validations, help="number of validation points during training (if used dominates validation_interval)")
     opt = parser.parse_args()
     print(opt)
     return opt
@@ -134,6 +136,10 @@ def train(opt):
     if opt.n_checkpoints != -1:
         checkpoint_interval = np.inf
 
+    validation_interval = opt.validation_interval
+    if opt.n_validation != -1:
+        validation_interval = np.inf
+
     # if we don't use this setting, need to set to inf
     n_batches = opt.n_batches
     if n_batches == -1:
@@ -142,6 +148,9 @@ def train(opt):
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    # LR Scheduler
+    scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
+    scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor)
     dataloader = DataLoader(
@@ -309,30 +318,39 @@ def train(opt):
                     torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
                     torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
                     print('Saved model to %s' % opt.model_path)
-                if opt.validation_path:
-                    print('Validation')
-                    output_path = opt.output_path if 'output_path' in dir(opt) else None
-                    val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor)
-                    val_results['epoch'] = epoch
-                    val_results['batch'] = batches_done
-                    generator.train()
-                    try:
-                        info['validation'].append(val_results)
-                        # check if all metrics yield the same results and interrupt training if true. likley no changes in future
-                        if len(info['validation']) == 3:  # only need to check once
-                            stop_training = True
-                            for key in val_results.keys():
-                                if key in ('epoch', 'batch') or not stop_training:
-                                    continue
-                                for i in range(len(info['validation'])-1):
-                                    if info['validation'][i][key] != info['validation'][i+1][key]:
-                                        stop_training = False
-                            if stop_training:
-                                print('stopping training because validation results are exactly the same')
-                                return info['validation']
 
-                    except KeyError:
-                        info['validation'] = [val_results]
+            if ((validation_interval != np.inf and (batches_done+1) % validation_interval == 0) or (
+                    validation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_validations) == 0)) and opt.validation_path is not None:
+                print('Validation')
+                output_path = opt.output_path if 'output_path' in dir(opt) else None
+                val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor)
+                val_results['epoch'] = epoch
+                val_results['batch'] = batches_done
+                # If necessary lower the learning rate
+                try:
+                    scheduler_G.step(val_results['metrics']['hr_l1']['mean'])
+                    scheduler_D.step(val_results['metrics']['hr_l1']['mean'])
+                except KeyError:
+                    pass
+
+                generator.train()
+                try:
+                    info['validation'].append(val_results)
+                    # check if all metrics yield the same results and interrupt training if true. likley no changes in future
+                    if len(info['validation']) == 3:  # only need to check once
+                        stop_training = True
+                        for key in val_results.keys():
+                            if key in ('epoch', 'batch') or not stop_training:
+                                continue
+                            for i in range(len(info['validation'])-1):
+                                if info['validation'][i][key] != info['validation'][i+1][key]:
+                                    stop_training = False
+                        if stop_training:
+                            print('stopping training because validation results are exactly the same')
+                            return info['validation']
+
+                except KeyError:
+                    info['validation'] = [val_results]
 
             if batches_done == total_batches:
                 if opt.save:
