@@ -43,22 +43,22 @@ class MultHist:
 
     def append(self, *argv):
         assert len(argv) == self.num
-        for i,L in enumerate(argv):
+        for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
             if self.mode == 'max':
-                self.list[i].extend(list(Ln.max((1,2,3))))
+                self.list[i].extend(list(Ln.max((1, 2, 3))))
             elif self.mode == 'min':
-                self.list[i].extend(list(Ln.min((1,2,3))))
+                self.list[i].extend(list(Ln.min((1, 2, 3))))
             elif self.mode == 'mean':
-                self.list[i].extend(list(Ln.mean((1,2,3))))
+                self.list[i].extend(list(Ln.mean((1, 2, 3))))
             elif self.mode == 'nnz':
-                self.list[i].extend(list((L>=self.thres).sum(1).sum(1).sum(1).detach().cpu().numpy()))
+                self.list[i].extend(list((L >= self.thres).sum(1).sum(1).sum(1).detach().cpu().numpy()))
             elif self.mode == 'sum':
-                self.list[i].extend(list(Ln.sum((1,2,3))))
+                self.list[i].extend(list(Ln.sum((1, 2, 3))))
             elif self.mode == 'meannnz':
                 for j in range(len(Ln)):
-                    self.list[i].append(Ln[j][Ln[j]>self.thres].mean())
-        
+                    self.list[i].append(Ln[j][Ln[j] > self.thres].mean())
+
     def get_range(self):
         mins = [min(self.list[i]) for i in range(self.num)]
         maxs = [max(self.list[i]) for i in range(self.num)]
@@ -67,6 +67,22 @@ class MultHist:
     def histogram(self, L, bins=10):
         return np.histogram(L, bins, range=self.get_range())
 
+
+class MultModeHist:
+    def __init__(self, modes, num='standard'):
+        self.modes = modes
+        self.hist = []
+        self.standard_nums = {'max': 3, 'min': 3, 'mean': 3, 'nnz': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2}
+        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] for mode in self.modes]
+        for i in range(len(self.modes)):
+            self.hist.append(MultHist(self.nums[i], modes[i]))
+
+    def append(self, *argv):
+        for i in range(len(self.hist)):
+            self.hist[i].append(*argv[:self.nums[i]])
+
+    def __getitem__(self, item):
+        return self.hist[item]
 
 
 def call_func(opt):
@@ -77,7 +93,7 @@ def call_func(opt):
 
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
-    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.batch_size]
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
     else:
@@ -107,18 +123,17 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
             gen_hr = generator(imgs_lr).detach().cpu()
 
             # compare downsampled generated image with lr ground_truth using l1 loss
-        
+
             # low resolution image L1 metric
             gen_lr = pool(gen_hr)
             l1_loss = l1_criterion(gen_lr, imgs_lr.cpu())
-            lr_similarity.extend(list(l1_loss.numpy().mean((1,2,3))))
+            lr_similarity.extend(list(l1_loss.numpy().mean((1, 2, 3))))
 
             # high resolution image L1 metric
-            hr_similarity.extend(list(l1_criterion(gen_hr, imgs_hr).numpy().mean((1,2,3))))
+            hr_similarity.extend(list(l1_criterion(gen_hr, imgs_hr).numpy().mean((1, 2, 3))))
 
-            
             # energy distribution
-            for i in range(len(imgs_lr)):                
+            for i in range(len(imgs_lr)):
                 gen_nnz = gen_hr[i][gen_hr[i] > 0]
                 if len(gen_nnz) > 0:
                     real_nnz = imgs_hr[i][imgs_hr[i] > 0]
@@ -129,8 +144,8 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
                     energy_dist.append(l2_criterion(gen_hist, real_hist).item())
 
                 # non-zero pixels
-                real_amount_nnz = (imgs_hr.numpy()>0).sum((1,2,3))
-                pred_amount_nnz = (gen_hr.numpy()>0).sum((1,2,3))
+                real_amount_nnz = (imgs_hr.numpy() > 0).sum((1, 2, 3))
+                pred_amount_nnz = (gen_hr.numpy() > 0).sum((1, 2, 3))
                 nnz.extend(np.abs(real_amount_nnz-pred_amount_nnz))
 
     results = {}
@@ -149,8 +164,8 @@ def to_hist(data, bins):
     return x[1:-1], hist
 
 
-def distribution(dataset_path, dataset_type, generator, device, output_path=None, 
-                                batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max'):
+def distribution(dataset_path, dataset_type, generator, device, output_path=None,
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=50, mode='max'):
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
     dataloader = DataLoader(
@@ -159,8 +174,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         shuffle=False,
         num_workers=n_cpu
     )
-
-    hhd = MultHist(2 if "mean" in mode else 3, mode)
+    modes = mode if type(mode) is list else [mode]
+    hhd = MultModeHist(modes)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
         # Configure model input
@@ -168,27 +183,26 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         imgs_hr = imgs["hr"]
         # Generate a high resolution image from low resolution input
         gen_hr = generator(imgs_lr).detach()
-        if "mean" in mode:
-            hhd.append(gen_hr, imgs_hr)
-        else:
-            hhd.append(gen_hr, imgs_hr, imgs_lr)
+        hhd.append(gen_hr, imgs_hr, imgs_lr)
 
-    plt.figure()
-    for i, (ls, lab) in enumerate(zip(['-','--','-.'], ["model prediction", "ground truth", "low resolution input"])):
-        if "mean" in mode and i == 2:
-            continue
-        x,y = to_hist(*hhd.histogram(hhd.list[i], bins))
-        plt.plot(x, y, ls, label=lab)
-        std = np.sqrt(y)
-        std[y==0] = 0
-        plt.fill_between(x, y+std, y-std ,alpha=.2)
-    
-    
-    #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
-    plt.legend()
-    if output_path:
-        plt.savefig(output_path)
-    plt.show()
+    for m in range(len(modes)):
+        plt.figure()
+        for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
+            if "mean" in modes[m] and i == 2:
+                continue
+            x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins))
+            plt.plot(x, y, ls, label=lab)
+            std = np.sqrt(y)
+            std[y == 0] = 0
+            plt.fill_between(x, y+std, y-std, alpha=.2)
+
+        #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
+        plt.legend()
+        if output_path:
+            out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
+            plt.savefig(out_path.replace('.png', ''))
+        plt.show()
+
 
 def hline(newline=False, n=100):
     print('_'*n) if not newline else print('_'*n, '\n')
@@ -217,10 +231,10 @@ def evaluate_results(file):
     # print constant arguments
     hline()
     for key, value in results.items():
-        if key not in ('results','validation','binedges'):
+        if key not in ('results', 'validation', 'binedges'):
             print(key, '\t'*(2*tmax-ts(key)), value)
     hline()
-    val=False
+    val = False
 
     if 'results' in results:
         hyper_set = results['results']
@@ -230,20 +244,20 @@ def evaluate_results(file):
             if 'metrics' in hyper_set[i].keys():
                 p0 = hyper_set[i]['metrics'][0]
                 break
-    else: #plot validation data from info.json generated by esrgan.py
+    else:  # plot validation data from info.json generated by esrgan.py
         hyper_set = results['validation']
         num_lines = 1
         p0 = hyper_set[0]
-        val=True
+        val = True
 
     max_lines_per_plot = 6
     num_metrics = len(p0)-2
-    N = num_metrics #int(np.sqrt(num_metrics))
-    M = int(num_lines%max_lines_per_plot!=0)+num_lines//max_lines_per_plot
+    N = num_metrics  # int(np.sqrt(num_metrics))
+    M = int(num_lines % max_lines_per_plot != 0)+num_lines//max_lines_per_plot
     f, ax = plt.subplots(M, N)
     ax = ax.flatten()
     max_lines_per_plot = num_lines//M
-    set_indices=[i if i < num_lines else num_lines for i in range(0,num_lines+max_lines_per_plot,max_lines_per_plot)]
+    set_indices = [i if i < num_lines else num_lines for i in range(0, num_lines+max_lines_per_plot, max_lines_per_plot)]
     # iterate over every metric that was measured
     for l in range(M):
         for m, (key, value) in enumerate(p0.items()):
@@ -251,15 +265,15 @@ def evaluate_results(file):
                 m -= 1
                 continue
             splt = ax[m+N*l]
-            if l==0:
+            if l == 0:
                 splt.set_title(key)
-            if l ==M-1:
+            if l == M-1:
                 splt.set_xlabel('iterations')
             # iterate over every set of hyperparameters that was investigated
-            for h in range(set_indices[l],set_indices[l+1]):
+            for h in range(set_indices[l], set_indices[l+1]):
                 if not 'metrics' in hyper_set[h].keys() and not val:
                     continue
-                checkpoints = hyper_set if val else hyper_set[h]['metrics'] 
+                checkpoints = hyper_set if val else hyper_set[h]['metrics']
                 label = ''
                 if not val:
                     for k, v in hyper_set[h].items():
@@ -273,7 +287,7 @@ def evaluate_results(file):
                 y_err = []
                 # iterate over every point in time that was measured
                 for i in range(len(checkpoints)):
-                    p = checkpoints[i] # point in time
+                    p = checkpoints[i]  # point in time
                     iterations.append(p['batch'])
                     y.append(p[key]['mean'])
                     y_err.append(p[key]['std'])
@@ -297,7 +311,7 @@ if __name__ == "__main__":
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
-    parser.add_argument("--histogram", choices=['max','nnz', 'min', 'mean', 'sum', 'meannnz'], default=None, help="what histogram to show if any")
+    parser.add_argument("--histogram", nargs="+", default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
 
     opt = vars(parser.parse_args())
