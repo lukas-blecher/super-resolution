@@ -4,6 +4,7 @@ import torch
 from torchvision.models import vgg19
 import math
 import numpy as np
+from itertools import product
 
 
 class FeatureExtractor(nn.Module):
@@ -63,7 +64,7 @@ class GeneratorRRDB(nn.Module):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
-        self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=(1, 0))
+        self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=1)
         # Residual blocks
         self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters) for _ in range(num_res_blocks)])
         # Second conv layer post residual blocks
@@ -85,7 +86,7 @@ class GeneratorRRDB(nn.Module):
         )
 
     def forward(self, x):
-        x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
+        #x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
@@ -188,3 +189,34 @@ class DiffableHistogram(nn.Module):
         self.centers = self.centers.to(device)
         self.delta = self.delta.to(device)
         return self
+
+
+def normal(x, sig=1, mu=0):
+    return np.exp(-.5*((x-mu)/sig)**2)/np.sqrt(2*np.pi*sig*sig)
+
+
+def naive_upsample(img):
+    '''A function that can upsample a batch of 1 channel images in a naive way'''
+    up = torch.zeros(len(img), 1, *tuple(np.array(img.shape[-2:])*2))
+    for batch in range(len(img)):
+        for i, j in product(range(img.shape[-2]), range(img.shape[-1])):
+            if img[batch, 0, i, j] == 0:
+                continue
+            rand = img[batch, 0, i, j]*normal(torch.rand(4))
+            new_vals = torch.zeros(1)
+            while new_vals.sum() <= 0:
+                new_vals = torch.where(torch.randint(0, 2, (4,)) == 1, torch.zeros(4), rand)
+            for k, (a, b) in enumerate(product(torch.arange(2)+2*i, torch.arange(2)+2*j)):
+                up[batch, 0, a, b] = new_vals[k]/new_vals.sum()*img[batch, 0, i, j]
+    return up
+
+
+class NaiveGenerator(nn.Module):
+    def __init__(self, num_upsample):
+        super(NaiveGenerator, self).__init__()
+        self.num_upsample = num_upsample
+        
+    def forward(self, x):
+        for _ in range(self.num_upsample):
+            x = naive_upsample(x)
+        return x

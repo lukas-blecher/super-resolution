@@ -9,7 +9,7 @@ from datasets import *
 #from evaluation.PSNR_SSIM_metric import calculate_ssim
 #from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
-from models import GeneratorRRDB
+from models import GeneratorRRDB, NaiveGenerator
 from options.default import *
 import argparse
 import json
@@ -90,9 +90,12 @@ def call_func(opt):
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
-
+   
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
+    if 'naive_generator' in dopt:
+        if opt.naive_generator:
+            generator = NaiveGenerator(int(np.log2(opt.factor)))
     args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
@@ -175,7 +178,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         num_workers=n_cpu
     )
     if output_path:
-        os.makedirs(output_path, exist_ok=True)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
     modes = mode if type(mode) is list else [mode]
     hhd = MultModeHist(modes)
     print('collecting data from %s' % dataset_path)
@@ -316,12 +319,13 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
     parser.add_argument("--histogram", nargs="+", default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
+    parser.add_argument("--naive_generator",action="store_true",help="use a naive upsampler")
 
     opt = vars(parser.parse_args())
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'])
     else:
-        if opt['dataset_path'] is None or opt['checkpoint_model'] is None:
+        if opt['dataset_path'] is None or (opt['checkpoint_model'] is None and not opt.naive_generator):
             raise ValueError("For evaluation dataset_path and checkpoint_model are required")
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
