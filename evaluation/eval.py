@@ -93,7 +93,7 @@ def call_func(opt):
 
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
-    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor]
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
     else:
@@ -165,7 +165,7 @@ def to_hist(data, bins):
 
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
-                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=50, mode='max'):
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max'):
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
     dataloader = DataLoader(
@@ -174,6 +174,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         shuffle=False,
         num_workers=n_cpu
     )
+    if output_path:
+        os.makedirs(output_path, exist_ok=True)
     modes = mode if type(mode) is list else [mode]
     hhd = MultModeHist(modes)
     print('collecting data from %s' % dataset_path)
@@ -188,7 +190,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     for m in range(len(modes)):
         plt.figure()
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
-            if "mean" in modes[m] and i == 2:
+            if hhd.nums[m] == i:
                 continue
             x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins))
             plt.plot(x, y, ls, label=lab)
@@ -306,8 +308,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, default='images/outputs', help="Path where output will be saved")
     parser.add_argument("--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
     parser.add_argument("--residual_blocks", type=int, default=10, help="Number of residual blocks in G")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size during evaluation")
+    parser.add_argument("--batch_size", type=int, default=30, help="Batch size during evaluation")
     parser.add_argument("--factor", type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
+    parser.add_argument("--amount", type=int, default=None, help="amount of test samples to use. Standard: All")
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
