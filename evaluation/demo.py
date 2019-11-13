@@ -6,6 +6,7 @@ if os.path.split(os.path.abspath('.'))[1] == 'super-resolution':
 else:
     sys.path.insert(0, '..')
 import matplotlib.pyplot as plt
+import matplotlib.colors as col
 from PIL import Image
 import torch
 import numpy as np
@@ -77,6 +78,7 @@ def show(lr, hr, pred, pred_lr):
 
 
 def subplot(N, M, num, img, title=''):
+    global colors
     plt.subplot(N, M, num)
     if num <= M:
         plt.title(title)
@@ -84,8 +86,10 @@ def subplot(N, M, num, img, title=''):
     plt.yticks([])
     plt.ylabel('$\\eta$')
     plt.xlabel('$\\varphi$')
-    plt.imshow(img, cmap='gray_r')
-
+    if colors:
+        plt.imshow(img, norm=col.LogNorm())
+    else:
+        plt.imshow(img, cmap='gray_r')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -95,8 +99,11 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", type=str, default=None, help="Where to save the images")
     parser.add_argument("-b", "--batch_size", type=int, default=1, help="Number of images to show at once")
     parser.add_argument("-f", "--factor", type=int, default=2, help="factor to downsample (multiple of 2)")
-    parser.add_argument("-t", "--dataset_type",choices=["txt", "h5", "jet"], default="jet", help="what kind of dataset")
+    parser.add_argument("-t", "--dataset_type",choices=["txt", "h5", "jet", "spjet"], default="spjet", help="what kind of dataset")
     parser.add_argument("--hw",type=int,nargs='+', default=[40,40], help="height and width of the image")
     parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")
+    parser.add_argument("--no_colors", action="store_false", help="Don't use colors in the plot'")
     args = parser.parse_args()
+    global colors 
+    colors = args.no_colors
     main(args)
