@@ -37,7 +37,7 @@ def get_parser():
     parser.add_argument("--factor", type=int, default=default.factor, help="factor to upsample the input image")
     parser.add_argument("--n_epochs", type=int, default=default.n_epochs, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default=default.dataset_path, help="path to the dataset")
-    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet'], default=default.dataset_type, help="how is the dataset saved")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet', 'spjet'], default=default.dataset_type, help="how is the dataset saved")
     parser.add_argument("--batch_size", type=int, default=default.batch_size, help="size of the batches")
     parser.add_argument("--lr", type=float, default=default.lr, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=default.b1, help="adam: decay of first order momentum of gradient")
@@ -92,7 +92,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz','discriminator', 'relativistic']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'discriminator', 'relativistic']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -160,7 +160,6 @@ def train(opt):
         num_workers=opt.n_cpu,
         pin_memory=True
     )
-
     eps = 1e-10
     pool = SumPool2d(opt.factor).to(device)
     e_max = 50  # random initialization number for the maximal pixel value
@@ -169,8 +168,22 @@ def train(opt):
     # ----------
     #  Training
     # ----------
+
+    # if trainig is continued the batch number needs to be increased by the number of batches already trained on
+    try:
+        batches_trained = int(info['batches_done'])
+    except KeyError:
+        batches_trained = 0
     total_batches = len(dataloader)*(opt.n_epochs - start_epoch) if n_batches == np.inf else n_batches
-    batches_done = -1
+    batches_done = batches_trained-1
+
+    # function for saving info.json
+    def save_info():
+        if opt.save:
+            with open(info_path, 'w') as outfile:
+                info['batches_done'] = batches_done
+                json.dump(info, outfile)
+
     for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
 
@@ -216,7 +229,6 @@ def train(opt):
             elif batches_done == opt.warmup_batches:
                 if opt.lambda_hist > 0:
                     print("found e_max to be %.2f" % e_max)
-                    info['e_max'] = float(e_max)
                     sorted_nnz = np.sort(nnz)
                     sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
                     k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
@@ -353,17 +365,13 @@ def train(opt):
                     info['validation'] = [val_results]
 
             if batches_done == total_batches:
-                if opt.save:
-                    with open(info_path, 'w') as outfile:
-                        json.dump(info, outfile)
+                save_info()
                 if opt.validation_path:
                     return info['validation']
                 else:
                     return
         info['epochs'] += 1
-        if opt.save:
-            with open(info_path, 'w') as outfile:
-                json.dump(info, outfile)
+        save_info()
 
 
 def softgreater(x, val, sigma=5000, delta=0):

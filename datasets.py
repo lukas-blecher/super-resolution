@@ -149,7 +149,9 @@ def extract(data, etaBins, phiBins, channels=1):
         pos_index = data[0, i]
         phi = int(pos_index//etaBins)
         eta = int(pos_index % etaBins)
-        reconstruction[0, eta, phi] = data[1, i]
+        reconstruction[0, eta, phi] += data[1, i]
+        if data[1, i] == 0:
+            break
     return reconstruction.float()
 
 
@@ -181,9 +183,9 @@ class JetDataset(Dataset):
         super(JetDataset, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
-        
+
         self.pool = SumPool2d(factor)
-        self.df = pd.read_hdf(path,'table')
+        self.df = pd.read_hdf(path, 'table')
         if amount is not None:
             self.df = self.df.iloc[:amount]
 
@@ -197,6 +199,17 @@ class JetDataset(Dataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
+class SparseJetDataset(JetDataset):
+    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2):
+        super(SparseJetDataset, self).__init__(path, amount, etaBins, phiBins, factor)
+
+    def __getitem__(self, item):
+        img = extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins, self.phiBins)[None, ...]
+        img_lr = self.pool(img)[0]
+        img_hr = img[0].clone()
+        return {"lr": img_lr, "hr": img_hr}
+
+
 def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None):
     if dataset_type == 'h5':
         return EventDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
@@ -204,3 +217,5 @@ def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amoun
         return EventDatasetText(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'jet':
         return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
+    elif dataset_type == 'spjet':
+        return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
