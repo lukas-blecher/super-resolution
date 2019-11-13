@@ -52,7 +52,7 @@ class MultHist:
             elif self.mode == 'mean':
                 self.list[i].extend(list(Ln.mean((1, 2, 3))))
             elif self.mode == 'nnz':
-                self.list[i].extend(list((L >= self.thres).sum(1).sum(1).sum(1).detach().cpu().numpy()))
+                self.list[i].extend(list((Ln > self.thres).sum((1, 2, 3))))
             elif self.mode == 'sum':
                 self.list[i].extend(list(Ln.sum((1, 2, 3))))
             elif self.mode == 'meannnz':
@@ -183,12 +183,13 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     hhd = MultModeHist(modes)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
-        # Configure model input
-        imgs_lr = imgs["lr"].to(device)
-        imgs_hr = imgs["hr"]
-        # Generate a high resolution image from low resolution input
-        gen_hr = generator(imgs_lr).detach()
-        hhd.append(gen_hr, imgs_hr, imgs_lr)
+        with torch.no_grad():
+            # Configure model input
+            imgs_lr = imgs["lr"].to(device)
+            imgs_hr = imgs["hr"]
+            # Generate a high resolution image from low resolution input
+            gen_hr = generator(imgs_lr).detach()
+            hhd.append(gen_hr, imgs_hr, imgs_lr)
 
     for m in range(len(modes)):
         plt.figure()
