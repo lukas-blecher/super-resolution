@@ -84,9 +84,10 @@ class GeneratorRRDB(nn.Module):
             nn.LeakyReLU(),
             nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
         )
+        self.thres = 0
 
     def forward(self, x):
-        #x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
+        # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
@@ -96,7 +97,7 @@ class GeneratorRRDB(nn.Module):
         if self.training:
             return out
         else:
-            return F.relu(out)
+            return F.hardshrink(F.relu(out), lambd=self.thres)
 
 
 def discriminator_block(in_filters, out_filters, first_block=False):
@@ -215,7 +216,7 @@ class NaiveGenerator(nn.Module):
     def __init__(self, num_upsample):
         super(NaiveGenerator, self).__init__()
         self.num_upsample = num_upsample
-        
+
     def forward(self, x):
         for _ in range(self.num_upsample):
             x = naive_upsample(x)
