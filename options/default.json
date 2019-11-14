@@ -21,6 +21,7 @@
     "lambda_lr": 0.1,
     "lambda_hist": 0.0000001,
     "lambda_nnz": 0.0000001,
+    "lambda_mask": 0.01,
     "batchwise_hist": false,
     "learn_warmup": true,
     "sigma": 500,

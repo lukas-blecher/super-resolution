@@ -56,7 +56,8 @@ def get_parser():
     parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=default.lambda_lr, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
-    parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="")
+    parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
+    parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
     parser.add_argument("--bins", type=int, default=default.bins, help="number of bins in the energy distribution histogram")
@@ -251,7 +252,7 @@ def train(opt):
 
             # Total generator loss
             loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
-            loss_hist, loss_nnz = torch.Tensor([0]), torch.Tensor([0])
+            loss_hist, loss_nnz, loss_mask = torch.Tensor([0]), torch.Tensor([0]), torch.Tensor([0])
 
             if opt.lambda_hist > 0:
                 # calculate the energy distribution loss
@@ -268,6 +269,11 @@ def train(opt):
                 target = (imgs_hr > 0).sum(1).sum(1).sum(1).float().to(device)
                 loss_nnz = criterion_hist(gen_nnz, target)
                 loss_G = loss_G + opt.lambda_nnz * loss_nnz
+            if opt.lambda_mask > 0:
+                gen_mask = nnz_mask(gen_hr)
+                real_mask = nnz_mask(imgs_hr)
+                loss_mask = criterion_pixel(gen_mask, real_mask)
+                loss_G = loss_G + opt.lambda_mask * loss_mask
 
             loss_G.backward()
             optimizer_G.step()
@@ -299,7 +305,7 @@ def train(opt):
             # --------------
             if batches_done % opt.report_freq == 0:
                 print(
-                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f]"
+                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]"
                     % (
                         i,
                         total_batches,
@@ -312,10 +318,11 @@ def train(opt):
                         loss_lr_pixel.item(),
                         loss_hist.item(),
                         loss_nnz.item(),
+                        loss_mask.item(),
                     )
                 )
             # check if loss is NaN
-            if any(l != l for l in [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item()]):
+            if any(l != l for l in [loss_D.item(), loss_G.item()]):
                 raise ValueError('loss is NaN')
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
@@ -378,6 +385,8 @@ def softgreater(x, val, sigma=5000, delta=0):
     # differentiable verions of torch.where(x>val)
     return torch.sigmoid(sigma * (x-val+delta))
 
+def nnz_mask(x, sigma=5e4):
+    return torch.sigmoid(sigma*x)
 
 if __name__ == "__main__":
     print('pytorch version:', torch.__version__)
