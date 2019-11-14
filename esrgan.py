@@ -93,7 +93,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'discriminator', 'relativistic']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'discriminator', 'relativistic', 'warmup_batches']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -169,12 +169,14 @@ def train(opt):
     # ----------
     #  Training
     # ----------
-
+    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
     except KeyError:
         batches_trained = 0
+
+    start_epoch = info['epochs']
     total_batches = len(dataloader)*(opt.n_epochs - start_epoch) if n_batches == np.inf else n_batches
     batches_done = batches_trained-1
 
@@ -182,6 +184,7 @@ def train(opt):
     def save_info():
         if opt.save:
             with open(info_path, 'w') as outfile:
+                info['loss'] = loss_dict
                 info['batches_done'] = batches_done
                 json.dump(info, outfile)
 
@@ -215,6 +218,8 @@ def train(opt):
                 if opt.learn_warmup:
                     loss_pixel.backward()
                     optimizer_G.step()
+                    for gs in ['g_loss', 'pixel_loss']:
+                        loss_dict[gs].append(loss_pixel.item())
                     if batches_done % opt.report_freq == 0:
                         print(
                             "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
@@ -252,7 +257,7 @@ def train(opt):
 
             # Total generator loss
             loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
-            loss_hist, loss_nnz, loss_mask = torch.Tensor([0]), torch.Tensor([0]), torch.Tensor([0])
+            loss_hist, loss_nnz, loss_mask = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
 
             if opt.lambda_hist > 0:
                 # calculate the energy distribution loss
@@ -303,24 +308,12 @@ def train(opt):
             # --------------
             #  Log Progress
             # --------------
+            # save loss to dict
+            for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
+                v.append(l)
             if batches_done % opt.report_freq == 0:
-                print(
-                    "[Batch %d/%d] [Epoch %d/%d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]"
-                    % (
-                        i,
-                        total_batches,
-                        epoch,
-                        opt.n_epochs,
-                        loss_D.item(),
-                        loss_G.item(),
-                        loss_GAN.item(),
-                        loss_pixel.item(),
-                        loss_lr_pixel.item(),
-                        loss_hist.item(),
-                        loss_nnz.item(),
-                        loss_mask.item(),
-                    )
-                )
+                print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
+                      % (batches_done, *[l[-1] for l in loss_dict.values()],))
             # check if loss is NaN
             if any(l != l for l in [loss_D.item(), loss_G.item()]):
                 raise ValueError('loss is NaN')
@@ -337,7 +330,7 @@ def train(opt):
                     torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
                     torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
                     print('Saved model to %s' % opt.model_path)
-
+                    save_info()
             if ((validation_interval != np.inf and (batches_done+1) % validation_interval == 0) or (
                     validation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_validations) == 0)) and opt.validation_path is not None:
                 print('Validation')
@@ -385,8 +378,10 @@ def softgreater(x, val, sigma=5000, delta=0):
     # differentiable verions of torch.where(x>val)
     return torch.sigmoid(sigma * (x-val+delta))
 
+
 def nnz_mask(x, sigma=5e4):
     return torch.sigmoid(sigma*x)
+
 
 if __name__ == "__main__":
     print('pytorch version:', torch.__version__)
