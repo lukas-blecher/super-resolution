@@ -9,8 +9,6 @@ import os.path as path
 import argparse
 from collections import namedtuple
 from sklearn.model_selection import ParameterGrid
-
-from test_on_image import test_image
 from options.default import *
 from esrgan import train
 '''
