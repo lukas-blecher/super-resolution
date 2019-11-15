@@ -25,7 +25,9 @@ import torch
 
 
 def str_to_bool(value):
-    if value.lower() in {'false', 'f', '0', 'no', 'n'}:
+    if value is None:
+        return None
+    elif value.lower() in {'false', 'f', '0', 'no', 'n'}:
         return False
     elif value.lower() in {'true', 't', '1', 'yes', 'y'}:
         return True
@@ -69,6 +71,7 @@ def get_parser():
     parser.add_argument("--discriminator", choices=['patch', 'standard'], default=default.discriminator, help="discriminator model to use")
     parser.add_argument("--relativistic", type=str_to_bool, default=default.relativistic, help="whether to use relativistic average GAN")
     parser.add_argument("--save", type=str_to_bool, default=default.save, help="whether to save the model weights or not")
+    parser.add_argument("--save_info", type=str_to_bool, default=default.save_info, help="whether to save the info.json file or not")
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -181,8 +184,9 @@ def train(opt):
     batches_done = batches_trained-1
 
     # function for saving info.json
+    save_info_file = opt.save_info if opt.save_info is not None else opt.save
     def save_info():
-        if opt.save:
+        if save_info_file:
             with open(info_path, 'w') as outfile:
                 info['loss'] = loss_dict
                 info['batches_done'] = batches_done

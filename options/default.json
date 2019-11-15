@@ -35,6 +35,7 @@
     "discriminator": "patch",
     "relativistic": true,
     "save": true,
+    "save_info": null,
     "validate": null,
     "n_checkpoints": -1,
     "n_batches": -1,
