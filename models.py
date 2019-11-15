@@ -118,7 +118,7 @@ class Markovian_Discriminator(nn.Module):
 
         self.input_shape = input_shape
         in_channels, in_height, in_width = self.input_shape
-        patch_h, patch_w = int(1+in_height / 2 ** 4), int(1+in_width / 2 ** 4)
+        patch_h, patch_w = int((1 if in_height % 80 != 0 else 0)+in_height / 2 ** 4), int((1 if in_width % 80 != 0 else 0)+in_width / 2 ** 4)
 
         self.output_shape = (1, patch_h, patch_w)
 
