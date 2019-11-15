@@ -29,7 +29,7 @@ def main():
     parser.add_argument('--output_path', type=str, default='images/outputs', help='path to output images folder')
     parser.add_argument('--results', type=str, default='results/hyper_search_results.json', help='path to json file containing hyper_search results')
     parser.add_argument('--save_results', action='store_true', help='whether also to save results as images or to only save the metrics')
-    parser.add_argument('--save_checkpoints', action='store_true', help='whether to save checkpoints or not')
+    #parser.add_argument('--save_checkpoints', action='store_true', help='whether to save checkpoints or not')
     '''
     options file should be a json file containing a dictionary where the keys are the parameter names in esrgan.py and the values
     are another dictionary. The keys are 'type', 'value' and 'coupled. 'type' can be one of 'range' or 'discrete'.
@@ -97,7 +97,7 @@ def main():
         arguments['n_batches'] = args.batches
         arguments['name'] = model_name
         arguments['n_validations'] = args.checkpoints
-        arguments['save'] = args.save_checkpoints
+        #arguments['save'] = args.save_checkpoints
         if args.save_results:
             arguments['output_path'] = args.output_path
         metric_results = []
