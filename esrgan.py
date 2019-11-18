@@ -49,6 +49,7 @@ def get_parser():
     parser.add_argument("--hr_width", type=int, default=default.hr_width, help="high res. image width")
     parser.add_argument("--channels", type=int, default=default.channels, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=default.sample_interval, help="interval between saving image samples")
+    parser.add_argument("--image_path", type=str, default=default.image_path, help="where to save the images during trianing")
     parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
     parser.add_argument("--validation_interval", type=int, default=default.validation_interval, help="batch interval between validation samples")
     parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
@@ -133,7 +134,7 @@ def train(opt):
             pass
 
     if opt.sample_interval != -1:
-        image_dir = os.path.join(opt.root, "images/%straining" % model_name)
+        image_dir = os.path.join(opt.root, opt.image_path, "%straining" % model_name)
         os.makedirs(image_dir, exist_ok=True)
 
     checkpoint_interval = opt.checkpoint_interval
