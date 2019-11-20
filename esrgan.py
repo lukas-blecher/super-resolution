@@ -314,11 +314,12 @@ def train(opt):
             #  Log Progress
             # --------------
             # save loss to dict
-            for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
-                v.append(l)
+            
             if batches_done % opt.report_freq == 0:
                 print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
+                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
+                    v.append(l)
             # check if loss is NaN
             if any(l != l for l in [loss_D.item(), loss_G.item()]):
                 raise ValueError('loss is NaN')
