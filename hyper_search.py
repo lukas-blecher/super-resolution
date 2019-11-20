@@ -38,6 +38,7 @@ def main():
         'discrete' should contain a list of discrete numbers that should be checked for the parameter.
         'coupled' should contain a list of the same length as the coupled parameter that needs to be saved under 'parameter'. (only compatible with 'discrete')
             This option can be used if you want to scale a parameter accordingly to another specified hyperparameter
+    For all types there is the option 'include_zero' which should be a boolean. If true the value 0 will be be added to the list. Usefull for the range types.
     '''
     args = parser.parse_args()
     print(args)
@@ -49,6 +50,9 @@ def main():
     coupled, parameters = {}, {}
     for k, d in zip(options.keys(), options.values()):
         x = d['value']
+        use_zero = False
+        if 'include_zero' in d:
+            use_zero = d['include_zero']
         # convert linspace
         if d['type'] == 'range':
             assert len(x) == 3
@@ -66,6 +70,8 @@ def main():
             coupled[k] = {}
             coupled[k]['value'] = x
             coupled[k]['coupled'] = coupled_param
+        if use_zero:
+            parameters[k] = [0, *list(parameters[k])]
 
     if not args.arguments is None:
         with open(args.arguments) as f:
