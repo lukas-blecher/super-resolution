@@ -179,12 +179,15 @@ class EventDatasetText(Dataset):
 
 class JetDataset(Dataset):
 
-    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2):
+    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2, pre_factor=None):
         super(JetDataset, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
 
         self.pool = SumPool2d(factor)
+        self.pre_factor = pre_factor
+        if pre_factor:
+            self.pre_pool = SumPool2d(pre_factor)
         self.df = pd.read_hdf(path, 'table')
         if amount is not None:
             self.df = self.df.iloc[:amount]
@@ -194,17 +197,21 @@ class JetDataset(Dataset):
 
     def __getitem__(self, item):
         img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins, self.phiBins)*70
+        if self.pre_factor:
+            img = self.pre_pool(img)
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
 
 
 class SparseJetDataset(JetDataset):
-    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2):
+    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=None):
         super(SparseJetDataset, self).__init__(path, amount, etaBins, phiBins, factor)
 
     def __getitem__(self, item):
         img = extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins, self.phiBins)[None, ...]
+        if self.pre_factor:
+            img = self.pre_pool(img)
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}

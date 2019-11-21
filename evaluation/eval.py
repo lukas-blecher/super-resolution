@@ -237,7 +237,7 @@ def evaluate_results(file):
     # print constant arguments
     hline()
     for key, value in results.items():
-        if key not in ('results', 'validation', 'binedges'):
+        if key not in ('results', 'validation', 'binedges', 'loss'):
             print(key, '\t'*(2*tmax-ts(key)), value)
     hline()
     val = False
@@ -260,7 +260,10 @@ def evaluate_results(file):
     num_metrics = len(p0)-2
     N = num_metrics  # int(np.sqrt(num_metrics))
     M = int(num_lines % max_lines_per_plot != 0)+num_lines//max_lines_per_plot
-    f, ax = plt.subplots(M, N)
+    f, ax = plt.subplots(M, N, sharex=True)
+    for m in range(1, M):
+        for n in range(N):
+            ax[0,n]._shared_y_axes.join(ax[0,n],ax[m,n])
     ax = ax.flatten()
     max_lines_per_plot = num_lines//M
     set_indices = [i if i < num_lines else num_lines for i in range(0, num_lines+max_lines_per_plot, max_lines_per_plot)]
@@ -320,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
     parser.add_argument("--histogram", nargs="+", default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
-    parser.add_argument("--naive_generator",action="store_true",help="use a naive upsampler")
+    parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
 
     opt = vars(parser.parse_args())
     if opt['hyper_results'] is not None:

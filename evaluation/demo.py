@@ -101,7 +101,7 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch_size", type=int, default=1, help="Number of images to show at once")
     parser.add_argument("-f", "--factor", type=int, default=2, help="factor to downsample (multiple of 2)")
     parser.add_argument("-t", "--dataset_type", choices=["txt", "h5", "jet", "spjet"], default="spjet", help="what kind of dataset")
-    parser.add_argument("--hw", type=int, nargs='+', default=[40, 40], help="height and width of the image")
+    parser.add_argument("--hw", type=int, nargs='+', default=[80, 80], help="height and width of the image")
     parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")
     parser.add_argument("--no_colors", action="store_false", help="Don't use colors in the plot")
     parser.add_argument("--threshold", type=float, default=0, help="threshold for pixel activation")
