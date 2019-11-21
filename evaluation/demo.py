@@ -78,7 +78,7 @@ def show(lr, hr, pred, pred_lr):
 
 
 def subplot(N, M, num, img, title=''):
-    global colors
+    global colors, vmax
     plt.subplot(N, M, num)
     if num <= M:
         plt.title(title)
@@ -87,9 +87,9 @@ def subplot(N, M, num, img, title=''):
     plt.ylabel('$\\eta$')
     plt.xlabel('$\\varphi$')
     if colors:
-        plt.imshow(img, cmap='hot_r', norm=col.LogNorm())
+        plt.imshow(img, cmap='hot_r', norm=col.LogNorm(),vmax=vmax)
     else:
-        plt.imshow(img, cmap='gray_r')
+        plt.imshow(img, cmap='gray',vmax=vmax)
 
 
 if __name__ == "__main__":
@@ -105,7 +105,9 @@ if __name__ == "__main__":
     parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")
     parser.add_argument("--no_colors", action="store_false", help="Don't use colors in the plot")
     parser.add_argument("--threshold", type=float, default=0, help="threshold for pixel activation")
+    parser.add_argument("--vmax", type=float, default=None, help="maximum value in the plots")
     args = parser.parse_args()
-    global colors
+    global colors, vmax
+    vmax = args.vmax
     colors = args.no_colors
     main(args)
