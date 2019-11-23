@@ -4,6 +4,7 @@
     "dataset_type": "spjet",
     "batch_size": 8,
     "factor": 2,
+    "pre_factor": 1,
     "lr": 0.0002,
     "b1": 0.9,
     "b2": 0.999,
@@ -14,7 +15,8 @@
     "sample_interval": 500,
     "image_path": "images",
     "checkpoint_interval": 500,
-    "validation_interval": 500,
+    "validation_interval": 1000,
+    "evaluation_interval": 1000,
     "residual_blocks": 10,
     "warmup_batches": 500,
     "pixel_multiplier": 70,
@@ -31,6 +33,7 @@
     "root": "",
     "model_path": "saved_models",
     "validation_path": null,
+    "testset_path": null,
     "load_checkpoint": null,
     "report_freq": 10,
     "discriminator": "patch",
@@ -40,5 +43,6 @@
     "validate": null,
     "n_checkpoints": -1,
     "n_batches": -1,
-    "n_validations": -1
+    "n_validations": -1,
+    "n_evaluation": -1
 }

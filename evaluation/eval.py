@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 from tqdm.auto import tqdm 
-
+show=False
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
 
@@ -103,9 +103,9 @@ def call_func(opt):
         return calculate_metrics(*args)
 
 
-def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None):
+def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -168,9 +168,9 @@ def to_hist(data, bins):
 
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
-                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max'):
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max', pre=1):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -207,7 +207,9 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         if output_path:
             out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
             plt.savefig(out_path.replace('.png', ''))
-        plt.show()
+        global show 
+        if show:
+            plt.show()
 
 
 def hline(newline=False, n=100):
@@ -306,7 +308,9 @@ def evaluate_results(file):
                 [cap.set_alpha(0.5) for cap in caps]
         if not val:
             splt.legend(loc=(1, 0))
-    plt.show()
+    global show 
+    if show:
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -317,6 +321,7 @@ if __name__ == "__main__":
     parser.add_argument("--residual_blocks", type=int, default=10, help="Number of residual blocks in G")
     parser.add_argument("-b","--batch_size", type=int, default=30, help="Batch size during evaluation")
     parser.add_argument("-f","--factor", type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
+    parser.add_argument("--pre_factor", type=int, default=1, help="factor to downsample images before giving it to the model")
     parser.add_argument("-N","--amount", type=int, default=None, help="amount of test samples to use. Standard: All")
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
@@ -324,8 +329,10 @@ if __name__ == "__main__":
     parser.add_argument("--histogram", nargs="+", default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
+    parser.add_argument("--no_show", action="store_false", help="don't show figure")
 
     opt = vars(parser.parse_args())
+    show=opt.show
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'])
     else:

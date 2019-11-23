@@ -11,6 +11,7 @@ from collections import namedtuple
 from sklearn.model_selection import ParameterGrid
 from options.default import *
 from esrgan import train
+from evaluation.eval import distribution
 '''
 The goal of this script is to find the best hyperparameters for the model.
 A grid search is performed over all the possible hyperparameter combinations that are defined in the argument 'options'.
@@ -29,6 +30,7 @@ def main():
     parser.add_argument('--output_path', type=str, default='images/outputs', help='path to output images folder')
     parser.add_argument('--results', type=str, default='results/hyper_search_results.json', help='path to json file containing hyper_search results')
     parser.add_argument('--save_results', action='store_true', help='whether also to save results as images or to only save the metrics')
+    parser.add_argument('--histograms', action='store_true', help='whether to also compute histograms at the end of the training')
     #parser.add_argument('--save_checkpoints', action='store_true', help='whether to save checkpoints or not')
     '''
     options file should be a json file containing a dictionary where the keys are the parameter names in esrgan.py and the values
@@ -103,9 +105,10 @@ def main():
         arguments['n_batches'] = args.batches
         arguments['name'] = model_name
         arguments['n_validations'] = args.checkpoints
+        arguments['n_histograms'] = 1 if args.histograms else -1
         #arguments['save'] = args.save_checkpoints
         if args.save_results:
-            arguments['output_path'] = args.output_path
+            arguments['image_path'] = args.output_path
         metric_results = []
         arguments['metric_results'] = metric_results
         arguments_ntuple = namedtuple("arguments", arguments.keys())(*arguments.values())

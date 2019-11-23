@@ -28,7 +28,7 @@ def toArray(x):
 
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = get_dataset(args.dataset_type, args.input, *args.hw, args.factor)
+    dataset = get_dataset(args.dataset_type, args.input, *args.hw, args.factor, pre=args.pre_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -99,7 +99,8 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--residual_blocks", type=int, default=10, help="Number of residual blocks")
     parser.add_argument("-o", "--output", type=str, default=None, help="Where to save the images")
     parser.add_argument("-b", "--batch_size", type=int, default=1, help="Number of images to show at once")
-    parser.add_argument("-f", "--factor", type=int, default=2, help="factor to downsample (multiple of 2)")
+    parser.add_argument("-f", "--factor", type=int, default=2, help="factor to super resolve (multiple of 2)")
+    parser.add_argument("-p", "--pre_factor", type=int, default=1, help="factor to downsample before giving data to the model")
     parser.add_argument("-t", "--dataset_type", choices=["txt", "h5", "jet", "spjet"], default="spjet", help="what kind of dataset")
     parser.add_argument("--hw", type=int, nargs='+', default=[80, 80], help="height and width of the image")
     parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")

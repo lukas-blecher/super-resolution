@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from models import *
 from datasets import *
 from options.default import default
-from evaluation.eval import calculate_metrics
+from evaluation.eval import calculate_metrics, distribution
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,6 +37,7 @@ def str_to_bool(value):
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--factor", type=int, default=default.factor, help="factor to upsample the input image")
+    parser.add_argument("--pre_factor", type=int, default=default.pre_factor, help="factor to donwsample the input image before training")
     parser.add_argument("--n_epochs", type=int, default=default.n_epochs, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default=default.dataset_path, help="path to the dataset")
     parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet', 'spjet'], default=default.dataset_type, help="how is the dataset saved")
@@ -52,6 +53,7 @@ def get_parser():
     parser.add_argument("--image_path", type=str, default=default.image_path, help="where to save the images during trianing")
     parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
     parser.add_argument("--validation_interval", type=int, default=default.validation_interval, help="batch interval between validation samples")
+    parser.add_argument("--evaluation_interval", type=int, default=default.evaluation_interval, help="batch interval between evaluations (histograms)")
     parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
@@ -74,11 +76,13 @@ def get_parser():
     parser.add_argument("--save", type=str_to_bool, default=default.save, help="whether to save the model weights or not")
     parser.add_argument("--save_info", type=str_to_bool, default=default.save_info, help="whether to save the info.json file or not")
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
+    parser.add_argument("--testset_path", type=str, default=default.testset_path, help="Path to the test set. Is used for the histograms during evaluation")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
     parser.add_argument("--n_checkpoints", default=default.n_checkpoints, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
     parser.add_argument("--n_validations", type=int, default=default.n_validations, help="number of validation points during training (if used dominates validation_interval)")
+    parser.add_argument("--n_evaluation", type=int, default=default.n_evaluation, help="number of histograms to compute during trianing")
     opt = parser.parse_args()
     print(opt)
     return opt
@@ -145,6 +149,10 @@ def train(opt):
     if opt.n_validations != -1:
         validation_interval = np.inf
 
+    evaluation_interval = opt.evaluation_interval
+    if opt.n_evaluation != -1:
+        evaluation_interval = np.inf
+
     # if we don't use this setting, need to set to inf
     n_batches = opt.n_batches
     if n_batches == -1:
@@ -157,7 +165,7 @@ def train(opt):
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
     scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -186,6 +194,7 @@ def train(opt):
 
     # function for saving info.json
     save_info_file = opt.save_info if opt.save_info is not None else opt.save
+
     def save_info():
         if save_info_file:
             with open(info_path, 'w') as outfile:
@@ -314,7 +323,7 @@ def train(opt):
             #  Log Progress
             # --------------
             # save loss to dict
-            
+
             if batches_done % opt.report_freq == 0:
                 for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
                     v.append(l)
@@ -338,6 +347,7 @@ def train(opt):
                     torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
                     print('Saved model to %s' % opt.model_path)
                     save_info()
+
             if ((validation_interval != np.inf and (batches_done+1) % validation_interval == 0) or (
                     validation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_validations) == 0)) and opt.validation_path is not None:
                 print('Validation')
@@ -371,6 +381,11 @@ def train(opt):
                 except KeyError:
                     info['validation'] = [val_results]
 
+            if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
+                    evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
+                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' %batches_done),
+                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 600, mode=['max', 'meannnz', 'nnz'], pre=opt.pre_factor)
+                generator.train()
             if batches_done == total_batches:
                 save_info()
                 if opt.validation_path:
