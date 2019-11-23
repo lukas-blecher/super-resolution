@@ -384,7 +384,7 @@ def train(opt):
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' %batches_done),
-                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 600, mode=['max', 'meannnz', 'nnz'], pre=opt.pre_factor)
+                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, mode=['max', 'meannnz', 'nnz'], pre=opt.pre_factor)
                 generator.train()
             if batches_done == total_batches:
                 save_info()
