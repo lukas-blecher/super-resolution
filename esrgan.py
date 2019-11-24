@@ -352,7 +352,7 @@ def train(opt):
                     validation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_validations) == 0)) and opt.validation_path is not None:
                 print('Validation')
                 output_path = opt.output_path if 'output_path' in dir(opt) else None
-                val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor)
+                val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
                 val_results['epoch'] = epoch
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
@@ -384,7 +384,7 @@ def train(opt):
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' %batches_done),
-                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, mode=['max', 'meannnz', 'nnz'], pre=opt.pre_factor)
+                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, mode=['max', 'nnz', 'meannnz'], pre=opt.pre_factor)
                 generator.train()
             if batches_done == total_batches:
                 save_info()
