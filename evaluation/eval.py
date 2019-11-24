@@ -64,9 +64,11 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def histogram(self, L, bins=10):
-        return np.histogram(L, bins, range=self.get_range())
-
+    def histogram(self, L, bins=10, range=None):
+        if range is not None:
+            return np.histogram(L, bins, range=self.get_range())
+        else:
+            return np.histogram(L, bins)
 
 class MultModeHist:
     def __init__(self, modes, num='standard'):
@@ -196,7 +198,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
             if hhd.nums[m] == i:
                 continue
-            x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins))
+            try:
+                x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins))
+            except ValueError:
+                x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins, range=True))
             plt.plot(x, y, ls, label=lab)
             std = np.sqrt(y)
             std[y == 0] = 0
@@ -332,11 +337,11 @@ if __name__ == "__main__":
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
 
     opt = vars(parser.parse_args())
-    show=opt.show
+    show=opt['no_show']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'])
     else:
-        if opt['dataset_path'] is None or (opt['checkpoint_model'] is None and not opt.naive_generator):
+        if opt['dataset_path'] is None or (opt['checkpoint_model'] is None and not opt['naive_generator']):
             raise ValueError("For evaluation dataset_path and checkpoint_model are required")
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
