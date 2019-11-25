@@ -32,7 +32,7 @@ if __name__ == '__main__':
     N = len(subdirs)
     a = int(np.sqrt(N))
     b = int(np.ceil(N/a))
-    f, ax = plt.subplots(a, b, sharex=True, sharey=True)
+    f, ax = plt.subplots(a, b, sharex=True, sharey=True, figsize=(b*5,a*5))
     axf = ax.flatten()
     for i in range(len(subdirs)):
         axi = axf[i]
@@ -49,5 +49,5 @@ if __name__ == '__main__':
     for i in range(a*b-1, N-1, -1):
         f.delaxes(axf[i])
 
-    # plt.tight_layout()
+    plt.tight_layout()
     plt.show()
