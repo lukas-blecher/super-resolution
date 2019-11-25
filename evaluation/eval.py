@@ -107,7 +107,7 @@ def call_func(opt):
 
 def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, generator.scaling_power)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, generator.power)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -172,7 +172,7 @@ def to_hist(data, bins):
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max', pre=1):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, generator.scaling_power)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, generator.power)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
