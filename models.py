@@ -89,6 +89,8 @@ class GeneratorRRDB(nn.Module):
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
+        if not self.training:
+            x = x**self.power
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)

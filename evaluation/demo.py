@@ -28,7 +28,7 @@ def toArray(x):
 
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = get_dataset(args.dataset_type, args.input, *args.hw, args.factor, pre=args.pre_factor, power=args.scaling_power)
+    dataset = get_dataset(args.dataset_type, args.input, *args.hw, args.factor, pre=args.pre_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
