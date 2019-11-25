@@ -12,6 +12,7 @@
     "hr_height": 80,
     "hr_width": 80,
     "channels": 1,
+    "scaling_power": 1,
     "sample_interval": 500,
     "image_path": "images",
     "checkpoint_interval": 500,

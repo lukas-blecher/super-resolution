@@ -63,6 +63,7 @@ def get_parser():
     parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
     parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
+    parser.add_argument("--scaling_power", type=float, default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
     parser.add_argument("--bins", type=int, default=default.bins, help="number of bins in the energy distribution histogram")
@@ -101,7 +102,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'discriminator', 'relativistic', 'warmup_batches']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -111,7 +112,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
@@ -165,7 +166,7 @@ def train(opt):
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
     scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, power=opt.scaling_power)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -352,7 +353,8 @@ def train(opt):
                     validation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_validations) == 0)) and opt.validation_path is not None:
                 print('Validation')
                 output_path = opt.output_path if 'output_path' in dir(opt) else None
-                val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
+                val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size,
+                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
                 val_results['epoch'] = epoch
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
@@ -383,8 +385,8 @@ def train(opt):
 
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
-                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' %batches_done),
-                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, mode=['max', 'nnz', 'meannnz'], pre=opt.pre_factor)
+                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
+                             30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, mode=['max', 'nnz', 'meannnz'], pre=opt.pre_factor)
                 generator.train()
             if batches_done == total_batches:
                 save_info()

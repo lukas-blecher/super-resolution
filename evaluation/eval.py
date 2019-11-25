@@ -93,7 +93,7 @@ def call_func(opt):
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
    
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
     if 'naive_generator' in dopt:
         if opt.naive_generator:
@@ -107,7 +107,7 @@ def call_func(opt):
 
 def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, generator.scaling_power)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -172,7 +172,7 @@ def to_hist(data, bins):
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max', pre=1):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, generator.scaling_power)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -335,6 +335,7 @@ if __name__ == "__main__":
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
+    parser.add_argument("-p", "--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
 
     opt = vars(parser.parse_args())
     show=opt['no_show']

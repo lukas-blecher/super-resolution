@@ -60,7 +60,7 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 
 class GeneratorRRDB(nn.Module):
-    def __init__(self, channels, filters=64, num_res_blocks=16, num_upsample=2):
+    def __init__(self, channels, filters=64, num_res_blocks=16, num_upsample=2, power=1):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
@@ -85,6 +85,7 @@ class GeneratorRRDB(nn.Module):
             nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
         )
         self.thres = 0
+        self.power = power
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
@@ -97,7 +98,7 @@ class GeneratorRRDB(nn.Module):
         if self.training:
             return out
         else:
-            return F.hardshrink(F.relu(out), lambd=self.thres)
+            return F.hardshrink(F.relu(out)**(1/self.power), lambd=self.thres)
 
 
 def discriminator_block(in_filters, out_filters, first_block=False):
