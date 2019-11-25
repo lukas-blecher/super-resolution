@@ -6,6 +6,7 @@ import math
 import itertools
 import sys
 import json
+from collections import namedtuple
 from sklearn.cluster import KMeans
 
 import torchvision.transforms as transforms
@@ -16,7 +17,7 @@ from torch.autograd import Variable
 
 from models import *
 from datasets import *
-from options.default import default
+from options.default import default, default_dict
 from evaluation.eval import calculate_metrics, distribution
 
 import torch.nn as nn
@@ -84,7 +85,20 @@ def get_parser():
     parser.add_argument("--n_checkpoints", default=default.n_checkpoints, type=int, help="number of checkpoints during training (if used dominates checkpoint_interval)")
     parser.add_argument("--n_validations", type=int, default=default.n_validations, help="number of validation points during training (if used dominates validation_interval)")
     parser.add_argument("--n_evaluation", type=int, default=default.n_evaluation, help="number of histograms to compute during trianing")
+    parser.add_argument("--default", type=str, default=default.default, help="Path to a json file. When this option is provided, all unspecified arguments will be taken from the json file")
+    
     opt = parser.parse_args()
+    if opt.default:
+        given = vars(opt)
+        with open(opt.default, 'r') as f:
+            arguments = json.load(f)
+        #reduce to only non default arguments
+        given = {key: given[key] for key in given.keys() if default_dict[key]!=given[key]}
+        #add all arguments from opt.default
+        arguments = {**given, **{key: arguments[key] for key in arguments if key not in given}}
+        #add remaining default arguments if not all keys are specified
+        arguments = {**arguments, **{key: default_dict[key] for key in default_dict if key not in arguments}}
+        opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
     print(opt)
     return opt
 

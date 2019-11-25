@@ -45,5 +45,6 @@
     "n_checkpoints": -1,
     "n_batches": -1,
     "n_validations": -1,
-    "n_evaluation": -1
+    "n_evaluation": -1,
+    "default": null
 }
