@@ -47,19 +47,22 @@ class MultHist:
         assert len(argv) == self.num
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
-            if self.mode == 'max':
-                self.list[i].extend(list(Ln.max((1, 2, 3))))
-            elif self.mode == 'min':
-                self.list[i].extend(list(Ln.min((1, 2, 3))))
-            elif self.mode == 'mean':
-                self.list[i].extend(list(Ln.mean((1, 2, 3))))
-            elif self.mode == 'nnz':
-                self.list[i].extend(list((Ln > self.thres).sum((1, 2, 3))))
-            elif self.mode == 'sum':
-                self.list[i].extend(list(Ln.sum((1, 2, 3))))
-            elif self.mode == 'meannnz':
-                for j in range(len(Ln)):
-                    self.list[i].append(Ln[j][Ln[j] > self.thres].mean())
+            try:
+                if self.mode == 'max':
+                    self.list[i].extend(list(Ln.max((1, 2, 3))))
+                elif self.mode == 'min':
+                    self.list[i].extend(list(Ln.min((1, 2, 3))))
+                elif self.mode == 'mean':
+                    self.list[i].extend(list(Ln.mean((1, 2, 3))))
+                elif self.mode == 'nnz':
+                    self.list[i].extend(list((Ln > self.thres).sum((1, 2, 3))))
+                elif self.mode == 'sum':
+                    self.list[i].extend(list(Ln.sum((1, 2, 3))))
+                elif self.mode == 'meannnz':
+                    for j in range(len(Ln)):
+                        self.list[i].append(Ln[j][Ln[j] > self.thres].mean())
+            except Exception as e:
+                print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
     def get_range(self):
         mins = [min(self.list[i]) for i in range(self.num)]
