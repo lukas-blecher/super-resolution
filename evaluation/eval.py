@@ -19,8 +19,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from PIL import Image
-from tqdm.auto import tqdm 
-show=False
+from tqdm.auto import tqdm
+show = False
+
+
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
 
@@ -64,11 +66,12 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def histogram(self, L, bins=10, range=None):
-        if range is not None:
+    def histogram(self, L, bins=10, auto_range=True):
+        if auto_range:
             return np.histogram(L, bins, range=self.get_range())
         else:
             return np.histogram(L, bins)
+
 
 class MultModeHist:
     def __init__(self, modes, num='standard'):
@@ -92,13 +95,13 @@ def call_func(opt):
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
-   
+
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
     if 'naive_generator' in dopt:
         if opt.naive_generator:
             generator = NaiveGenerator(int(np.log2(opt.factor)))
-    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount]
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount, opt.pre_factor]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
     else:
@@ -170,7 +173,7 @@ def to_hist(data, bins):
 
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
-                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, mode='max', pre=1):
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, mode='max'):
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
     dataloader = DataLoader(
@@ -201,7 +204,9 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             try:
                 x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins))
             except ValueError:
-                x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins, range=True))
+                print('auto range failed for %s' % modes[m])
+                print(hhd[m].list[i])
+                x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins, range=False))
             plt.plot(x, y, ls, label=lab)
             std = np.sqrt(y)
             std[y == 0] = 0
@@ -212,7 +217,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         if output_path:
             out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
             plt.savefig(out_path.replace('.png', ''))
-        global show 
+        global show
         if show:
             plt.show()
 
@@ -270,7 +275,7 @@ def evaluate_results(file):
     f, ax = plt.subplots(M, N, sharex=True)
     for m in range(1, M):
         for n in range(N):
-            ax[0,n]._shared_y_axes.join(ax[0,n],ax[m,n])
+            ax[0, n]._shared_y_axes.join(ax[0, n], ax[m, n])
     ax = ax.flatten()
     max_lines_per_plot = num_lines//M
     set_indices = [i if i < num_lines else num_lines for i in range(0, num_lines+max_lines_per_plot, max_lines_per_plot)]
@@ -313,21 +318,21 @@ def evaluate_results(file):
                 [cap.set_alpha(0.5) for cap in caps]
         if not val:
             splt.legend(loc=(1, 0))
-    global show 
+    global show
     if show:
         plt.show()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i","--dataset_path", type=str, default=None, help="Path to image")
-    parser.add_argument("-o","--output_path", type=str, default='images/outputs', help="Path where output will be saved")
-    parser.add_argument("-m","--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
+    parser.add_argument("-i", "--dataset_path", type=str, default=None, help="Path to image")
+    parser.add_argument("-o", "--output_path", type=str, default='images/outputs', help="Path where output will be saved")
+    parser.add_argument("-m", "--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
     parser.add_argument("--residual_blocks", type=int, default=10, help="Number of residual blocks in G")
-    parser.add_argument("-b","--batch_size", type=int, default=30, help="Batch size during evaluation")
-    parser.add_argument("-f","--factor", type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
+    parser.add_argument("-b", "--batch_size", type=int, default=30, help="Batch size during evaluation")
+    parser.add_argument("-f", "--factor", type=int, default=default_dict['factor'], help="factor to super resolve (multiple of 2)")
     parser.add_argument("--pre_factor", type=int, default=1, help="factor to downsample images before giving it to the model")
-    parser.add_argument("-N","--amount", type=int, default=None, help="amount of test samples to use. Standard: All")
+    parser.add_argument("-N", "--amount", type=int, default=None, help="amount of test samples to use. Standard: All")
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
@@ -335,10 +340,10 @@ if __name__ == "__main__":
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
-    parser.add_argument("-p", "--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
+    parser.add_argument("--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
 
     opt = vars(parser.parse_args())
-    show=opt['no_show']
+    show = opt['no_show']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'])
     else:
@@ -347,4 +352,6 @@ if __name__ == "__main__":
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
         # print(opt)
-        print(call_func(opt))
+        out = call_func(opt)
+        if out is not None:
+            print(out)
