@@ -60,10 +60,7 @@ class MultHist:
                     self.list[i].extend(list(Ln.sum((1, 2, 3))))
                 elif self.mode == 'meannnz':
                     for j in range(len(Ln)):
-                        if len(Ln[j])==0:
-                            self.list[i].append(0)
-                            continue
-                        self.list[i].append(Ln[j][Ln[j] > self.thres].mean())
+                        self.list[i].append(np.nan_to_num(Ln[j][Ln[j] > self.thres].mean(),0))
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
