@@ -44,7 +44,7 @@ if __name__ == '__main__':
         file = file[0]
         name = names[i]
         axi.set_title(name)
-        axi.imshow(plt.imread(file))
+        axi.imshow(plt.imread(file), interpolation='bilinear')
         axi.axis('off')
     for i in range(a*b-1, N-1, -1):
         f.delaxes(axf[i])
