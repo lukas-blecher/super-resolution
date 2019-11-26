@@ -64,7 +64,7 @@ def get_parser():
     parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
     parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
-    parser.add_argument("--scaling_power", type=float, default=default.scaling_power, help="to what power to raise the input image")
+    parser.add_argument("--scaling_power", type=float, nargs='+', default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
     parser.add_argument("--bins", type=int, default=default.bins, help="number of bins in the energy distribution histogram")
@@ -126,7 +126,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
+    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=10, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':

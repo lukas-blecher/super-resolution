@@ -217,7 +217,7 @@ class SparseJetDataset(JetDataset):
             img = self.pre_pool(img)
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
-        return {"lr": img_lr**self.power, "hr": img_hr**self.power}
+        return {"lr": img_lr, "hr": img_hr}
 
 
 def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, power=1):

@@ -60,7 +60,7 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 
 class GeneratorRRDB(nn.Module):
-    def __init__(self, channels, filters=64, num_res_blocks=16, num_upsample=2, power=1):
+    def __init__(self, channels=1, filters=64, num_res_blocks=16, num_upsample=2):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
@@ -78,29 +78,76 @@ class GeneratorRRDB(nn.Module):
                 nn.PixelShuffle(upscale_factor=2),
             ]
         self.upsampling = nn.Sequential(*upsample_layers)
-        # Final output block
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
-            nn.LeakyReLU(),
-            nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
-        )
-        self.thres = 0
-        self.power = power
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
-        if not self.training:
-            x = x**self.power
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
         out = self.upsampling(out)
-        out = self.conv3(out)
+        return out
+
+
+class Pow(nn.Module):
+    def __init__(self, f=2, learnable=False):
+        super(Pow, self).__init__()
+        self.learnable = learnable
+        tensor_like = [torch.Tensor, nn.Parameter]
+        if type(f) is int:
+            # use evenly spaced starting parameters
+            self.f = tensor_like[self.learnable](torch.linspace(0, 1, f+1)[1:])
+        elif len(f) > 0:
+            # if list is given use given parameters instead
+            self.learnable = False
+            self.f = tensor_like[self.learnable](torch.Tensor(f))
+
+    def constraint(self):
+        self.f.data = self.f.data.clamp(0.1, 1)
+
+    def to(self, device):
+        self.f = self.f.to(device)
+        return self
+
+    def forward(self, x):
+        return x**self.f[None, :, None, None]
+
+
+class MultiGenerator(nn.Module):
+    def __init__(self, N=[1], channels=1, filters=64, num_res_blocks=16, num_upsample=2, learnable_powers=False):
+        '''
+        Multiple generators in parallel, each recieves the input raised by a different power.
+            N: int with number of powers or list-like with powers
+            learnable_powers: whether to change the powers during training
+        '''
+        super(MultiGenerator, self).__init__()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.pow = Pow(N, learnable_powers)
+        self.num = N if type(N) is int else len(N)
+        self.Generators = [GeneratorRRDB(channels, filters, num_res_blocks, num_upsample) for i in range(self.num)]
+        self.out_conv = nn.Sequential(
+            nn.Conv2d(self.num*filters, filters, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(),
+            nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(),
+            nn.Conv2d(filters, 1, kernel_size=3, stride=1, padding=1))
+        self.thres = 0
+
+    def to(self, device):
+        self.pow.to(device)
+        for i in range(self.num):
+            self.Generators[i] = self.Generators[i].to(device)
+        self.out_conv = self.out_conv.to(device)
+        return self
+
+    def forward(self, x):
+        x = self.pow(x)
+        x = torch.cat([self.Generators[i](x[:, i:i+1]) for i in range(self.num)], 1).to(self.device)
+        x = self.out_conv(x)
         if self.training:
-            return out
+            return x
         else:
-            return F.hardshrink(F.relu(out)**(1/self.power), lambd=self.thres)
+            return F.hardshrink(F.relu(x), lambd=self.thres)
 
 
 def discriminator_block(in_filters, out_filters, first_block=False):
