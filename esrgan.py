@@ -116,7 +116,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
