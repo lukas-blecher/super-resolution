@@ -215,11 +215,9 @@ class SparseJetDataset(JetDataset):
         img = extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]
         if self.pre_factor > 1:
             img = self.pre_pool(img)
-        if self.power!=1:
-            img = img**self.power
         img_lr = self.pool(img)[0]
         img_hr = img[0].clone()
-        return {"lr": img_lr, "hr": img_hr}
+        return {"lr": img_lr**self.power, "hr": img_hr**self.power}
 
 
 def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, power=1):
