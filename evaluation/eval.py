@@ -9,7 +9,7 @@ from datasets import *
 #from evaluation.PSNR_SSIM_metric import calculate_ssim
 #from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
-from models import GeneratorRRDB, NaiveGenerator
+from models import MultiGenerator, NaiveGenerator
 from options.default import *
 import argparse
 import json
@@ -99,7 +99,7 @@ def call_func(opt):
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
 
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
+    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model))
     if 'naive_generator' in dopt:
         if opt.naive_generator:
@@ -343,7 +343,7 @@ if __name__ == "__main__":
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
-    parser.add_argument("--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
+    parser.add_argument("--scaling_power", nargs='+', type=float, default=1, help="power to which to raise the input image pixelwise")
 
     opt = vars(parser.parse_args())
     show = opt['no_show']

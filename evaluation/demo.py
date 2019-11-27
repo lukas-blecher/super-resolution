@@ -14,7 +14,7 @@ import torch.nn as nn
 from collections import namedtuple
 import argparse
 from options.default import default_dict
-from models import GeneratorRRDB
+from models import MultiGenerator
 from torch.utils.data import DataLoader
 from datasets import *
 
@@ -35,7 +35,7 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power).to(device).eval()
+    generator = MultiGenerator(args.scaling_power, 1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor))).to(device).eval()
     generator.thres = args.threshold
     generator.load_state_dict(torch.load(args.model))
     criterion = torch.nn.L1Loss()
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch_size", type=int, default=1, help="Number of images to show at once")
     parser.add_argument("-f", "--factor", type=int, default=2, help="factor to super resolve (multiple of 2)")
     parser.add_argument("-p", "--pre_factor", type=int, default=1, help="factor to downsample before giving data to the model")
-    parser.add_argument("--scaling_power", type=float, default=1, help="input data is raised to this power")
+    parser.add_argument("--scaling_power", nargs='+', type=float, default=1, help="input data is raised to this power")
     parser.add_argument("-t", "--dataset_type", choices=["txt", "h5", "jet", "spjet"], default="spjet", help="what kind of dataset")
     parser.add_argument("--hw", type=int, nargs='+', default=[80, 80], help="height and width of the image")
     parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")

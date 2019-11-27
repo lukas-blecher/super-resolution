@@ -99,18 +99,20 @@ class Pow(nn.Module):
             self.f = tensor_like[self.learnable](torch.linspace(0, 1, f+1)[1:])
         elif len(f) > 0:
             # if list is given use given parameters instead
-            self.learnable = False
             self.f = tensor_like[self.learnable](torch.Tensor(f))
 
     def constraint(self):
         self.f.data = self.f.data.clamp(0.1, 1)
 
     def to(self, device):
-        self.f = self.f.to(device)
+        self.f.data = self.f.data.to(device)
         return self
 
     def forward(self, x):
         return x**self.f[None, :, None, None]
+
+    def inverse(self, x):
+        return x**self.invf[None, :, None, None]
 
 
 class MultiGenerator(nn.Module):
@@ -121,11 +123,15 @@ class MultiGenerator(nn.Module):
             learnable_powers: whether to change the powers during training
         '''
         super(MultiGenerator, self).__init__()
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pow = Pow(N, learnable_powers)
         self.num = N if type(N) is int else len(N)
-        self.Generators = [GeneratorRRDB(channels, filters, num_res_blocks, num_upsample) for i in range(self.num)]
+        self.Generators = []
+        for i in range(self.num):
+            setattr(self, 'Generator_%i' % i, GeneratorRRDB(channels, filters, num_res_blocks, num_upsample))
+            self.Generators.append(getattr(self, 'Generator_%i' % i))
         self.out_conv = nn.Sequential(
+            nn.Conv2d(self.num*filters, self.num*filters, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(),
             nn.Conv2d(self.num*filters, filters, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
             nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
@@ -142,7 +148,7 @@ class MultiGenerator(nn.Module):
 
     def forward(self, x):
         x = self.pow(x)
-        x = torch.cat([self.Generators[i](x[:, i:i+1]) for i in range(self.num)], 1).to(self.device)
+        x = torch.cat([self.Generators[i](x[:, i:i+1]) for i in range(self.num)], 1)
         x = self.out_conv(x)
         if self.training:
             return x
@@ -207,7 +213,7 @@ class Standard_Discriminator(nn.Module):
 
 class DiffableHistogram(nn.Module):
     '''Modified version of https://discuss.pytorch.org/t/differentiable-torch-histc/25865/2 by Tony-Y
-    If `bins` is a sequence the histogram will be defined by the edges specified in `bins`. If it is an integer 
+    If `bins` is a sequence the histogram will be defined by the edges specified in `bins`. If it is an integer
     the histogram will consist of equally sized bins.
     `sigma` is a parameter of how strickly the differentiable histogram will approach the discrete histogram. For big values the gradients may explode.
     `batchwise` is a boolean that indicates whether the histogram will be taken over the whole data or batchwise.
