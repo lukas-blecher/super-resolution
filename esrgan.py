@@ -64,6 +64,7 @@ def get_parser():
     parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
     parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
+    parser.add_argument("--lambda_mult", type=float, default=default.lambda_mult, help="loss weight for multiple hr L1 pixel loss")
     parser.add_argument("--scaling_power", type=float, nargs='+', default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
@@ -71,6 +72,7 @@ def get_parser():
     parser.add_argument("--root", type=str, default=default.root, help="root directory for the model")
     parser.add_argument("--name", type=str, default=default.name, help='name of the model')
     parser.add_argument("--load_checkpoint", type=str, default=default.load_checkpoint, help='path to the generator weights to start the training with')
+    parser.add_argument("--generator_path", type=str, default=default.generator_path, help="path to the generator model")
     parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
     parser.add_argument("--model_path", type=str, default=default.model_path, help="directory where the model is saved/should be saved")
     parser.add_argument("--discriminator", choices=['patch', 'standard'], default=default.discriminator, help="discriminator model to use")
@@ -116,7 +118,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_mult', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -126,7 +128,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
+    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), pixel_multiplier=opt.pixel_multiplier).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
@@ -151,6 +153,11 @@ def train(opt):
                 info = json.load(info_file)
         except FileNotFoundError:
             pass
+    
+    if opt.generator_path:
+        generator_dict=torch.load(opt.generator_path)
+        for i in range(generator.num):
+            generator.load_Generator(i, generator_dict)
 
     if opt.sample_interval != -1:
         image_dir = os.path.join(opt.root, opt.image_path, "%straining" % model_name)
@@ -180,7 +187,7 @@ def train(opt):
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
     scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, power=opt.scaling_power)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, power=opt.scaling_power, multiplier=1)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -196,7 +203,7 @@ def train(opt):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss']}
+    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'mult_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -288,7 +295,7 @@ def train(opt):
 
             # Total generator loss
             loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
-            loss_hist, loss_nnz, loss_mask = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
+            loss_hist, loss_nnz, loss_mask, loss_mult = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
 
             if opt.lambda_hist > 0:
                 # calculate the energy distribution loss
@@ -310,6 +317,11 @@ def train(opt):
                 real_mask = nnz_mask(imgs_hr)
                 loss_mask = criterion_pixel(gen_mask, real_mask)
                 loss_G = loss_G + opt.lambda_mask * loss_mask
+            if opt.lambda_mult > 0:
+                gen_srs = generator.srs
+                real_srs = generator.pow(imgs_hr).detach()
+                loss_mult = criterion_pixel(gen_srs, real_srs)
+                loss_G = loss_G + opt.lambda_mult * loss_mult
 
             loss_G.backward()
             optimizer_G.step()
@@ -342,9 +354,9 @@ def train(opt):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_mult.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
+                print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f, mult: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
@@ -401,7 +413,7 @@ def train(opt):
 
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
-                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%06d_hist.png' % batches_done),
+                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                              30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz'])
                 generator.train()
             if batches_done == total_batches:

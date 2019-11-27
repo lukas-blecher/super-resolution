@@ -179,11 +179,11 @@ class EventDatasetText(Dataset):
 
 class JetDataset(Dataset):
 
-    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2, pre_factor=1, power=1):
+    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2, pre_factor=1, power=1, multiplier=1):
         super(JetDataset, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
-
+        self.multiplier = multiplier
         self.pool = SumPool2d(factor)
         self.pre_factor = pre_factor
         self.power = power
@@ -197,7 +197,7 @@ class JetDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, item):
-        img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)*70
+        img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)*self.multiplier
         if self.pre_factor > 1:
             img = self.pre_pool(img)
         if self.power!=1:
@@ -208,11 +208,11 @@ class JetDataset(Dataset):
 
 
 class SparseJetDataset(JetDataset):
-    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=1, power=1):
-        super(SparseJetDataset, self).__init__(path, amount, etaBins, phiBins, factor, pre_factor, power)
+    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=1, power=1, multiplier=1):
+        super(SparseJetDataset, self).__init__(path, amount, etaBins, phiBins, factor, pre_factor, power, multiplier)
 
     def __getitem__(self, item):
-        img = extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]
+        img = extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]*self.multiplier
         if self.pre_factor > 1:
             img = self.pre_pool(img)
         img_lr = self.pool(img)[0]
@@ -220,12 +220,12 @@ class SparseJetDataset(JetDataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
-def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, power=1):
+def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, power=1, multiplier=1):
     if dataset_type == 'h5':
         return EventDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'txt':
         return EventDatasetText(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'jet':
-        return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, power=power)
+        return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, power=power, multiplier=multiplier)
     elif dataset_type == 'spjet':
-        return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, power=power)
+        return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, power=power, multiplier=multiplier)

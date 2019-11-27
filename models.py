@@ -78,6 +78,11 @@ class GeneratorRRDB(nn.Module):
                 nn.PixelShuffle(upscale_factor=2),
             ]
         self.upsampling = nn.Sequential(*upsample_layers)
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(),
+            nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
+        )
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
@@ -86,6 +91,7 @@ class GeneratorRRDB(nn.Module):
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
         out = self.upsampling(out)
+        out = self.conv3(out)
         return out
 
 
@@ -102,27 +108,29 @@ class Pow(nn.Module):
             self.f = tensor_like[self.learnable](torch.Tensor(f))
 
     def constraint(self):
-        self.f.data = self.f.data.clamp(0.1, 1)
+        self.f.data = self.f.data.clamp(0.05, 1)
 
     def to(self, device):
         self.f.data = self.f.data.to(device)
         return self
 
+    def inv(self, x):
+        return x**(1/self.f[None, :, None, None])
+
     def forward(self, x):
         return x**self.f[None, :, None, None]
 
-    def inverse(self, x):
-        return x**self.invf[None, :, None, None]
-
 
 class MultiGenerator(nn.Module):
-    def __init__(self, N=[1], channels=1, filters=64, num_res_blocks=16, num_upsample=2, learnable_powers=False):
+    def __init__(self, N=[1], channels=1, filters=64, num_res_blocks=16, num_upsample=2, learnable_powers=False, pixel_multiplier=1):
         '''
         Multiple generators in parallel, each recieves the input raised by a different power.
             N: int with number of powers or list-like with powers
             learnable_powers: whether to change the powers during training
         '''
         super(MultiGenerator, self).__init__()
+        if type(N) is float:
+            N = [N]
         self.pow = Pow(N, learnable_powers)
         self.num = N if type(N) is int else len(N)
         self.Generators = []
@@ -130,30 +138,44 @@ class MultiGenerator(nn.Module):
             setattr(self, 'Generator_%i' % i, GeneratorRRDB(channels, filters, num_res_blocks, num_upsample))
             self.Generators.append(getattr(self, 'Generator_%i' % i))
         self.out_conv = nn.Sequential(
-            nn.Conv2d(self.num*filters, self.num*filters, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(self.num, self.num, kernel_size=3, stride=1, padding=1),
+            #nn.LeakyReLU(),
+            #nn.Conv2d(self.num, self.num, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Conv2d(self.num*filters, filters, kernel_size=3, stride=1, padding=1),
-            nn.LeakyReLU(),
-            nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
-            nn.LeakyReLU(),
-            nn.Conv2d(filters, 1, kernel_size=3, stride=1, padding=1))
+            nn.Conv2d(self.num, 1, kernel_size=3, stride=1, padding=1))
+        self.weight = nn.Conv2d(self.num, 1, kernel_size=1, stride=1, padding=0)
         self.thres = 0
+        self.srs = None
+        self.mult = nn.Parameter(torch.Tensor([pixel_multiplier]), False)
+
+    def load_Generator(self, id, state_dict):
+        self.Generators[id].load_state_dict(state_dict)
 
     def to(self, device):
         self.pow.to(device)
         for i in range(self.num):
             self.Generators[i] = self.Generators[i].to(device)
         self.out_conv = self.out_conv.to(device)
+        self.weight = self.weight.to(device)
+        self.mult.data = self.mult.data.to(device)
         return self
 
-    def forward(self, x):
-        x = self.pow(x)
-        x = torch.cat([self.Generators[i](x[:, i:i+1]) for i in range(self.num)], 1)
-        x = self.out_conv(x)
+    def out(self, x):
         if self.training:
-            return x
+            return x/self.mult
         else:
-            return F.hardshrink(F.relu(x), lambd=self.thres)
+            return F.hardshrink(F.relu(x/self.mult), lambd=self.thres)
+
+    def forward(self, x):
+        x = self.mult * x
+        #print('in', x.mean().item(), x.std().item())
+        x = self.pow(x)
+        srs = torch.cat([self.Generators[i](x[:, i:i+1]) for i in range(self.num)], 1)
+        self.srs = self.out(srs)
+        x = self.pow.inv(F.relu(srs))
+        x = self.out_conv(x)
+        #print(x.mean().item(), x.std().item())
+        return self.out(x)
 
 
 def discriminator_block(in_filters, out_filters, first_block=False):
