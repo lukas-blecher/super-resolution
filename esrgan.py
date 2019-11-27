@@ -126,7 +126,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=10, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
+    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor))).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
