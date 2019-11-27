@@ -86,17 +86,17 @@ def get_parser():
     parser.add_argument("--n_validations", type=int, default=default.n_validations, help="number of validation points during training (if used dominates validation_interval)")
     parser.add_argument("--n_evaluation", type=int, default=default.n_evaluation, help="number of histograms to compute during trianing")
     parser.add_argument("--default", type=str, default=default.default, help="Path to a json file. When this option is provided, all unspecified arguments will be taken from the json file")
-    
+
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
         with open(opt.default, 'r') as f:
             arguments = json.load(f)
-        #reduce to only non default arguments
-        given = {key: given[key] for key in given.keys() if default_dict[key]!=given[key]}
-        #add all arguments from opt.default
+        # reduce to only non default arguments
+        given = {key: given[key] for key in given.keys() if default_dict[key] != given[key]}
+        # add all arguments from opt.default
         arguments = {**given, **{key: arguments[key] for key in arguments if key not in given}}
-        #add remaining default arguments if not all keys are specified
+        # add remaining default arguments if not all keys are specified
         arguments = {**arguments, **{key: default_dict[key] for key in default_dict if key not in arguments}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
     print(opt)
@@ -235,6 +235,8 @@ def train(opt):
             # ------------------
 
             optimizer_G.zero_grad()
+            # clip the powers to [.1, 1]
+            generator.pow.constraint()
 
             # Generate a high resolution image from low resolution input
             gen_hr = generator(imgs_lr)
@@ -399,7 +401,7 @@ def train(opt):
 
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
-                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
+                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%06d_hist.png' % batches_done),
                              30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz'])
                 generator.train()
             if batches_done == total_batches:
