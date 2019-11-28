@@ -18,7 +18,7 @@ def hyper2float(s):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', type=str, required=True, help='file name/pattern')
-    parser.add_argument('-i', '--dir', type=str, required=True, help='folder with subdirs or files')
+    parser.add_argument('-i', '--dir', type=str, required=True, help='folder with subdirs')
     args = parser.parse_args()
     subdirs = sorted(glob.glob(os.path.join(args.dir, '*')))
     subdirs = [d for d in subdirs if os.path.isdir(d)]
@@ -27,6 +27,9 @@ if __name__ == '__main__':
         names = [hyper2float(os.path.basename(subdirs[i])) for i in range(len(subdirs))]
         try:
             perm = np.argsort(names)
+            if type(names[0]) is str:
+                digs=[int(''.join(filter(lambda x: x.isdigit(), s))) for s in names]
+                perm = np.argsort(digs)
             subdirs = np.array(subdirs)[perm]
             names = np.array(names)[perm]
         except:
@@ -53,6 +56,9 @@ if __name__ == '__main__':
         names = [os.path.basename(files[i]) for i in range(len(files))]
         try:
             perm = np.argsort(names)
+            if type(names[0]) is str:
+                digs=[int(''.join(filter(lambda x: x.isdigit(), s))) for s in names]
+                perm = np.argsort(digs)
             files = np.array(files)[perm]
             names = np.array(names)[perm]
         except:
