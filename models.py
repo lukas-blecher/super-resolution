@@ -60,7 +60,7 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 
 class GeneratorRRDB(nn.Module):
-    def __init__(self, channels, filters=64, num_res_blocks=16, num_upsample=2, power=1):
+    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
@@ -85,22 +85,38 @@ class GeneratorRRDB(nn.Module):
             nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
         )
         self.thres = 0
-        self.power = power
+        self.power = nn.Parameter(torch.Tensor([power]), False)
+        self.multiplier = nn.Parameter(torch.Tensor([multiplier]), False)
+
+    def load_state_dict(self, state_dict):
+        own_state = self.state_dict()
+        for name, param in state_dict.items():
+            if name not in own_state:
+                continue
+            if isinstance(param, nn.Parameter):
+                # backwards compatibility for serialized parameters
+                param = param.data
+            own_state[name].copy_(param)
+
+    def out(self, x):
+        if self.training:
+            return x/self.multiplier
+        else:
+            return F.hardshrink(F.relu(x/self.multiplier), lambd=self.thres)
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
-        if not self.training:
-            x = x**self.power
+        x = self.multiplier*(x**self.power)
         out1 = self.conv1(x)
         out = self.res_blocks(out1)
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
         out = self.upsampling(out)
         out = self.conv3(out)
-        if self.training:
-            return out
-        else:
-            return F.hardshrink(F.relu(out)**(1/self.power), lambd=self.thres)
+        self.srs = self.out(out)
+        if self.power != 1:
+            out = F.relu(out)**(1/self.power)
+        return self.out(out)
 
 
 def discriminator_block(in_filters, out_filters, first_block=False):

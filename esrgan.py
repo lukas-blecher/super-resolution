@@ -59,11 +59,13 @@ def get_parser():
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
     parser.add_argument("--pixel_multiplier", type=float, default=default.pixel_multiplier, help="multiply the image by this factors")
+    parser.add_argument("--lambda_pix", type=float, default=default.lambda_pix, help="loss weight for high resolution pixel difference")
     parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=default.lambda_lr, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
     parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
+    parser.add_argument("--lambda_pow", type=float, default=default.lambda_pow, help="loss weight for multiple hr L1 pixel loss")
     parser.add_argument("--scaling_power", type=float, default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
@@ -79,6 +81,7 @@ def get_parser():
     parser.add_argument("--save_info", type=str_to_bool, default=default.save_info, help="whether to save the info.json file or not")
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
     parser.add_argument("--testset_path", type=str, default=default.testset_path, help="Path to the test set. Is used for the histograms during evaluation")
+    #parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
@@ -86,17 +89,17 @@ def get_parser():
     parser.add_argument("--n_validations", type=int, default=default.n_validations, help="number of validation points during training (if used dominates validation_interval)")
     parser.add_argument("--n_evaluation", type=int, default=default.n_evaluation, help="number of histograms to compute during trianing")
     parser.add_argument("--default", type=str, default=default.default, help="Path to a json file. When this option is provided, all unspecified arguments will be taken from the json file")
-    
+
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
         with open(opt.default, 'r') as f:
             arguments = json.load(f)
-        #reduce to only non default arguments
-        given = {key: given[key] for key in given.keys() if default_dict[key]!=given[key]}
-        #add all arguments from opt.default
+        # reduce to only non default arguments
+        given = {key: given[key] for key in given.keys() if default_dict[key] != given[key]}
+        # add all arguments from opt.default
         arguments = {**given, **{key: arguments[key] for key in arguments if key not in given}}
-        #add remaining default arguments if not all keys are specified
+        # add remaining default arguments if not all keys are specified
         arguments = {**arguments, **{key: default_dict[key] for key in default_dict if key not in arguments}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
     print(opt)
@@ -116,7 +119,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
+    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_pow', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -126,7 +129,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
@@ -180,7 +183,7 @@ def train(opt):
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
     scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, power=opt.scaling_power)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -196,7 +199,7 @@ def train(opt):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss']}
+    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'pow_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -285,8 +288,8 @@ def train(opt):
                 loss_GAN = criterion_GAN(eps + pred_fake, valid)
 
             # Total generator loss
-            loss_G = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
-            loss_hist, loss_nnz, loss_mask = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
+            loss_G = opt.lambda_pix * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
+            loss_hist, loss_nnz, loss_mask, loss_pow = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
 
             if opt.lambda_hist > 0:
                 # calculate the energy distribution loss
@@ -308,6 +311,13 @@ def train(opt):
                 real_mask = nnz_mask(imgs_hr)
                 loss_mask = criterion_pixel(gen_mask, real_mask)
                 loss_G = loss_G + opt.lambda_mask * loss_mask
+            if opt.lambda_pow > 0:
+                gen_srs = generator.srs
+                real_srs = imgs_hr**generator.power
+                loss_pow = criterion_pixel(gen_srs, real_srs)
+                loss_G = loss_G + opt.lambda_pow * loss_pow
+                #LR loss:
+                loss_G = loss_G + opt.lambda_pow * opt.lambda_lr * criterion_pixel(pool(gen_srs), pool(real_srs))
 
             loss_G.backward()
             optimizer_G.step()
@@ -340,9 +350,9 @@ def train(opt):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_pow.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
+                print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f, pow: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
