@@ -81,6 +81,7 @@ def get_parser():
     parser.add_argument("--save_info", type=str_to_bool, default=default.save_info, help="whether to save the info.json file or not")
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
     parser.add_argument("--testset_path", type=str, default=default.testset_path, help="Path to the test set. Is used for the histograms during evaluation")
+    parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
@@ -128,7 +129,7 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), pixel_multiplier=opt.pixel_multiplier).to(device)
+    generator = MultiGenerator(opt.scaling_power, opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), pixel_multiplier=opt.pixel_multiplier, learnable_powers=opt.learn_powers).to(device)
     if opt.discriminator == 'patch':
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
