@@ -120,9 +120,11 @@ def train(opt):
     except AttributeError:
         opt_dict = vars(opt)
     for key in ['name', 'residual_blocks', 'factor', 'pre_factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type',
-                'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_pow',
+                'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_pow', 'lambda_pix',
                 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
         info[key] = opt_dict[key]
+    # just add the whole dictionary to the info file
+    info['argument'] = opt_dict
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
@@ -153,7 +155,10 @@ def train(opt):
         generator_file = os.path.basename(opt.load_checkpoint)
         discriminator.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator'))))
         if opt.lambda_pow > 0:
-            discriminator_pow.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator_pow'))))
+            try:
+                discriminator_pow.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator_pow'))))
+            except FileNotFoundError:
+                pass
         # extract model name if no name specified
         if model_name == '':
             model_name = generator_file.split('generator')[0]
@@ -188,12 +193,12 @@ def train(opt):
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    if opt.lambda_pow>0:
+    if opt.lambda_pow > 0:
         optimizer_Dpow = torch.optim.Adam(discriminator_pow.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
     scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
-    if opt.lambda_pow>0:
+    if opt.lambda_pow > 0:
         scheduler_Dpow = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_Dpow, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
@@ -370,7 +375,7 @@ def train(opt):
             # ---------------------
             #  Train Pow Discriminator
             # ---------------------
-            if opt.lambda_pow>0:
+            if opt.lambda_pow > 0:
                 optimizer_Dpow.zero_grad()
 
                 pred_real = discriminator_pow(imgs_hr**generator.power)
@@ -414,7 +419,7 @@ def train(opt):
                     # Save model checkpoints
                     torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
                     torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
-                    if opt.lambda_pow>0:
+                    if opt.lambda_pow > 0:
                         torch.save(discriminator_pow.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_pow_%d.pth" % (model_name, epoch)))
                     print('Saved model to %s' % opt.model_path)
                     save_info()
@@ -429,7 +434,7 @@ def train(opt):
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
                 try:
-                    hrl1val=val_results['metrics']['hr_l1']['mean']
+                    hrl1val = val_results['metrics']['hr_l1']['mean']
                     scheduler_G.step(hrl1val)
                     scheduler_D.step(hrl1val)
                     scheduler_Dpow.step(hrl1val)
