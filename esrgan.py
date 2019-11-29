@@ -119,7 +119,9 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type', 'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_pow', 'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
+    for key in ['name', 'residual_blocks', 'factor', 'pre_factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type',
+                'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_pow',
+                'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
         info[key] = opt_dict[key]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
@@ -134,6 +136,11 @@ def train(opt):
         discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
     elif opt.discriminator == 'standard':
         discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+    if opt.lambda_pow > 0:
+        if opt.discriminator == 'patch':
+            discriminator_pow = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+        elif opt.discriminator == 'standard':
+            discriminator_pow = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
 
     # Losses
     criterion_GAN = nn.BCEWithLogitsLoss().to(device)
@@ -145,6 +152,8 @@ def train(opt):
         generator.load_state_dict(torch.load(opt.load_checkpoint))
         generator_file = os.path.basename(opt.load_checkpoint)
         discriminator.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator'))))
+        if opt.lambda_pow > 0:
+            discriminator_pow.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator_pow'))))
         # extract model name if no name specified
         if model_name == '':
             model_name = generator_file.split('generator')[0]
@@ -179,9 +188,13 @@ def train(opt):
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    if opt.lambda_pow>0:
+        optimizer_Dpow = torch.optim.Adam(discriminator_pow.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
     scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
+    if opt.lambda_pow>0:
+        scheduler_Dpow = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_Dpow, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
     dataloader = DataLoader(
@@ -316,8 +329,18 @@ def train(opt):
                 real_srs = imgs_hr**generator.power
                 loss_pow = criterion_pixel(gen_srs, real_srs)
                 loss_G = loss_G + opt.lambda_pow * loss_pow
-                #LR loss:
+                # LR loss:
                 loss_G = loss_G + opt.lambda_pow * opt.lambda_lr * criterion_pixel(pool(gen_srs), pool(real_srs))
+                # adv loss:
+                pred_real = discriminator_pow(real_srs).detach()
+                pred_fake = discriminator_pow(gen_srs)
+
+                if opt.relativistic:
+                    # Adversarial loss (relativistic average GAN)
+                    loss_GAN_pow = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+                else:
+                    loss_GAN_pow = criterion_GAN(eps + pred_fake, valid)
+                loss_G = loss_G + opt.lambda_pow * opt.lambda_adv * loss_GAN_pow
 
             loss_G.backward()
             optimizer_G.step()
@@ -343,6 +366,27 @@ def train(opt):
 
             loss_D.backward()
             optimizer_D.step()
+
+            # ---------------------
+            #  Train Pow Discriminator
+            # ---------------------
+            if opt.lambda_pow>0:
+                optimizer_Dpow.zero_grad()
+
+                pred_real = discriminator_pow(imgs_hr**generator.power)
+                pred_fake = discriminator_pow(generator.srs.detach())
+                if opt.relativistic:
+                    # Adversarial loss for real and fake images (relativistic average GAN)
+                    loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
+                    loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
+                else:
+                    loss_real = criterion_GAN(eps + pred_real, valid)
+                    loss_fake = criterion_GAN(eps + pred_fake, fake)
+                # Total loss
+                loss_Dpow = (loss_real + loss_fake) / 2
+
+                loss_Dpow.backward()
+                optimizer_Dpow.step()
 
             # --------------
             #  Log Progress
@@ -370,6 +414,8 @@ def train(opt):
                     # Save model checkpoints
                     torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
                     torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
+                    if opt.lambda_pow>0:
+                        torch.save(discriminator_pow.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_pow_%d.pth" % (model_name, epoch)))
                     print('Saved model to %s' % opt.model_path)
                     save_info()
 
@@ -383,8 +429,10 @@ def train(opt):
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
                 try:
-                    scheduler_G.step(val_results['metrics']['hr_l1']['mean'])
-                    scheduler_D.step(val_results['metrics']['hr_l1']['mean'])
+                    hrl1val=val_results['metrics']['hr_l1']['mean']
+                    scheduler_G.step(hrl1val)
+                    scheduler_D.step(hrl1val)
+                    scheduler_Dpow.step(hrl1val)
                 except KeyError:
                     pass
 
