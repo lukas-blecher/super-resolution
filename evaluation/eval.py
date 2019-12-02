@@ -22,6 +22,11 @@ from PIL import Image
 from tqdm.auto import tqdm
 show = False
 
+total_entries = 0
+top_veto_real = 0
+top_veto_gen = 0
+w_veto_real = 0
+w_veto_gen = 0
 
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
@@ -31,10 +36,88 @@ def save_numpy(array, path):
     Image.fromarray(toUInt(array)).save(path)
 
 
+def w_hist(info, i=0):
+    from pyjet import cluster
+    dtype = np.dtype([('pT', 'f8'), ('eta', 'f8'), ('phi', 'f8'), ('mass', 'f8')])
+    w_hist = []
+
+    global total_entries
+    global top_veto_real
+    global top_veto_gen
+    global w_veto_real
+    global w_veto_gen
+
+    # extract w masses for each picture in batch:
+    for k in range(len(info)):
+        total_entries += 1
+
+        jet = np.array(info[k], dtype=dtype)
+
+        sequence = cluster(jet, R=0.8, p=1)  # use kt-alg with a jet radius of 0.8 (same as top sample generation)
+
+        jet = sequence.inclusive_jets()
+
+        jet_2subs = sequence.exclusive_jets(2)  # go back in clustering history to where there have been 2 subjets
+
+        # check if top mass is reasonable:
+        if (jet[0].mass > 140. and jet[0].mass < 200.):
+            w_hist.append(float(jet_2subs[0].mass))  # assume W coincides with hardest subjet, not always true but negligible
+        else:
+            if i == 0:
+                top_veto_gen += 1
+            if i == 1:
+                top_veto_real += 1
+
+    # throw away unreasonable W masses
+    w_hist_cut = [entry for entry in w_hist if entry > 50. and entry < 110.]
+
+    outliers = len(w_hist) - len(w_hist_cut)
+    if i == 0:
+        w_veto_gen += outliers
+    if i == 1:
+        w_veto_real += outliers
+
+    print(outliers, i)
+
+    return w_hist_cut
+
+
+class extract_const:
+    def __init__(self, img_array, etarange=1., phirange=1.):  # ranges are fixed for current images
+        self.img_array = np.squeeze(img_array)
+        self.bins = self.img_array.shape[1]
+        self.etarange = etarange
+        self.phirange = phirange
+        self.batchsize = self.img_array.shape[0]
+        self.ls = [[] for i in range(self.batchsize)]
+      #  self.out=[() for i in range(self.batchsize)]
+        for i in range(0, self.img_array.shape[0]):
+
+            for j in range(0, self.img_array.shape[1]):
+
+                for k in range(0, self.img_array.shape[2]):
+
+                    if self.img_array[i, j, k] != 0:
+                        eta = self.calc_eta(etabin=j)
+                        phi = self.calc_phi(phibin=k)
+                        pt = self.img_array[i, j, k]
+                        self.ls[i].append((pt, eta, phi, 0))
+       # undo binning
+
+    def calc_eta(self, etabin=0):
+        eta_new = float(etabin*2*self.etarange/self.bins-self.etarange)
+        return eta_new
+
+    def calc_phi(self, phibin=0):
+        phi_new = float(phibin*2*self.phirange/self.bins-self.phirange)
+        return phi_new
+
+
 class MultHist:
     '''A class to collect data for any number of histograms
     modes: 'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values,
-           'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels
+           'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels, 'wmass' extracts a prediction 
+                 for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed
     '''
 
     def __init__(self, num, mode='max'):
@@ -60,7 +143,10 @@ class MultHist:
                     self.list[i].extend(list(Ln.sum((1, 2, 3))))
                 elif self.mode == 'meannnz':
                     for j in range(len(Ln)):
-                        self.list[i].append(np.nan_to_num(Ln[j][Ln[j] > self.thres].mean(),0))
+                        self.list[i].append(np.nan_to_num(Ln[j][Ln[j] > self.thres].mean(), 0))
+                elif self.mode == 'wmass':
+                    self.list[i].extend(w_hist(extract_const(Ln).ls, i))
+
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
@@ -80,7 +166,7 @@ class MultModeHist:
     def __init__(self, modes, num='standard'):
         self.modes = modes
         self.hist = []
-        self.standard_nums = {'max': 3, 'min': 3, 'mean': 3, 'nnz': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'mean': 3, 'nnz': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2}
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i]))
@@ -100,7 +186,7 @@ def call_func(opt):
     bins = opt.bins if 'bins' in dopt else default.bins
 
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
-    generator.load_state_dict(torch.load(opt.checkpoint_model))
+    generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=torch.device(device)))
     if 'naive_generator' in dopt:
         if opt.naive_generator:
             generator = NaiveGenerator(int(np.log2(opt.factor)))
@@ -188,6 +274,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     if output_path:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
     modes = mode if type(mode) is list else [mode]
+
     hhd = MultModeHist(modes)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
@@ -198,6 +285,13 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             # Generate a high resolution image from low resolution input
             gen_hr = generator(imgs_lr).detach()
             hhd.append(gen_hr, imgs_hr, imgs_lr)
+    if 'wmass' in modes:
+        print('total entries: ', total_entries)
+        print('top veto real / gen:', top_veto_real, top_veto_gen)
+        print('w veto real / gen: ', w_veto_real, w_veto_gen)
+        entries_gen = len(hhd[0].list[0])
+        entries_real = len(hhd[0].list[1])
+        print('hist entries real / gen: ', entries_real, entries_gen)
 
     for m in range(len(modes)):
         plt.figure()
@@ -355,6 +449,7 @@ if __name__ == "__main__":
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
         # print(opt)
+
         out = call_func(opt)
         if out is not None:
             print(out)
