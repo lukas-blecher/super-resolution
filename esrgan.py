@@ -347,8 +347,8 @@ def train(opt):
                         real_hist = histogram(real_nnz)
                         loss_hist += criterion_hist(gen_hist, real_hist)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
-            # Total generator loss
-            loss_G = opt.lambda_pix * tot_loss[k] + opt.lambda_pow * tot_loss[k]
+                    # Total generator loss
+                    loss_G += lam * tot_loss[k]
             loss_G.backward()
             optimizer_G.step()
 
