@@ -125,6 +125,7 @@ def train(opt):
         info[key] = opt_dict[key]
     # just add the whole dictionary to the info file
     info['argument'] = opt_dict
+    lambdas = [opt.lambda_pix, opt.lambda_pow]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
@@ -134,15 +135,20 @@ def train(opt):
 
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
-    if opt.discriminator == 'patch':
-        discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
-    elif opt.discriminator == 'standard':
-        discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+    Discriminators = pointerList()
+    if opt.lambda_pix > 0:
+        if opt.discriminator == 'patch':
+            discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+        elif opt.discriminator == 'standard':
+            discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+        Discriminators[0] = discriminator
     if opt.lambda_pow > 0:
         if opt.discriminator == 'patch':
             discriminator_pow = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
         elif opt.discriminator == 'standard':
             discriminator_pow = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+        Discriminators[1] = discriminator_pow
+    discriminator_outshape = Discriminators.get(0).output_shape
 
     # Losses
     criterion_GAN = nn.BCEWithLogitsLoss().to(device)
@@ -153,12 +159,12 @@ def train(opt):
         # Load pretrained models
         generator.load_state_dict(torch.load(opt.load_checkpoint))
         generator_file = os.path.basename(opt.load_checkpoint)
-        discriminator.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator'))))
-        if opt.lambda_pow > 0:
-            try:
-                discriminator_pow.load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', 'discriminator_pow'))))
-            except FileNotFoundError:
-                pass
+        for k in range(2):
+            if lambdas[k] > 0:
+                try:
+                    Discriminators[k].load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', ['discriminator', 'discriminator_pow'][k]))))
+                except FileNotFoundError:
+                    pass
         # extract model name if no name specified
         if model_name == '':
             model_name = generator_file.split('generator')[0]
@@ -192,14 +198,14 @@ def train(opt):
 
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    if opt.lambda_pow > 0:
-        optimizer_Dpow = torch.optim.Adam(discriminator_pow.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    optimizer_D = pointerList()
+    scheduler_D = pointerList()
+    for k in range(2):
+        if lambdas[k] > 0:
+            optimizer_D[k] = torch.optim.Adam(Discriminators[k].parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+            scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
-    scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, verbose=False, patience=5)
-    if opt.lambda_pow > 0:
-        scheduler_Dpow = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_Dpow, verbose=False, patience=5)
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
     dataloader = DataLoader(
@@ -217,7 +223,7 @@ def train(opt):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'pow_loss']}
+    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'def_loss', 'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -248,8 +254,8 @@ def train(opt):
             imgs_hr = Variable(imgs["hr"].type(Tensor))
 
             # Adversarial ground truths
-            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator_outshape))), requires_grad=False)
+            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator_outshape))), requires_grad=False)
 
             # ------------------
             #  Train Generators
@@ -283,11 +289,11 @@ def train(opt):
                 if opt.lambda_hist > 0:
                     nnz = np.array(nnz)
                     for k in range(2):
-                        if k==0 and opt.lambda_pix<=0:
+                        if k == 0 and opt.lambda_pix <= 0:
                             continue
-                        elif k==1 and opt.lambda_pow<=0:
+                        elif k == 1 and opt.lambda_pow <= 0:
                             continue
-                        c, b = np.histogram(nnz**[1,opt.scaling_power][k], 100)
+                        c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
                         e_max = b[(np.cumsum(c) > len(nnz)*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
                         print("found e_max to be %.2f" % e_max)
                         sorted_nnz = np.sort(nnz)
@@ -299,75 +305,50 @@ def train(opt):
                 del nnz
 
             # Main training loop
-            loss_G, loss_pixel, loss_lr_pixel, loss_GAN = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
+            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def = [torch.zeros(1, device=device) for _ in range(9)]
             # Generate a high resolution image from low resolution input
-            gen_hr = generator(imgs_lr)
-            if opt.lambda_pix > 0:
-                # Measure pixel-wise loss against ground truth
-                loss_pixel += opt.lambda_pix * criterion_pixel(gen_hr, imgs_hr)
-                # Measure pixel-wise loss against ground truth for downsampled images
-                loss_lr_pixel += opt.lambda_pix * criterion_pixel(pool(gen_hr), imgs_lr)
+            generated = pointerList(generator(imgs_lr), generator.srs)
+            ground_truth = pointerList(imgs_hr, imgs_hr**generator.power)
+            tot_loss = pointerList(loss_def, loss_pow)
+            # iterate over both the normal image and the image raised to opt.scaling_power
+            for k in range(2):
+                lam = lambdas[k]
+                if lam > 0:
+                    # Measure pixel-wise loss against ground truth
+                    loss_pixel += criterion_pixel(generated[k], ground_truth[k])
+                    # Measure pixel-wise loss against ground truth for downsampled images
+                    loss_lr_pixel += criterion_pixel(pool(generated[k]), pool(ground_truth[k]))
 
-                # Extract validity predictions from discriminator
-                pred_real = discriminator(imgs_hr).detach()
-                pred_fake = discriminator(gen_hr)
+                    # Extract validity generated[k]s from discriminator
+                    pred_real = Discriminators[k](ground_truth[k]).detach()
+                    pred_fake = Discriminators[k](generated[k])
 
-                if opt.relativistic:
-                    # Adversarial loss (relativistic average GAN)
-                    loss_GAN += opt.lambda_pix * criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
-                else:
-                    loss_GAN += opt.lambda_pix * criterion_GAN(eps + pred_fake, valid)
+                    if opt.relativistic:
+                        # Adversarial loss (relativistic average GAN)
+                        loss_GAN += criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+                    else:
+                        loss_GAN += criterion_GAN(eps + pred_fake, valid)
 
-                # Total generator loss
-                loss_G = loss_G + loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
-            loss_hist, loss_nnz, loss_mask, loss_pow = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
-
-            if opt.lambda_nnz > 0:
-                gen_nnz = softgreater(gen_hr, 0, 50000).sum(1).sum(1).sum(1)
-                target = (imgs_hr > 0).sum(1).sum(1).sum(1).float().to(device)
-                loss_nnz = criterion_hist(gen_nnz, target)
-                loss_G = loss_G + opt.lambda_nnz * loss_nnz
-            if opt.lambda_mask > 0:
-                gen_mask = nnz_mask(gen_hr)
-                real_mask = nnz_mask(imgs_hr)
-                loss_mask = criterion_pixel(gen_mask, real_mask)
-                loss_G = loss_G + opt.lambda_mask * loss_mask
-            imgs_hrp = None
-            if opt.lambda_pow > 0:
-                gen_srs = generator.srs
-                imgs_hrp = imgs_hr**generator.power
-                loss_pow = criterion_pixel(gen_srs, imgs_hrp)
-                loss_G = loss_G + opt.lambda_pow * loss_pow
-                # LR loss:
-                loss_G = loss_G + opt.lambda_pow * opt.lambda_lr * criterion_pixel(pool(gen_srs), pool(imgs_hrp))
-                # adv loss:
-                pred_real = discriminator_pow(imgs_hrp).detach()
-                pred_fake = discriminator_pow(gen_srs)
-
-                if opt.relativistic:
-                    # Adversarial loss (relativistic average GAN)
-                    loss_GAN += opt.lambda_pow * criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
-                else:
-                    loss_GAN += opt.lambda_pow * criterion_GAN(eps + pred_fake, valid)
-                loss_G = loss_G + opt.lambda_adv * loss_GAN
-
-            if opt.lambda_hist > 0:
-                loss_hist = torch.zeros(1, device=device)
-                for k in range(2):
-                    lam = [opt.lambda_pix, opt.lambda_pow][k]
-                    if lam > 0:
+                    if opt.lambda_nnz > 0:
+                        gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
+                        target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
+                        loss_nnz += criterion_hist(gen_nnz, target)
+                    if opt.lambda_mask > 0:
+                        gen_mask = nnz_mask(generated[k])
+                        real_mask = nnz_mask(ground_truth[k])
+                        loss_mask += criterion_pixel(gen_mask, real_mask)
+                    if opt.lambda_hist > 0:
                         # calculate the energy distribution loss
                         # first calculate the both histograms
-                        ge = [gen_hr, generator.srs][k]
-                        im = [imgs_hr, imgs_hrp][k]
-                        gen_nnz = ge[ge > 0]
-                        real_nnz = im[im > 0]
-                        histogram = DiffableHistogram(binedges[k], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
+                        gen_nnz = generated[k][generated[k] > 0]
+                        real_nnz = ground_truth[k][ground_truth[k] > 0]
+                        histogram = DiffableHistogram(binedges[k % len(binedges)], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
                         gen_hist = histogram(gen_nnz)
                         real_hist = histogram(real_nnz)
-                        loss_hist += lam * criterion_hist(gen_hist, real_hist)
-                        loss_G = loss_G + opt.lambda_hist * loss_hist
-
+                        loss_hist += criterion_hist(gen_hist, real_hist)
+                    tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
+            # Total generator loss
+            loss_G = opt.lambda_pix * tot_loss[k] + opt.lambda_pow * tot_loss[k]
             loss_G.backward()
             optimizer_G.step()
 
@@ -375,44 +356,25 @@ def train(opt):
             #  Train Discriminator
             # ---------------------
 
-            optimizer_D.zero_grad()
-
-            pred_real = discriminator(imgs_hr)
-            pred_fake = discriminator(gen_hr.detach())
-            if opt.relativistic:
-                # Adversarial loss for real and fake images (relativistic average GAN)
-                loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
-                loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
-            else:
-                loss_real = criterion_GAN(eps + pred_real, valid)
-                loss_fake = criterion_GAN(eps + pred_fake, fake)
-            #print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
-            # Total loss
-            loss_D = (loss_real + loss_fake) / 2
-
-            loss_D.backward()
-            optimizer_D.step()
-
-            # ---------------------
-            #  Train Pow Discriminator
-            # ---------------------
-            if opt.lambda_pow > 0:
-                optimizer_Dpow.zero_grad()
-
-                pred_real = discriminator_pow(imgs_hrp)
-                pred_fake = discriminator_pow(generator.srs.detach())
-                if opt.relativistic:
-                    # Adversarial loss for real and fake images (relativistic average GAN)
-                    loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
-                    loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
-                else:
-                    loss_real = criterion_GAN(eps + pred_real, valid)
-                    loss_fake = criterion_GAN(eps + pred_fake, fake)
-                # Total loss
-                loss_Dpow = (loss_real + loss_fake) / 2
-
-                loss_Dpow.backward()
-                optimizer_Dpow.step()
+            for k in range(2):
+                lam = lambdas[k]
+                if lam > 0:
+                    loss_D = torch.zeros(1, device=device)
+                    optimizer_D[k].zero_grad()
+                    pred_real = Discriminators[k](ground_truth[k])
+                    pred_fake = Discriminators[k](generated[k].detach())
+                    if opt.relativistic:
+                        # Adversarial loss for real and fake images (relativistic average GAN)
+                        loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
+                        loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
+                    else:
+                        loss_real = criterion_GAN(eps + pred_real, valid)
+                        loss_fake = criterion_GAN(eps + pred_fake, fake)
+                    #print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
+                    # Total loss
+                    loss_D += lam * (loss_real + loss_fake) / 2
+                    loss_D.backward()
+                    optimizer_D[k].step()
 
             # --------------
             #  Log Progress
@@ -420,9 +382,9 @@ def train(opt):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_pow.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f, adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f, pow: %f]"
+                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
@@ -431,7 +393,7 @@ def train(opt):
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
-                img_grid = torch.cat((imgs_hr, imgs_lr, gen_hr), -1)
+                img_grid = torch.cat((imgs_hr, imgs_lr, generated[0]), -1)
                 save_image(img_grid, os.path.join(opt.root, image_dir, "%d.png" % batches_done), nrow=1, normalize=False)
 
             if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
@@ -439,9 +401,10 @@ def train(opt):
                 if opt.save:
                     # Save model checkpoints
                     torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
-                    torch.save(discriminator.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_%d.pth" % (model_name, epoch)))
-                    if opt.lambda_pow > 0:
-                        torch.save(discriminator_pow.state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator_pow_%d.pth" % (model_name, epoch)))
+                    for k in range(2):
+                        if lambdas[k] > 0:
+                            torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name,['','_pow'][k] epoch)))
+
                     print('Saved model to %s' % opt.model_path)
                     save_info()
 
@@ -457,8 +420,7 @@ def train(opt):
                 try:
                     hrl1val = val_results['metrics']['hr_l1']['mean']
                     scheduler_G.step(hrl1val)
-                    scheduler_D.step(hrl1val)
-                    scheduler_Dpow.step(hrl1val)
+                    scheduler_D.call('step', hrl1val)
                 except KeyError:
                     pass
 

@@ -240,3 +240,46 @@ class NaiveGenerator(nn.Module):
         for _ in range(self.num_upsample):
             x = naive_upsample(x)
         return x
+
+class pointerList:
+    def __init__(self, *argv):
+        self.inds=[]
+        for i in range(len(argv)):
+            self.inds.append(i)
+            setattr(self, chr(i+97), argv[i])
+
+    def __getitem__(self, i):
+        if i not in self.inds:
+            raise IndexError("index out of range")
+        return getattr(self, chr(i+97))
+
+    def get(self, i):
+        return self[self.inds[i]]
+
+    def __setitem__(self, i, val):
+        if i not in self.inds:
+            self.inds.append(i)
+        setattr(self, chr(i+97), val)
+        
+    def __len__(self):
+        return len(self.inds)
+    
+    def append(self, val):
+        if len(self.inds) > 0:
+            self.inds.append(self.inds[-1]+1)
+        else:
+            self.inds.append(0)
+        self[self.inds[-1]]=val
+    
+    def __str__(self):
+        s=''
+        for i in self.inds:
+            s+='%i: %s, '%(i, str(self[i]))
+        return s[:-2]
+    
+    def call(self, foo, arg=None):
+        for i in self.inds:
+            if arg is None:
+                getattr(self[i], foo)()
+            else:
+                getattr(self[i], foo)(arg)
