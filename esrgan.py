@@ -403,7 +403,7 @@ def train(opt):
                     torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
                     for k in range(2):
                         if lambdas[k] > 0:
-                            torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name,['','_pow'][k] epoch)))
+                            torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name, ['', '_pow'][k], epoch)))
 
                     print('Saved model to %s' % opt.model_path)
                     save_info()
