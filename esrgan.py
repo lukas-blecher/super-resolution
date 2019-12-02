@@ -257,15 +257,14 @@ def train(opt):
 
             optimizer_G.zero_grad()
 
-            # Generate a high resolution image from low resolution input
-            gen_hr = generator(imgs_lr)
-
-            # Measure pixel-wise loss against ground truth
-            loss_pixel = criterion_pixel(gen_hr, imgs_hr)
-
             if batches_done < opt.warmup_batches:
                 # Warm-up (pixel-wise loss only)
                 if opt.learn_warmup:
+                    # Generate a high resolution image from low resolution input
+                    gen_hr = generator(imgs_lr)
+                    # Measure pixel-wise loss against ground truth
+                    loss_pixel = criterion_pixel(gen_hr, imgs_hr)
+
                     loss_pixel.backward()
                     optimizer_G.step()
                     for gs in ['g_loss', 'pixel_loss']:
@@ -279,46 +278,50 @@ def train(opt):
                     # find a good value to cut off the distribution
                     imgs_hr = imgs_hr.cpu().view(-1).numpy()
                     nnz.extend(list(imgs_hr[imgs_hr > 0]))
-                    c, b = np.histogram(nnz, 100)
-                    e_max = b[(np.cumsum(c) > len(nnz)*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
                 continue
             elif batches_done == opt.warmup_batches:
                 if opt.lambda_hist > 0:
-                    print("found e_max to be %.2f" % e_max)
-                    sorted_nnz = np.sort(nnz)
-                    sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
-                    k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
-                    binedges = np.sort(k_mean.cluster_centers_.flatten())
-                    binedges = np.array([0, *(np.diff(binedges)/2+binedges[:-1]), e_max])
-                    info['binedges'] = list(binedges)
+                    nnz = np.array(nnz)
+                    for k in range(2):
+                        if k==0 and opt.lambda_pix<=0:
+                            continue
+                        elif k==1 and opt.lambda_pow<=0:
+                            continue
+                        c, b = np.histogram(nnz**[1,opt.scaling_power][k], 100)
+                        e_max = b[(np.cumsum(c) > len(nnz)*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
+                        print("found e_max to be %.2f" % e_max)
+                        sorted_nnz = np.sort(nnz)
+                        sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
+                        k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
+                        binedgesk = np.sort(k_mean.cluster_centers_.flatten())
+                        binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
+                        info['binedges%i' % k] = list(binedges[-1])
                 del nnz
-            # Measure pixel-wise loss against ground truth for downsampled images
-            loss_lr_pixel = criterion_pixel(pool(gen_hr), imgs_lr)
 
-            # Extract validity predictions from discriminator
-            pred_real = discriminator(imgs_hr).detach()
-            pred_fake = discriminator(gen_hr)
+            # Main training loop
+            loss_G, loss_pixel, loss_lr_pixel, loss_GAN = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
+            # Generate a high resolution image from low resolution input
+            gen_hr = generator(imgs_lr)
+            if opt.lambda_pix > 0:
+                # Measure pixel-wise loss against ground truth
+                loss_pixel += opt.lambda_pix * criterion_pixel(gen_hr, imgs_hr)
+                # Measure pixel-wise loss against ground truth for downsampled images
+                loss_lr_pixel += opt.lambda_pix * criterion_pixel(pool(gen_hr), imgs_lr)
 
-            if opt.relativistic:
-                # Adversarial loss (relativistic average GAN)
-                loss_GAN = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
-            else:
-                loss_GAN = criterion_GAN(eps + pred_fake, valid)
+                # Extract validity predictions from discriminator
+                pred_real = discriminator(imgs_hr).detach()
+                pred_fake = discriminator(gen_hr)
 
-            # Total generator loss
-            loss_G = opt.lambda_pix * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
+                if opt.relativistic:
+                    # Adversarial loss (relativistic average GAN)
+                    loss_GAN += opt.lambda_pix * criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+                else:
+                    loss_GAN += opt.lambda_pix * criterion_GAN(eps + pred_fake, valid)
+
+                # Total generator loss
+                loss_G = loss_G + loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel
             loss_hist, loss_nnz, loss_mask, loss_pow = torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan]), torch.Tensor([np.nan])
 
-            if opt.lambda_hist > 0:
-                # calculate the energy distribution loss
-                # first calculate the both histograms
-                gen_nnz = gen_hr[gen_hr > 0]
-                real_nnz = imgs_hr[imgs_hr > 0]
-                histogram = DiffableHistogram(binedges, sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
-                gen_hist = histogram(gen_nnz)
-                real_hist = histogram(real_nnz)
-                loss_hist = criterion_hist(gen_hist, real_hist)
-                loss_G = loss_G + opt.lambda_hist * loss_hist
             if opt.lambda_nnz > 0:
                 gen_nnz = softgreater(gen_hr, 0, 50000).sum(1).sum(1).sum(1)
                 target = (imgs_hr > 0).sum(1).sum(1).sum(1).float().to(device)
@@ -329,23 +332,41 @@ def train(opt):
                 real_mask = nnz_mask(imgs_hr)
                 loss_mask = criterion_pixel(gen_mask, real_mask)
                 loss_G = loss_G + opt.lambda_mask * loss_mask
+            imgs_hrp = None
             if opt.lambda_pow > 0:
                 gen_srs = generator.srs
-                real_srs = imgs_hr**generator.power
-                loss_pow = criterion_pixel(gen_srs, real_srs)
+                imgs_hrp = imgs_hr**generator.power
+                loss_pow = criterion_pixel(gen_srs, imgs_hrp)
                 loss_G = loss_G + opt.lambda_pow * loss_pow
                 # LR loss:
-                loss_G = loss_G + opt.lambda_pow * opt.lambda_lr * criterion_pixel(pool(gen_srs), pool(real_srs))
+                loss_G = loss_G + opt.lambda_pow * opt.lambda_lr * criterion_pixel(pool(gen_srs), pool(imgs_hrp))
                 # adv loss:
-                pred_real = discriminator_pow(real_srs).detach()
+                pred_real = discriminator_pow(imgs_hrp).detach()
                 pred_fake = discriminator_pow(gen_srs)
 
                 if opt.relativistic:
                     # Adversarial loss (relativistic average GAN)
-                    loss_GAN_pow = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+                    loss_GAN += opt.lambda_pow * criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
                 else:
-                    loss_GAN_pow = criterion_GAN(eps + pred_fake, valid)
-                loss_G = loss_G + opt.lambda_pow * opt.lambda_adv * loss_GAN_pow
+                    loss_GAN += opt.lambda_pow * criterion_GAN(eps + pred_fake, valid)
+                loss_G = loss_G + opt.lambda_adv * loss_GAN
+
+            if opt.lambda_hist > 0:
+                loss_hist = torch.zeros(1, device=device)
+                for k in range(2):
+                    lam = [opt.lambda_pix, opt.lambda_pow][k]
+                    if lam > 0:
+                        # calculate the energy distribution loss
+                        # first calculate the both histograms
+                        ge = [gen_hr, generator.srs][k]
+                        im = [imgs_hr, imgs_hrp][k]
+                        gen_nnz = ge[ge > 0]
+                        real_nnz = im[im > 0]
+                        histogram = DiffableHistogram(binedges[k], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
+                        gen_hist = histogram(gen_nnz)
+                        real_hist = histogram(real_nnz)
+                        loss_hist += lam * criterion_hist(gen_hist, real_hist)
+                        loss_G = loss_G + opt.lambda_hist * loss_hist
 
             loss_G.backward()
             optimizer_G.step()
@@ -378,7 +399,7 @@ def train(opt):
             if opt.lambda_pow > 0:
                 optimizer_Dpow.zero_grad()
 
-                pred_real = discriminator_pow(imgs_hr**generator.power)
+                pred_real = discriminator_pow(imgs_hrp)
                 pred_fake = discriminator_pow(generator.srs.detach())
                 if opt.relativistic:
                     # Adversarial loss for real and fake images (relativistic average GAN)
