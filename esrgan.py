@@ -17,6 +17,7 @@ from torch.autograd import Variable
 
 from models import *
 from datasets import *
+from utils import *
 from options.default import default, default_dict
 from evaluation.eval import calculate_metrics, distribution
 
@@ -220,6 +221,7 @@ def train(opt):
     e_max = 50  # random initialization number for the maximal pixel value
     nnz = []  # list with nonzero values during the first few batches
     binedges = []  # list with bin edges for energy distribution training
+    histograms = pointerList()
     # ----------
     #  Training
     # ----------
@@ -289,9 +291,7 @@ def train(opt):
                 if opt.lambda_hist > 0:
                     nnz = np.array(nnz)
                     for k in range(2):
-                        if k == 0 and opt.lambda_pix <= 0:
-                            continue
-                        elif k == 1 and opt.lambda_pow <= 0:
+                        if lambdas[k] <= 0:
                             continue
                         c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
                         e_max = b[(np.cumsum(c) > len(nnz)*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
@@ -302,13 +302,19 @@ def train(opt):
                         binedgesk = np.sort(k_mean.cluster_centers_.flatten())
                         binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
                         info['binedges%i' % k] = list(binedges[-1])
+                        histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
                 del nnz
 
             # Main training loop
             loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def = [torch.zeros(1, device=device) for _ in range(9)]
             # Generate a high resolution image from low resolution input
-            generated = pointerList(generator(imgs_lr), generator.srs)
-            ground_truth = pointerList(imgs_hr, imgs_hr**generator.power)
+            generated = pointerList(generator(imgs_lr))
+            generated.append(generator.srs)
+            gen_imgs=pool(generated[0])
+            generated_lr = pointerList(gen_imgs, gen_imgs**opt.scaling_power)
+            ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
+            ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
+            
             tot_loss = pointerList(loss_def, loss_pow)
             # iterate over both the normal image and the image raised to opt.scaling_power
             for k in range(2):
@@ -317,7 +323,7 @@ def train(opt):
                     # Measure pixel-wise loss against ground truth
                     loss_pixel += criterion_pixel(generated[k], ground_truth[k])
                     # Measure pixel-wise loss against ground truth for downsampled images
-                    loss_lr_pixel += criterion_pixel(pool(generated[k]), pool(ground_truth[k]))
+                    loss_lr_pixel += criterion_pixel(generated_lr[k], ground_truth_lr[k])
 
                     # Extract validity generated[k]s from discriminator
                     pred_real = Discriminators[k](ground_truth[k]).detach()
@@ -342,10 +348,10 @@ def train(opt):
                         # first calculate the both histograms
                         gen_nnz = generated[k][generated[k] > 0]
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
-                        histogram = DiffableHistogram(binedges[k % len(binedges)], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
-                        gen_hist = histogram(gen_nnz)
-                        real_hist = histogram(real_nnz)
-                        loss_hist += criterion_hist(gen_hist, real_hist)
+                        gen_hist = histograms[k](gen_nnz)
+                        real_hist = histograms[k](real_nnz)
+                        loss_hist += criterion_hist(gen_hist, real_hist)# KLD_hist(gen_hist, real_hist, torch.from_numpy(bs).to(device))
+                        #print(gen_hist,real_hist,loss_hist)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
                     # Total generator loss
                     loss_G += lam * tot_loss[k]
@@ -355,11 +361,10 @@ def train(opt):
             # ---------------------
             #  Train Discriminator
             # ---------------------
-
+            loss_D_tot = torch.zeros(1, device=device)
             for k in range(2):
                 lam = lambdas[k]
                 if lam > 0:
-                    loss_D = torch.zeros(1, device=device)
                     optimizer_D[k].zero_grad()
                     pred_real = Discriminators[k](ground_truth[k])
                     pred_fake = Discriminators[k](generated[k].detach())
@@ -372,8 +377,9 @@ def train(opt):
                         loss_fake = criterion_GAN(eps + pred_fake, fake)
                     #print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
                     # Total loss
-                    loss_D += lam * (loss_real + loss_fake) / 2
+                    loss_D = (loss_real + loss_fake) / 2
                     loss_D.backward()
+                    loss_D_tot += loss_D * lam
                     optimizer_D[k].step()
 
             # --------------
@@ -382,7 +388,7 @@ def train(opt):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
                     v.append(l)
                 print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
