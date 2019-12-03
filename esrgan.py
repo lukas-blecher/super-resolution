@@ -310,10 +310,9 @@ def train(opt):
             # Generate a high resolution image from low resolution input
             generated = pointerList(generator(imgs_lr))
             generated.append(generator.srs)
-            gen_imgs=pool(generated[0])
-            generated_lr = pointerList(gen_imgs, gen_imgs**opt.scaling_power)
             ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
-            ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
+            generated_lr = pointerList(pool(generated[0]), pool(generated[1]))
+            ground_truth_lr = pointerList(imgs_lr, pool(imgs_hr**opt.scaling_power))
             
             tot_loss = pointerList(loss_def, loss_pow)
             # iterate over both the normal image and the image raised to opt.scaling_power
