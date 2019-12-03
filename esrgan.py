@@ -317,8 +317,9 @@ def train(opt):
             # check for nan in the tensors:
             for l,pl in enumerate([generated, ground_truth, generated_lr, ground_truth_lr]):
                 for k in range(len(pl)):
-                    if pl.get(k).sum() != pl.get(k).sum():
-                        print('NaN in list %i, index %i of %i'%(l, k, len(pl)))
+                    plksum = pl.get(k).sum()
+                    if plksum != plksum:
+                        print('%f in list %i, index %i of %i. Shape: %s'%(plksum, l, k, len(pl), str(pl.get(k).shape)))
 
             tot_loss = pointerList(loss_def, loss_pow)
             # iterate over both the normal image and the image raised to opt.scaling_power
