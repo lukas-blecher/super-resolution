@@ -396,7 +396,7 @@ def train(opt):
             # check if loss is NaN
             if any(l != l for l in [loss_D_tot.item(), loss_G.item()]):
                 raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]' % (
-                    loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
+                    i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
