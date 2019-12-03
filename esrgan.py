@@ -311,9 +311,10 @@ def train(opt):
             generated = pointerList(generator(imgs_lr))
             generated.append(generator.srs)
             ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
-            generated_lr = pointerList(pool(generated[0]), pool(generated[1]))
-            ground_truth_lr = pointerList(imgs_lr, pool(imgs_hr**opt.scaling_power))
-            
+            gen_lr = pool(generated[0])
+            generated_lr = pointerList(gen_lr, gen_lr**opt.scaling_power)
+            ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
+
             tot_loss = pointerList(loss_def, loss_pow)
             # iterate over both the normal image and the image raised to opt.scaling_power
             for k in range(2):
@@ -321,19 +322,19 @@ def train(opt):
                 if lam > 0:
                     # Measure pixel-wise loss against ground truth
                     loss_pixel += criterion_pixel(generated[k], ground_truth[k])
-                    # Measure pixel-wise loss against ground truth for downsampled images
-                    loss_lr_pixel += criterion_pixel(generated_lr[k], ground_truth_lr[k])
+                    if opt.lambda_lr > 0:
+                        # Measure pixel-wise loss against ground truth for downsampled images
+                        loss_lr_pixel += criterion_pixel(generated_lr[k], ground_truth_lr[k])
+                    if opt.lambda_adv > 0:
+                        # Extract validity generated[k]s from discriminator
+                        pred_real = Discriminators[k](ground_truth[k]).detach()
+                        pred_fake = Discriminators[k](generated[k])
 
-                    # Extract validity generated[k]s from discriminator
-                    pred_real = Discriminators[k](ground_truth[k]).detach()
-                    pred_fake = Discriminators[k](generated[k])
-
-                    if opt.relativistic:
-                        # Adversarial loss (relativistic average GAN)
-                        loss_GAN += criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
-                    else:
-                        loss_GAN += criterion_GAN(eps + pred_fake, valid)
-
+                        if opt.relativistic:
+                            # Adversarial loss (relativistic average GAN)
+                            loss_GAN += criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+                        else:
+                            loss_GAN += criterion_GAN(eps + pred_fake, valid)
                     if opt.lambda_nnz > 0:
                         gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                         target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
@@ -349,8 +350,8 @@ def train(opt):
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
                         gen_hist = histograms[k](gen_nnz)
                         real_hist = histograms[k](real_nnz)
-                        loss_hist += criterion_hist(gen_hist, real_hist)# KLD_hist(gen_hist, real_hist, torch.from_numpy(bs).to(device))
-                        #print(gen_hist,real_hist,loss_hist)
+                        loss_hist += criterion_hist(gen_hist, real_hist)  # KLD_hist(gen_hist, real_hist, torch.from_numpy(bs).to(device))
+                        # print(gen_hist,real_hist,loss_hist)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
                     # Total generator loss
                     loss_G += lam * tot_loss[k]
@@ -393,8 +394,9 @@ def train(opt):
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
-            if any(l != l for l in [loss_D.item(), loss_G.item()]):
-                raise ValueError('loss is NaN')
+            if any(l != l for l in [loss_D_tot.item(), loss_G.item()]):
+                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]' % (
+                    loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
