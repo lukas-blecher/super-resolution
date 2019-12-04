@@ -315,11 +315,11 @@ def train(opt):
             generated_lr = pointerList(gen_lr, gen_lr**opt.scaling_power)
             ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
             # check for nan in the tensors:
-            for l,pl in enumerate([generated, ground_truth, generated_lr, ground_truth_lr]):
+            '''for l,pl in enumerate([generated, ground_truth, generated_lr, ground_truth_lr]):
                 for k in range(len(pl)):
                     plksum = pl.get(k).sum()
                     if plksum != plksum:
-                        print('%f in list %i, index %i of %i. Shape: %s'%(plksum, l, k, len(pl), str(pl.get(k).shape)))
+                        print('%f in list %i, index %i of %i. Shape: %s'%(plksum, l, k, len(pl), str(pl.get(k).shape)))'''
 
             tot_loss = pointerList(loss_def, loss_pow)
             # iterate over both the normal image and the image raised to opt.scaling_power
@@ -362,6 +362,7 @@ def train(opt):
                     # Total generator loss
                     loss_G += lam * tot_loss[k]
             loss_G.backward()
+            torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
             optimizer_G.step()
 
             # ---------------------
@@ -385,6 +386,7 @@ def train(opt):
                     # Total loss
                     loss_D = (loss_real + loss_fake) / 2
                     loss_D.backward()
+                    torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot += loss_D * lam
                     optimizer_D[k].step()
 
