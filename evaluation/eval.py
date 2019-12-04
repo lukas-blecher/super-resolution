@@ -143,7 +143,11 @@ class MultHist:
                     self.list[i].extend(list(Ln.sum((1, 2, 3))))
                 elif self.mode == 'meannnz':
                     for j in range(len(Ln)):
-                        self.list[i].append(np.nan_to_num(Ln[j][Ln[j] > self.thres].mean(), 0))
+                        nnz=Ln[j][Ln[j] > self.thres]
+                        if len(nnz)==0:
+                            self.list[i].append(0)
+                            continue
+                        self.list[i].append(np.nan_to_num(nnz.mean(), 0))
                 elif self.mode == 'wmass':
                     self.list[i].extend(w_hist(extract_const(Ln).ls, i))
 
