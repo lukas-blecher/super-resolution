@@ -48,14 +48,28 @@ class pointerList:
                 getattr(self[i], foo)(arg)
 
 
-def KLD_hist(p_entries, q_entries, binedges):
-    q_entries+=1e-6
-    binsizes = binedges[1:]-binedges[:-1]
-    logp=torch.log(p_entries/torch.sum(p_entries))
-    logp[logp==-float('inf')]=0
-    kl = len(binsizes)/(len(p_entries)*binsizes.mean())*torch.sum(p_entries*binsizes*(logp-torch.log(q_entries/torch.sum(q_entries))))
-    kl[kl!=kl]=0
-    return kl
+class KLD_hist(nn.Module):
+    def __init__(self, binedges):
+        super(KLD_hist, self).__init__()
+        binsizes = binedges[1:]-binedges[:-1]
+        self.binsizes = binsizes
+        self.binmean = binsizes.mean()
+        self.kldiv = nn.KLDivLoss(reduction='batchmean')
+
+    def to(self, device):
+        self.kldiv = self.kldiv.to(device)
+        self.binsizes = self.binsizes.to(device)
+        return self
+
+    def forward(self, q_entries, p_entries):
+        # convert p and q to probabilies
+        p_entries = p_entries*self.binsizes/p_entries.sum()
+        # add epsilon to Q because kld is not defined if it is zero and P is not
+        q_entries += 1e-8
+        # convert Q to log probability
+        q_entries = (q_entries*self.binsizes/q_entries.sum()).log()
+
+        return self.kldiv(q_entries, p_entries)/self.binmean
 
 
 def plot_grad_flow(named_parameters, path=None):

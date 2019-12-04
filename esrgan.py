@@ -154,7 +154,8 @@ def train(opt):
     # Losses
     criterion_GAN = nn.BCEWithLogitsLoss().to(device)
     criterion_pixel = nn.L1Loss().to(device)
-    criterion_hist = nn.MSELoss().to(device)
+    mse = nn.MSELoss().to(device)
+    criterion_hist = pointerList()
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -303,6 +304,7 @@ def train(opt):
                         binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
                         info['binedges%i' % k] = list(binedges[-1])
                         histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
+                        criterion_hist[k] = KLD_hist(torch.from_numpy(binedges[-1])).to(device)
                 del nnz
 
             # Main training loop
@@ -344,7 +346,7 @@ def train(opt):
                     if opt.lambda_nnz > 0:
                         gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                         target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
-                        loss_nnz += criterion_hist(gen_nnz, target)
+                        loss_nnz += mse(gen_nnz, target)
                     if opt.lambda_mask > 0:
                         gen_mask = nnz_mask(generated[k])
                         real_mask = nnz_mask(ground_truth[k])
@@ -356,13 +358,13 @@ def train(opt):
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
                         gen_hist = histograms[k](gen_nnz)
                         real_hist = histograms[k](real_nnz)
-                        loss_hist += criterion_hist(gen_hist, real_hist)  # KLD_hist(gen_hist, real_hist, torch.from_numpy(bs).to(device))
+                        loss_hist += criterion_hist[k](gen_hist, real_hist)  # KLD_hist(gen_hist, real_hist, torch.from_numpy(bs).to(device))
                         # print(gen_hist,real_hist,loss_hist)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
                     # Total generator loss
                     loss_G += lam * tot_loss[k]
             loss_G.backward()
-            torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
+            #torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
             optimizer_G.step()
 
             # ---------------------
@@ -386,7 +388,7 @@ def train(opt):
                     # Total loss
                     loss_D = (loss_real + loss_fake) / 2
                     loss_D.backward()
-                    torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
+                    #torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot += loss_D * lam
                     optimizer_D[k].step()
 
