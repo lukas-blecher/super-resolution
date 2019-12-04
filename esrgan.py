@@ -82,6 +82,7 @@ def get_parser():
     parser.add_argument("--save_info", type=str_to_bool, default=default.save_info, help="whether to save the info.json file or not")
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
     parser.add_argument("--testset_path", type=str, default=default.testset_path, help="Path to the test set. Is used for the histograms during evaluation")
+    parser.add_argument("--plot_grad", type=str_to_bool, default=default.plot_grad, help="Whether to save the gradients for each layer to the IMAGE_PATH every REPORT_FREQ")
     #parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -295,7 +296,7 @@ def train(opt):
                         if lambdas[k] <= 0:
                             continue
                         c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
-                        e_max = b[(np.cumsum(c) > len(nnz)*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
+                        e_max = b[(np.cumsum(c) > len(nnz**[1, opt.scaling_power][k])*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
                         print("found e_max to be %.2f" % e_max)
                         sorted_nnz = np.sort(nnz)
                         sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
@@ -413,8 +414,9 @@ def train(opt):
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
                 img_grid = torch.cat((imgs_hr, imgs_lr, generated[0]), -1)
                 save_image(img_grid, os.path.join(opt.root, image_dir, "%d.png" % batches_done), nrow=1, normalize=False)
-                # plot gradients
-                plot_grad_flow(generator.named_parameters(), os.path.join(image_dir, 'grad_%d.png' % batches_done))
+                if opt.plot_grad:
+                    # plot gradients
+                    plot_grad_flow(generator.named_parameters(), os.path.join(image_dir, 'grad_%d.png' % batches_done))
 
             if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
