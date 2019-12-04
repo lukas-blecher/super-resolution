@@ -124,44 +124,39 @@ def discriminator_block(in_filters, out_filters, first_block=False):
 class Markovian_Discriminator(nn.Module):
     def __init__(self, input_shape):
         super(Markovian_Discriminator, self).__init__()
-
+        self.channels=[16, 32, 64]
         self.input_shape = input_shape
         in_channels, in_height, in_width = self.input_shape
-        patch_h, patch_w = int((1 if in_height % 16 != 0 else 0)+in_height / 2 ** 4), int((1 if in_width % 16 != 0 else 0)+in_width / 2 ** 4)
-
-        self.output_shape = (1, patch_h, patch_w)
+        def stride2(x):
+            return int(np.ceil(x/2))
+        patch_h, patch_w = in_height, in_width
 
         layers = []
         in_filters = in_channels
-        for i, out_filters in enumerate([64, 128, 256, 512]):
+        for i, out_filters in enumerate(self.channels):
             layers.extend(discriminator_block(in_filters, out_filters, first_block=(i == 0)))
             in_filters = out_filters
+            patch_h=stride2(patch_h)
+            patch_w=stride2(patch_w)
 
         layers.append(nn.Conv2d(out_filters, 1, kernel_size=3, stride=1, padding=1))
 
+        self.output_shape = (1, patch_h, patch_w)
         self.model = nn.Sequential(*layers)
 
     def forward(self, img):
         return self.model(img)
 
 
-class Standard_Discriminator(nn.Module):
+class Standard_Discriminator(Markovian_Discriminator):
     def __init__(self, input_shape):
-        super(Standard_Discriminator, self).__init__()
-        self.input_shape = input_shape
-        in_channels, in_height, in_width = self.input_shape
-        self.output_shape = (1,)
-        layers = []
-        in_filters = in_channels
-        for i, out_filters in enumerate([64, 128, 256, 512]):
-            layers.extend(discriminator_block(in_filters, out_filters, first_block=(i == 0)))
-            in_filters = out_filters
-        self.conv = nn.Sequential(*layers)
+        super(Standard_Discriminator, self).__init__(input_shape)
         # fully connected layers
-        self.fc = nn.Sequential(nn.Linear(512*int(1+in_height / 2 ** 4)*int(1+in_width / 2 ** 4), 256), nn.ReLU(), nn.Linear(256, 1))
+        self.fc = nn.Sequential(nn.Linear(self.channels[-1]*self.output_shape[-2]*self.output_shape[-1], 256), nn.ReLU(), nn.Linear(256, 1))
+        self.output_shape = (1,)
 
     def forward(self, img):
-        return self.fc(self.conv(img).view(img.shape[0], -1))
+        return self.fc(self.model(img).view(img.shape[0], -1))
 
 
 class DiffableHistogram(nn.Module):
