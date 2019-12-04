@@ -408,6 +408,8 @@ def train(opt):
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
                 img_grid = torch.cat((imgs_hr, imgs_lr, generated[0]), -1)
                 save_image(img_grid, os.path.join(opt.root, image_dir, "%d.png" % batches_done), nrow=1, normalize=False)
+                # plot gradients
+                plot_grad_flow(generator.named_parameters(), os.path.join(image_dir, 'grad_%d.png' % batches_done))
 
             if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
