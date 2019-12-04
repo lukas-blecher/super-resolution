@@ -17,7 +17,6 @@ def plot_losses(j, file, ax):
     if len(loss['g_loss']) == len(loss['d_loss']):
         warmup = 0
     name = os.path.basename(file).replace('_info.json', '')
-    ax = ax.flatten()
     batches = np.arange(0, len(loss['g_loss']))
 
     for i, k in enumerate(loss.keys()):
@@ -33,14 +32,20 @@ def plot_losses(j, file, ax):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', type=str, nargs='+', required=True, help='info file with loss')
-
-    N = 8
-    a = int(np.sqrt(N))
-    b = N//a
-    f, ax = plt.subplots(b, a, sharex=True)
-
     args = parser.parse_args()
+    with open(args.file[0]) as f:
+        info = json.load(f)
+    if not 'loss' in info:
+        raise KeyError('No Loss in the info file.')
+    N = len(info['loss'].keys())
+    a = int(np.sqrt(N))
+    b = int(np.ceil(N/a))
+    fig, ax = plt.subplots(b, a, sharex=True)
+    ax = ax.flatten()
+    for i in range(a*b-1, N-1, -1):
+        fig.delaxes(ax[i])
     for i, f in enumerate(args.file):
         plot_losses(i, f, ax)
+
     plt.tight_layout()
     plt.show()
