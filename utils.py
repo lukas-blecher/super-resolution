@@ -60,7 +60,7 @@ class KLD_hist(nn.Module):
     def __init__(self, binedges):
         super(KLD_hist, self).__init__()
         binsizes = binedges[1:]-binedges[:-1]
-        self.binsizes = binsizes
+        self.binsizes = binsizes.float()
         self.binmean = binsizes.mean()
         self.kldiv = nn.KLDivLoss(reduction='sum')
 
