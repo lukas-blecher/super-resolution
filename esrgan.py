@@ -368,9 +368,9 @@ def train(opt):
                         # first calculate the both histograms
                         gen_nnz = generated[k][generated[k] > 0]
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
-                        gen_hist = histograms[k](gen_nnz).float()
-                        real_hist = histograms[k](real_nnz).float()
-                        loss_hist += criterion_hist[k](gen_hist, real_hist).float()
+                        gen_hist = histograms[k](gen_nnz)
+                        real_hist = histograms[k](real_nnz)
+                        loss_hist += mse(gen_hist, real_hist)
                         # print(gen_hist,real_hist,loss_hist)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
                     # Total generator loss

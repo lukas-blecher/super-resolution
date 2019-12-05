@@ -124,9 +124,10 @@ def discriminator_block(in_filters, out_filters, first_block=False):
 class Markovian_Discriminator(nn.Module):
     def __init__(self, input_shape):
         super(Markovian_Discriminator, self).__init__()
-        self.channels=[16, 32, 64]
+        self.channels = [16, 32, 32, 64]
         self.input_shape = input_shape
         in_channels, in_height, in_width = self.input_shape
+
         def stride2(x):
             return int(np.ceil(x/2))
         patch_h, patch_w = in_height, in_width
@@ -136,8 +137,8 @@ class Markovian_Discriminator(nn.Module):
         for i, out_filters in enumerate(self.channels):
             layers.extend(discriminator_block(in_filters, out_filters, first_block=(i == 0)))
             in_filters = out_filters
-            patch_h=stride2(patch_h)
-            patch_w=stride2(patch_w)
+            patch_h = stride2(patch_h)
+            patch_w = stride2(patch_w)
 
         layers.append(nn.Conv2d(out_filters, 1, kernel_size=3, stride=1, padding=1))
 
@@ -225,4 +226,3 @@ class NaiveGenerator(nn.Module):
         for _ in range(self.num_upsample):
             x = naive_upsample(x)
         return x
-
