@@ -124,7 +124,7 @@ def discriminator_block(in_filters, out_filters, first_block=False):
 class Markovian_Discriminator(nn.Module):
     def __init__(self, input_shape):
         super(Markovian_Discriminator, self).__init__()
-        self.channels=[32, 64, 64]
+        self.channels=[16, 32, 64]
         self.input_shape = input_shape
         in_channels, in_height, in_width = self.input_shape
         def stride2(x):
