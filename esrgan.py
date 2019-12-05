@@ -472,6 +472,7 @@ def train(opt):
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz', 'E'])
                 generator.train()
                 if eval_result is not None:
+                    eval_result = float(eval_result.item())
                     if eval_result < best_eval_result:
                         best_eval_result = eval_result
                         info['best_eval_result'] = best_eval_result
