@@ -2,6 +2,14 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
+
+def toUInt(x):
+    return np.squeeze(x*255/x.max()).astype(np.uint8)
+
+
+def save_numpy(array, path):
+    Image.fromarray(toUInt(array)).save(path)
 
 
 class pointerList:
@@ -54,7 +62,7 @@ class KLD_hist(nn.Module):
         binsizes = binedges[1:]-binedges[:-1]
         self.binsizes = binsizes
         self.binmean = binsizes.mean()
-        self.kldiv = nn.KLDivLoss(reduction='batchmean')
+        self.kldiv = nn.KLDivLoss(reduction='sum')
 
     def to(self, device):
         self.kldiv = self.kldiv.to(device)

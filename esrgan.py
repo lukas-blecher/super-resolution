@@ -83,6 +83,8 @@ def get_parser():
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
     parser.add_argument("--testset_path", type=str, default=default.testset_path, help="Path to the test set. Is used for the histograms during evaluation")
     parser.add_argument("--plot_grad", type=str_to_bool, default=default.plot_grad, help="Whether to save the gradients for each layer to the IMAGE_PATH every REPORT_FREQ")
+    parser.add_argument("--smart_save", type=str_to_bool, default=default.smart_save, help="If this option is used the model will only be saved if the evalidation result is better than before\
+                                                                                            (when the best overlay for the histograms for ground truth and model prediction is found)")
     #parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -224,6 +226,7 @@ def train(opt):
     nnz = []  # list with nonzero values during the first few batches
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
+    best_eval_result = float('inf')
     # ----------
     #  Training
     # ----------
@@ -247,6 +250,16 @@ def train(opt):
                 info['loss'] = loss_dict
                 info['batches_done'] = batches_done
                 json.dump(info, outfile)
+
+    def save_weights(epoch):
+        if opt.save:
+            torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
+            for k in range(2):
+                if lambdas[k] > 0:
+                    torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name, ['', '_pow'][k], epoch)))
+
+            print('Saved model to %s' % opt.model_path)
+            save_info()
 
     for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
@@ -418,18 +431,6 @@ def train(opt):
                     # plot gradients
                     plot_grad_flow(generator.named_parameters(), os.path.join(image_dir, 'grad_%d.png' % batches_done))
 
-            if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
-                    checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
-                if opt.save:
-                    # Save model checkpoints
-                    torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
-                    for k in range(2):
-                        if lambdas[k] > 0:
-                            torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name, ['', '_pow'][k], epoch)))
-
-                    print('Saved model to %s' % opt.model_path)
-                    save_info()
-
             if ((validation_interval != np.inf and (batches_done+1) % validation_interval == 0) or (
                     validation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_validations) == 0)) and opt.validation_path is not None:
                 print('Validation')
@@ -467,9 +468,22 @@ def train(opt):
 
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
-                distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
-                             30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz'])
+                eval_result = distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
+                                           30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz', 'E'])
                 generator.train()
+                if eval_result is not None:
+                    if eval_result < best_eval_result:
+                        best_eval_result = eval_result
+                        info['best_eval_result'] = best_eval_result
+                        if opt.smart_save:
+                            save_weights(epoch)
+
+            # Save model checkpoints
+            if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
+                    checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
+                if not opt.smart_save:
+                    save_weights(epoch)
+
             if batches_done == total_batches:
                 save_info()
                 if opt.validation_path:

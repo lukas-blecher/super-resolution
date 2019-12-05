@@ -6,6 +6,7 @@ if os.path.split(os.path.abspath('.'))[1] == 'super-resolution':
 else:
     sys.path.insert(0, '..')
 from datasets import *
+from utils import *
 #from evaluation.PSNR_SSIM_metric import calculate_ssim
 #from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
@@ -27,13 +28,6 @@ top_veto_real = 0
 top_veto_gen = 0
 w_veto_real = 0
 w_veto_gen = 0
-
-def toUInt(x):
-    return np.squeeze(x*255/x.max()).astype(np.uint8)
-
-
-def save_numpy(array, path):
-    Image.fromarray(toUInt(array)).save(path)
 
 
 def w_hist(info, i=0):
@@ -117,7 +111,8 @@ class MultHist:
     '''A class to collect data for any number of histograms
     modes: 'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values,
            'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels, 'wmass' extracts a prediction 
-                 for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed
+                 for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed,
+           'E' will extract the total energy distribution
     '''
 
     def __init__(self, num, mode='max'):
@@ -143,14 +138,19 @@ class MultHist:
                     self.list[i].extend(list(Ln.sum((1, 2, 3))))
                 elif self.mode == 'meannnz':
                     for j in range(len(Ln)):
-                        nnz=Ln[j][Ln[j] > self.thres]
-                        if len(nnz)==0:
+                        nnz = Ln[j][Ln[j] > self.thres]
+                        if len(nnz) == 0:
                             self.list[i].append(0)
                             continue
                         self.list[i].append(np.nan_to_num(nnz.mean(), 0))
                 elif self.mode == 'wmass':
                     self.list[i].extend(w_hist(extract_const(Ln).ls, i))
-
+                elif self.mode == 'E':
+                    nnz = Ln[Ln > self.thres]
+                    if len(nnz) == 0:
+                        self.list[i].append(0)
+                        continue
+                    self.list[i].extend(list(nnz.flatten()))
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
@@ -159,9 +159,24 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
+    def max(self, threshold=.9, power=.3):
+        '''Function introduced for total energy distribution'''
+        MAX = 0
+        for i in range(self.num):
+            pl = np.array(self.list[i])**power
+            c, b = np.histogram(pl, 100)
+            e_max = b[(np.cumsum(c) > len(pl)*threshold).argmax()]
+            if e_max > MAX:
+                MAX = e_max
+        return MAX
+
     def histogram(self, L, bins=10, auto_range=True):
         if auto_range:
-            return np.histogram(L, bins, range=self.get_range())
+            if self.mode != 'E':
+                return np.histogram(L, bins, range=self.get_range())
+            else:
+                power = .5
+                return np.histogram(np.array(L)**power, bins, range=(self.get_range()[0], self.max(power=power)))
         else:
             return np.histogram(L, bins)
 
@@ -170,7 +185,7 @@ class MultModeHist:
     def __init__(self, modes, num='standard'):
         self.modes = modes
         self.hist = []
-        self.standard_nums = {'max': 3, 'min': 3, 'mean': 3, 'nnz': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2}
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i]))
@@ -297,21 +312,29 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         entries_real = len(hhd[0].list[1])
         print('hist entries real / gen: ', entries_real, entries_gen)
 
+    total_kld = 0
     for m in range(len(modes)):
         plt.figure()
+        bin_entries = []
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
             if hhd.nums[m] == i:
                 continue
             try:
-                x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins))
+                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins)
+                if i < 2:
+                    bin_entries.append(entries)
             except ValueError:
                 print('auto range failed for %s' % modes[m])
                 print(hhd[m].list[i])
-                x, y = to_hist(*hhd[m].histogram(hhd[m].list[i], bins, range=False))
+                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, range=False)
+            x, y = to_hist(entries, binedges)
             plt.plot(x, y, ls, label=lab)
             std = np.sqrt(y)
             std[y == 0] = 0
             plt.fill_between(x, y+std, y-std, alpha=.2)
+        if hhd.nums[m] >= 2 and len(bin_entries) == 2:
+            KLDiv = KLD_hist(torch.Tensor(binedges))
+            total_kld += KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1]))
 
         #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
         plt.legend()
@@ -321,6 +344,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         global show
         if show:
             plt.show()
+    return total_kld
 
 
 def hline(newline=False, n=100):

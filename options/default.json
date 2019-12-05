@@ -49,5 +49,6 @@
     "n_validations": -1,
     "n_evaluation": -1,
     "default": null,
-    "plot_grad": false
+    "plot_grad": false,
+    "smart_save": false
 }
