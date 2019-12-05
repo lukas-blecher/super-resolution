@@ -13,7 +13,6 @@ import torchvision.transforms as transforms
 from torchvision.utils import save_image
 
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
 
 from models import *
 from datasets import *
@@ -211,7 +210,6 @@ def train(opt):
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
-    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
     dataloader = DataLoader(
         dataset,
@@ -267,12 +265,12 @@ def train(opt):
             batches_done += 1
             #batches_done = epoch * len(dataloader) + i
             # Configure model input
-            imgs_lr = Variable(imgs["lr"].type(Tensor))
-            imgs_hr = Variable(imgs["hr"].type(Tensor))
+            imgs_lr = imgs["lr"].to(device).float()
+            imgs_hr = imgs["hr"].to(device).float()
 
             # Adversarial ground truths
-            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator_outshape))), requires_grad=False)
-            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator_outshape))), requires_grad=False)
+            valid = torch.ones(imgs_lr.size(0), *discriminator_outshape, requires_grad=False).to(device).float()
+            fake = torch.zeros(imgs_lr.size(0), *discriminator_outshape, requires_grad=False).to(device).float()
 
             # ------------------
             #  Train Generators
@@ -414,13 +412,13 @@ def train(opt):
             if batches_done % opt.report_freq == 0:
                 for v, l in zip(loss_dict.values(), [loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.f, nnz: %f, mask: %f]"
+                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
             if any(l != l for l in [loss_D_tot.item(), loss_G.item()]):
                 save_info()
-                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.f, nnz: %f, mask: %f]' % (
+                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]' % (
                     i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs

@@ -70,12 +70,14 @@ class KLD_hist(nn.Module):
         return self
 
     def forward(self, q_entries, p_entries):
+        # compute sums
+        N_p, N_q = p_entries.sum().float(), q_entries.sum().float()
         # convert p and q to probabilies
-        p_entries = p_entries*self.binsizes/p_entries.sum()
+        p_entries = p_entries*self.binsizes/N_p
         # add epsilon to Q because kld is not defined if it is zero and P is not
-        q_entries += 1e-8
+        q_entries += 1e-6
         # convert Q to log probability
-        q_entries = (q_entries*self.binsizes/q_entries.sum()).log()
+        q_entries = (q_entries*self.binsizes/N_q).log()
 
         return self.kldiv(q_entries, p_entries)/self.binmean
 
