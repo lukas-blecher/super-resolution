@@ -322,7 +322,7 @@ def train(opt):
                 del nnz
 
             # Main training loop
-            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def = [torch.zeros(1, device=device) for _ in range(9)]
+            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def = [torch.zeros(1, device=device, dtype=torch.float32) for _ in range(9)]
             # Generate a high resolution image from low resolution input
             generated = pointerList(generator(imgs_lr))
             generated.append(generator.srs)
@@ -372,7 +372,7 @@ def train(opt):
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
                         gen_hist = histograms[k](gen_nnz).float()
                         real_hist = histograms[k](real_nnz).float()
-                        loss_hist += criterion_hist[k](gen_hist, real_hist)  # KLD_hist(gen_hist, real_hist, torch.from_numpy(bs).to(device))
+                        loss_hist += criterion_hist[k](gen_hist, real_hist).float()
                         # print(gen_hist,real_hist,loss_hist)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist
                     # Total generator loss
@@ -414,13 +414,13 @@ def train(opt):
             if batches_done % opt.report_freq == 0:
                 for v, l in zip(loss_dict.values(), [loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]"
+                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.f, nnz: %f, mask: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
             if any(l != l for l in [loss_D_tot.item(), loss_G.item()]):
                 save_info()
-                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.1f, nnz: %f, mask: %f]' % (
+                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %.f, nnz: %f, mask: %f]' % (
                     i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
