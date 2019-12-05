@@ -180,7 +180,7 @@ class DiffableHistogram(nn.Module):
             self.delta = (max-min)/bins*torch.ones(bins-1)
             self.centers = float(min) + self.delta * (torch.arange(bins-1).float() + 0.5)
         else:
-            self.delta = torch.Tensor([np.diff(bins)])
+            self.delta = torch.Tensor([np.diff(bins)]).float()
             self.centers = self.bins[:-1]+.5*self.delta
 
     def forward(self, x):
