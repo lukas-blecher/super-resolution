@@ -29,6 +29,26 @@ top_veto_gen = 0
 w_veto_real = 0
 w_veto_gen = 0
 
+def get_nth_hardest(arr,n=1):
+    temp=np.squeeze(arr)
+    ls = []
+    for i in range(temp.shape[0]):
+        tm=temp[i,:,:]
+        st = np.sort(tm,axis=None)
+        ls.append(st[-n])
+    return ls
+
+def get_const_ratio(arr,n=1,m=2):
+    temp=np.squeeze(arr)
+    ls = []
+    for i in range(temp.shape[0]):
+        tm=temp[i,:,:]
+        st = np.sort(tm,axis=None)
+        if st[-m] == 0:
+            print('DIVIDED BY ZERO')
+        ls.append(st[-n]/st[-m])
+    return ls
+
 
 def w_hist(info, i=0):
     from pyjet import cluster
@@ -113,6 +133,9 @@ class MultHist:
            'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels, 'wmass' extracts a prediction 
                  for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed,
            'E' will extract the total energy distribution
+  'E_n' plots the distribution of the n-th hardest constituent NOTE: start from 1 , not 0
+  
+'R_nm' plots the ratio of the nth and mth hardest consts, eg R_25 for ratio of second and fifth hardest NOTE: atm n AND m have to be smaller 10 ie 1 digit
     '''
 
     def __init__(self, num, mode='max'):
@@ -120,9 +143,17 @@ class MultHist:
         self.list = [[] for _ in range(num)]
         self.mode = mode
         self.thres = 0.002
-
+        self.inpl='0'
+        self.ratio='0'
+        if (self.mode[0]=='E' and self.mode[1]=='_'):
+            self.inpl=self.mode[2:]
+        if (self.mode[0]=='R' and self.mode[1]=='_'):
+            self.ratio=self.mode[2:]
+            self.harder=self.mode[2]
+            self.softer=self.mode[3]
     def append(self, *argv):
         assert len(argv) == self.num
+        print(self.ratio,self.harder,self.softer)
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
             try:
@@ -151,6 +182,11 @@ class MultHist:
                         self.list[i].append(0)
                         continue
                     self.list[i].extend(list(nnz.flatten()))
+                elif (self.mode == 'E_'+self.inpl):
+                    self.list[i].extend(get_nth_hardest(Ln,n=int(self.inpl)))
+                elif (self.mode == 'R_'+self.ratio):
+                    self.list[i].extend(get_const_ratio(Ln,n=int(self.harder),m=int(self.softer)))
+                    print(self.list[i][:5])
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
@@ -184,8 +220,22 @@ class MultHist:
 class MultModeHist:
     def __init__(self, modes, num='standard'):
         self.modes = modes
+        self.inpl = ['0' for l in range(len(modes))]
+        self.ratios = ['0' for l in range(len(modes))]
+        for i,m in enumerate(self.modes):
+            if (m[0]=='E' and m[1]=='_'):
+                self.inpl[i]=m[2:]
+            elif (m[0]=='R' and m[1] =='_'):
+                self.ratios[i]=m[2:]
+        self.inpl=[l for l in self.inpl if l != '0']
+        self.ratios=[l for l in self.ratios if l != '0']
         self.hist = []
-        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2,}
+        for i in self.inpl:
+            self.standard_nums['E_'+i] = 3
+        for i in self.ratios:
+            self.standard_nums['R_'+i] = 3
+        print(self.standard_nums)
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i]))
