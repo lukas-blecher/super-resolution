@@ -81,8 +81,6 @@ class GeneratorRRDB(nn.Module):
     def load_state_dict(self, state_dict):
         own_state = self.state_dict()
         for name, param in state_dict.items():
-            if name not in own_state:
-                continue
             if isinstance(param, nn.Parameter):
                 # backwards compatibility for serialized parameters
                 param = param.data
