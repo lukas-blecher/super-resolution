@@ -373,7 +373,7 @@ def train(opt):
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
                         gen_hist = histograms[k](gen_nnz)
                         real_hist = histograms[k](real_nnz)
-                        loss_hist += mse(gen_hist, real_hist)
+                        loss_hist += criterion_hist[k](gen_hist, real_hist)
                         # print(gen_hist,real_hist,loss_hist)
                     if opt.lambda_wasser > 0:
                         gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
