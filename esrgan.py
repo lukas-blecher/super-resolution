@@ -482,9 +482,9 @@ def train(opt):
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(eval_result))
                     if 'eval_results' in info:
-                            info['eval_results'].append(eval_result)
-                        else:
-                            info['eval_results'] = [eval_result]
+                        info['eval_results'].append(eval_result)
+                    else:
+                        info['eval_results'] = [eval_result]
                     if eval_result_mean < best_eval_result:
                         best_eval_result = eval_result_mean
                         if opt.smart_save:
