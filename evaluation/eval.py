@@ -384,7 +384,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         entries_real = len(hhd[0].list[1])
         print('hist entries real / gen: ', entries_real, entries_gen)
 
-    total_kld = 0
+    total_kld = []
     for m in range(len(modes)):
         plt.figure()
         bin_entries = []
@@ -398,7 +398,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             except ValueError:
                 print('auto range failed for %s' % modes[m])
                 print(hhd[m].list[i])
-                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, range=False)
+                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
             x, y = to_hist(entries, binedges)
             plt.plot(x, y, ls, label=lab)
             std = np.sqrt(y)
@@ -406,7 +406,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.fill_between(x, y+std, y-std, alpha=.2)
         if hhd.nums[m] >= 2 and len(bin_entries) == 2:
             KLDiv = KLD_hist(torch.Tensor(binedges))
-            total_kld += KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1]))
+            total_kld.append(float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item()))
 
         #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
         plt.legend()

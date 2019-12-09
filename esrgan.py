@@ -85,6 +85,7 @@ def get_parser():
     parser.add_argument("--plot_grad", type=str_to_bool, default=default.plot_grad, help="Whether to save the gradients for each layer to the IMAGE_PATH every REPORT_FREQ")
     parser.add_argument("--smart_save", type=str_to_bool, default=default.smart_save, help="If this option is used the model will only be saved if the evalidation result is better than before\
                                                                                             (when the best overlay for the histograms for ground truth and model prediction is found)")
+    parser.add_argument("-N", type=int, default=default.N, help="Amount of images to check during evaluation")
     #parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -230,7 +231,8 @@ def train(opt):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'def_loss', 'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss']}
+    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'def_loss',
+                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -379,7 +381,8 @@ def train(opt):
                         gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
                         real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
-                    tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser
+                    tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
+                        loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser
                     # Total generator loss
                     loss_G += lam * tot_loss[k]
             loss_G.backward()
@@ -425,7 +428,7 @@ def train(opt):
             # check if loss is NaN
             if any(l != l for l in [loss_D_tot.item(), loss_G.item()]):
                 save_info()
-                #raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]' % (
+                # raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]' % (
                 #    i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
@@ -474,13 +477,16 @@ def train(opt):
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 eval_result = distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
-                                           30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, 5000, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz', 'E'])
+                                           30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz', 'E'])
                 generator.train()
                 if eval_result is not None:
-                    eval_result = float(eval_result.item())
-                    if eval_result < best_eval_result:
-                        best_eval_result = eval_result
-                        info['best_eval_result'] = best_eval_result
+                    eval_result_mean = float(np.mean(eval_result))
+                    if 'eval_results' in info:
+                            info['eval_results'].append(eval_result)
+                        else:
+                            info['eval_results'] = [eval_result]
+                    if eval_result_mean < best_eval_result:
+                        best_eval_result = eval_result_mean
                         if opt.smart_save:
                             save_weights(epoch)
 
