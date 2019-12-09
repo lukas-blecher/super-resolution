@@ -86,7 +86,8 @@ def get_parser():
     parser.add_argument("--smart_save", type=str_to_bool, default=default.smart_save, help="If this option is used the model will only be saved if the evalidation result is better than before\
                                                                                             (when the best overlay for the histograms for ground truth and model prediction is found)")
     parser.add_argument("-N", type=int, default=default.N, help="Amount of images to check during evaluation")
-    #parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
+    parser.add_argument("--wait", nargs='+', default=default.wait, help="how many batches to wait until a certain loss is used. Usage example: --wait hist 2e4 lr 100")
+    # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
@@ -124,11 +125,7 @@ def train(opt):
         opt_dict = opt._asdict()
     except AttributeError:
         opt_dict = vars(opt)
-    for key in ['name', 'residual_blocks', 'factor', 'pre_factor', 'lr', 'b1', 'b2', 'dataset_path', 'dataset_type',
-                'lambda_lr', 'lambda_adv', 'lambda_hist', 'lambda_nnz', 'lambda_mask', 'lambda_pow', 'lambda_pix',
-                'discriminator', 'relativistic', 'warmup_batches', 'scaling_power']:
-        info[key] = opt_dict[key]
-    # just add the whole dictionary to the info file
+    # add the whole dictionary to the info file
     info['argument'] = opt_dict
     lambdas = [opt.lambda_pix, opt.lambda_pow]
 
@@ -263,11 +260,17 @@ def train(opt):
             print('Saved model to %s' % opt.model_path)
             save_info()
 
+    def wait(short):
+            if short in opt.wait:
+                if float(opt.wait[opt.wait.index(short)+1]) > batches_done:
+                    return False
+        return True
+
     for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
 
             batches_done += 1
-            #batches_done = epoch * len(dataloader) + i
+            # batches_done = epoch * len(dataloader) + i
             # Configure model input
             imgs_lr = imgs["lr"].to(device).float()
             imgs_hr = imgs["hr"].to(device).float()
@@ -347,10 +350,10 @@ def train(opt):
                 if lam > 0:
                     # Measure pixel-wise loss against ground truth
                     loss_pixel += criterion_pixel(generated[k], ground_truth[k])
-                    if opt.lambda_lr > 0:
+                    if opt.lambda_lr > 0 and wait('lr'):
                         # Measure pixel-wise loss against ground truth for downsampled images
                         loss_lr_pixel += criterion_pixel(generated_lr[k], ground_truth_lr[k])
-                    if opt.lambda_adv > 0:
+                    if opt.lambda_adv > 0 and wait('adv'):
                         # Extract validity generated[k]s from discriminator
                         pred_real = Discriminators[k](ground_truth[k]).detach()
                         pred_fake = Discriminators[k](generated[k])
@@ -360,15 +363,15 @@ def train(opt):
                             loss_GAN += criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
                         else:
                             loss_GAN += criterion_GAN(eps + pred_fake, valid)
-                    if opt.lambda_nnz > 0:
+                    if opt.lambda_nnz > 0 and wait('nnz'):
                         gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                         target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
                         loss_nnz += mse(gen_nnz, target)
-                    if opt.lambda_mask > 0:
+                    if opt.lambda_mask > 0 and wait('mask'):
                         gen_mask = nnz_mask(generated[k])
                         real_mask = nnz_mask(ground_truth[k])
                         loss_mask += criterion_pixel(gen_mask, real_mask)
-                    if opt.lambda_hist > 0:
+                    if opt.lambda_hist > 0 and wait('hist'):
                         # calculate the energy distribution loss
                         # first calculate the both histograms
                         gen_nnz = generated[k][generated[k] > 0]
@@ -377,7 +380,7 @@ def train(opt):
                         real_hist = histograms[k](real_nnz)
                         loss_hist += criterion_hist[k](gen_hist, real_hist)
                         # print(gen_hist,real_hist,loss_hist)
-                    if opt.lambda_wasser > 0:
+                    if opt.lambda_wasser > 0 and wait('wasser'):
                         gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
                         real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
@@ -386,7 +389,7 @@ def train(opt):
                     # Total generator loss
                     loss_G += lam * tot_loss[k]
             loss_G.backward()
-            #torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
+            # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
             optimizer_G.step()
 
             # ---------------------
@@ -406,11 +409,11 @@ def train(opt):
                     else:
                         loss_real = criterion_GAN(eps + pred_real, valid)
                         loss_fake = criterion_GAN(eps + pred_fake, fake)
-                    #print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
+                    # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
                     # Total loss
                     loss_D = (loss_real + loss_fake) / 2
                     loss_D.backward()
-                    #torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
+                    # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot += loss_D * lam
                     optimizer_D[k].step()
 

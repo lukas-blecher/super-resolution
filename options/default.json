@@ -52,5 +52,6 @@
     "default": null,
     "plot_grad": false,
     "smart_save": false,
-    "N": 5000
+    "N": 5000,
+    "wait": []
 }
