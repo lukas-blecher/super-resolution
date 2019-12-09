@@ -47,7 +47,7 @@ def get_const_ratio(arr, n=1, m=2):
         tm = temp[i, :, :]
         st = np.sort(tm, axis=None)
         if st[-m] == 0:
-            print('DIVIDED BY ZERO')
+            raise ValueError('DIVIDED BY ZERO')
         ls.append(st[-n]/st[-m])
     return ls
 
@@ -156,7 +156,6 @@ class MultHist:
 
     def append(self, *argv):
         assert len(argv) == self.num
-        print(self.ratio, self.harder, self.softer)
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
             try:
@@ -189,7 +188,6 @@ class MultHist:
                     self.list[i].extend(get_nth_hardest(Ln, n=int(self.inpl)))
                 elif 'R_' in self.mode:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
-                    print(self.list[i][:5])
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
@@ -223,23 +221,9 @@ class MultHist:
 class MultModeHist:
     def __init__(self, modes, num='standard'):
         self.modes = modes
-        self.inpl = ['0' for l in range(len(modes))]
-        self.ratios = ['0' for l in range(len(modes))]
-        for i, m in enumerate(self.modes):
-            if (m[0] == 'E' and m[1] == '_'):
-                self.inpl[i] = m[2:]
-            elif (m[0] == 'R' and m[1] == '_'):
-                self.ratios[i] = m[2:]
-        self.inpl = [l for l in self.inpl if l != '0']
-        self.ratios = [l for l in self.ratios if l != '0']
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2}
         self.hist = []
-        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, }
-        for i in self.inpl:
-            self.standard_nums['E_'+i] = 3
-        for i in self.ratios:
-            self.standard_nums['R_'+i] = 3
-        print(self.standard_nums)
-        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] for mode in self.modes]
+        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] if '_' not in mode else 3 for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i]))
 
