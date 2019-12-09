@@ -363,7 +363,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             except ValueError:
                 print('auto range failed for %s' % modes[m])
                 print(hhd[m].list[i])
-                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, range=False)
+                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
             x, y = to_hist(entries, binedges)
             plt.plot(x, y, ls, label=lab)
             std = np.sqrt(y)
