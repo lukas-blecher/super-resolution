@@ -248,7 +248,6 @@ class MultHist:
                 power = .5
                 return np.histogram(np.array(L)**power, bins, range=(self.get_range()[0], self.max(power=power)))
 
-                return np.histogram(L, bins, range=self.get_range())
             else:
                 return np.histogram(L, bins, range=self.get_range())
         else:
