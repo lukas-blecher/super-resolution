@@ -128,6 +128,29 @@ class extract_const:
         phi_new = float(phibin*2*self.phirange/self.bins-self.phirange)
         return phi_new
 
+def delta_r(arr,n=1,m=2,etarange=1.,phirange=1.):
+    img = np.squeeze(arr)
+    bins=arr.shape[1]
+    ls = []
+    for i in range(img.shape[0]):
+        tmp = img[i]
+        n_args = np.where(tmp == np.sort(tmp.flatten())[-n])
+        m_args = np.where(tmp == np.sort(tmp.flatten())[-m])
+        n_etabin,n_phibin = n_args
+        m_etabin,m_phibin = m_args
+        n_pt = tmp[n_etabin,n_phibin]
+        m_pt = tmp[m_etabin,m_phibin]
+        eta_n = float(n_etabin*2*etarange/bins-etarange)
+        eta_m = float(m_etabin*2*etarange/bins-etarange)
+        phi_n = float(n_phibin*2*phirange/bins-phirange)
+        phi_m = float(m_phibin*2*phirange/bins-phirange)
+        deta = eta_n - eta_m
+        dphi = phi_n - phi_m
+        dr = np.sqrt(deta**2 + dphi**2)
+        ls.append(dr)
+    return ls
+    
+    
 
 class MultHist:
     '''A class to collect data for any number of histograms
@@ -138,7 +161,8 @@ class MultHist:
   'E_n' plots the distribution of the n-th hardest constituent NOTE: start from 1 , not 0
 
 'R_nm' plots the ratio of the nth and mth hardest consts, eg R_25 for ratio of second and fifth hardest NOTE: atm n AND m have to be smaller 10 ie 1 digit
-    '''
+'deltaR_nm' plots deltaR distribution for nth and mth hardest constituents   
+ '''
 
     def __init__(self, num, mode='max'):
         self.num = num
@@ -149,6 +173,12 @@ class MultHist:
         self.ratio = '0'
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
+
+        elif 'deltaR_' in self.mode:
+            self.dr=self.mode[7:]
+            self.dr1=self.mode[7]
+            self.dr2=self.mode[8]
+
         elif 'R_' in self.mode:
             self.ratio = self.mode[2:]
             self.harder = self.mode[2]
@@ -156,6 +186,7 @@ class MultHist:
 
     def append(self, *argv):
         assert len(argv) == self.num
+
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
             try:
@@ -186,8 +217,12 @@ class MultHist:
                     self.list[i].extend(list(nnz.flatten()))
                 elif 'E_' in self.mode:
                     self.list[i].extend(get_nth_hardest(Ln, n=int(self.inpl)))
+                elif 'deltaR_' in self.mode:
+                    self.list[i].extend(delta_r(Ln,int(self.dr1),int(self.dr2)))
+
                 elif 'R_' in self.mode:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
+
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
@@ -209,11 +244,13 @@ class MultHist:
 
     def histogram(self, L, bins=10, auto_range=True):
         if auto_range:
-            if self.mode != 'E':
-                return np.histogram(L, bins, range=self.get_range())
-            else:
+            if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode):
                 power = .5
                 return np.histogram(np.array(L)**power, bins, range=(self.get_range()[0], self.max(power=power)))
+
+                return np.histogram(L, bins, range=self.get_range())
+            else:
+                return np.histogram(L, bins, range=self.get_range())
         else:
             return np.histogram(L, bins)
 
@@ -330,7 +367,6 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     if output_path:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
     modes = mode if type(mode) is list else [mode]
-
     hhd = MultModeHist(modes)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
@@ -363,7 +399,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             except ValueError:
                 print('auto range failed for %s' % modes[m])
                 print(hhd[m].list[i])
-                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
+                entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, range=False)
             x, y = to_hist(entries, binedges)
             plt.plot(x, y, ls, label=lab)
             std = np.sqrt(y)
