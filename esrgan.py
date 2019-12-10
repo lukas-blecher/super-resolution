@@ -261,9 +261,9 @@ def train(opt):
             save_info()
 
     def wait(short):
-            if short in opt.wait:
-                if float(opt.wait[opt.wait.index(short)+1]) > batches_done:
-                    return False
+        if short in opt.wait:
+            if float(opt.wait[opt.wait.index(short)+1]) > batches_done:
+                return False
         return True
 
     for epoch in range(start_epoch, opt.n_epochs):
@@ -488,6 +488,7 @@ def train(opt):
                         info['eval_results'].append(eval_result)
                     else:
                         info['eval_results'] = [eval_result]
+                    save_info()
                     if eval_result_mean < best_eval_result:
                         best_eval_result = eval_result_mean
                         if opt.smart_save:
