@@ -136,7 +136,8 @@ def train(opt):
     hr_shape = (opt.hr_height, opt.hr_width)
 
     # Initialize generator and discriminator
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
+    #generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
+    generator = ABPN(1, 64, opt.factor, opt.scaling_power, opt.pixel_multiplier).to(device)
     Discriminators = pointerList()
     if opt.lambda_pix > 0:
         if opt.discriminator == 'patch':
