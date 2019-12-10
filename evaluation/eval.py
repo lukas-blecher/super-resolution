@@ -416,6 +416,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         global show
         if show:
             plt.show()
+    plt.close('all')
     return total_kld
 
 
