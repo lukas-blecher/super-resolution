@@ -88,9 +88,9 @@ class GeneratorRRDB(nn.Module):
 
     def out(self, x):
         if self.training:
-            return x/self.multiplier
+            return x
         else:
-            return F.hardshrink(F.relu(x/self.multiplier), lambd=self.thres)
+            return F.hardshrink(F.relu(x), lambd=self.thres)
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
@@ -100,7 +100,7 @@ class GeneratorRRDB(nn.Module):
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
         out = self.upsampling(out)
-        out = self.conv3(out)
+        out = self.conv3(out)/self.multiplier
         self.srs = self.out(out)
         if self.power != 1:
             out = F.relu(out)**(1/self.power)
