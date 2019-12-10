@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as transforms
 from torchvision import datasets
+from models import SumPool2d
 
 # Normalization parameters for pre-trained PyTorch models
 mean = np.array([0.485, 0.456, 0.406])
@@ -105,17 +106,6 @@ def unpack_data_nfeaturemaps(data_x, etaBins=100, phiBins=200, phi_offset=0, nfe
             else:
                 break
     return img.float()
-
-
-class SumPool2d(torch.nn.Module):
-    def __init__(self, k=4, stride=None):
-        '''Applies a 2D sum pooling over an input signal composed of several input planes'''
-        super(SumPool2d, self).__init__()
-        self.pool = torch.nn.AvgPool2d(k, stride=stride)
-        self.kernel_size = k*k
-
-    def forward(self, x):
-        return self.kernel_size*self.pool(x)
 
 
 class EventDataset(Dataset):

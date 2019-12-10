@@ -158,6 +158,17 @@ class Standard_Discriminator(Markovian_Discriminator):
         return self.fc(self.model(img).view(img.shape[0], -1))
 
 
+class SumPool2d(torch.nn.Module):
+    def __init__(self, k=4, stride=None):
+        '''Applies a 2D sum pooling over an input signal composed of several input planes'''
+        super(SumPool2d, self).__init__()
+        self.pool = torch.nn.AvgPool2d(k, stride=stride)
+        self.kernel_size = k*k
+
+    def forward(self, x):
+        return self.kernel_size*self.pool(x)
+
+
 class DiffableHistogram(nn.Module):
     '''Modified version of https://discuss.pytorch.org/t/differentiable-torch-histc/25865/2 by Tony-Y
     If `bins` is a sequence the histogram will be defined by the edges specified in `bins`. If it is an integer 
