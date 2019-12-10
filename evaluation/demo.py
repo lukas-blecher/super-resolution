@@ -37,7 +37,7 @@ def main(args):
     )
     generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power).to(device).eval()
     generator.thres = args.threshold
-    generator.load_state_dict(torch.load(args.model))
+    generator.load_state_dict(torch.load(args.model,map_location=device))
     criterion = torch.nn.L1Loss()
     mse = torch.nn.MSELoss()
     sumpool = SumPool2d(args.factor)
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", type=str, required=True, help="Path to the input file")
     parser.add_argument("-m", "--model", type=str, required=True, help="Path to weights")
-    parser.add_argument("-r", "--residual_blocks", type=int, default=10, help="Number of residual blocks")
+    parser.add_argument("-r", "--residual_blocks", type=int, default=16, help="Number of residual blocks")
     parser.add_argument("-o", "--output", type=str, default=None, help="Where to save the images")
     parser.add_argument("-b", "--batch_size", type=int, default=1, help="Number of images to show at once")
     parser.add_argument("-f", "--factor", type=int, default=2, help="factor to super resolve (multiple of 2)")
