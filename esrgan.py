@@ -25,16 +25,6 @@ import torch.nn.functional as F
 import torch
 
 
-def str_to_bool(value):
-    if value is None:
-        return None
-    elif value.lower() in {'false', 'f', '0', 'no', 'n'}:
-        return False
-    elif value.lower() in {'true', 't', '1', 'yes', 'y'}:
-        return True
-    raise ValueError(f'{value} is not a valid boolean value')
-
-
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--factor", type=int, default=default.factor, help="factor to upsample the input image")
@@ -502,10 +492,7 @@ def train(opt):
 
             if batches_done == total_batches:
                 save_info()
-                if opt.validation_path:
-                    return info['validation']
-                else:
-                    return
+                return info
         info['epochs'] += 1
         save_info()
 
