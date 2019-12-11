@@ -121,7 +121,7 @@ def random_search(args):
     for k, d in zip(options.keys(), options.values()):
         x = d['value']
         if d['type'] == 'range':
-            assert len(x) == 3
+            assert len(x) >= 2
             parameters[k] = [x[0], x[1]]
         else:
             warnings.warn('Every other type will be ignored. Expected "range" got %s' % d['type'])
