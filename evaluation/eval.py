@@ -10,7 +10,7 @@ from utils import *
 #from evaluation.PSNR_SSIM_metric import calculate_ssim
 #from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
-from models import GeneratorRRDB, NaiveGenerator
+from models import GeneratorRRDB, NaiveGenerator, ABPN
 from options.default import *
 import argparse
 import json
@@ -277,7 +277,7 @@ def call_func(opt):
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
 
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
+    generator = ABPN(opt.channels, filters=64, factor=opt.factor, power=opt.scaling_power).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=torch.device(device)))
     if 'naive_generator' in dopt:
         if opt.naive_generator:

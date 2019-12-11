@@ -245,18 +245,6 @@ class PowGenerator(nn.Module):
         self.power = nn.Parameter(torch.Tensor([power]), False)
         self.multiplier = nn.Parameter(torch.Tensor([multiplier]), False)
 
-    def load_state_dict(self, state_dict):
-        own_state = self.state_dict()
-        gen_state = self.generator.state_dict()
-        for name, param in state_dict.items():
-            if isinstance(param, nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            if name in ('power', 'multiplier'):
-                own_state[name].copy_(param)
-            else:
-                gen_state[name].copy_(param)
-
     def out(self, x):
         if self.training:
             return x
@@ -270,6 +258,7 @@ class PowGenerator(nn.Module):
         if self.power != 1:
             out = F.relu(out)**(1/self.power)
         return self.out(out)
+
 
 class ABPN(PowGenerator):
     def __init__(self, channels=1, filters=32, factor=4, power=1, multiplier=1):
