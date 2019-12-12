@@ -478,11 +478,12 @@ def train(opt):
                         info['eval_results'].append(eval_result)
                     else:
                         info['eval_results'] = [eval_result]
-                    save_info()
                     if eval_result_mean < best_eval_result:
                         best_eval_result = eval_result_mean
                         if opt.smart_save:
+                            info['saved_batch'] = batches_done
                             save_weights(epoch)
+                    save_info()
 
             # Save model checkpoints
             if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
