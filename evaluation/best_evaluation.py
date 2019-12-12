@@ -15,10 +15,11 @@ if __name__ == '__main__':
     for i in range(len(paths)):
         with open(paths[i], 'r') as f:
             infos.append(json.load(f))
-        meani = float(np.array(infos[i]['eval_results']).mean(1).min())
+        m=np.array(infos[i]['eval_results']).mean(1)
+        meani = float(m.min())
         print('%s:\t%.2f' % (infos[i]['argument']['name'], meani))
         if meani < best[0]:
-            best = [meani, i]
-    print("best eval result with score of %.2f at batch %i of %i (mean=%.2f)" % (best[0], -1+(best[1])*infos[best[1]]['argument']
+            best = [meani, i, np.argmin(m)]
+    print("best eval result with score of %.2f at batch %i of %i (mean=%.2f)" % (best[0], -1+(best[2]+1)*infos[best[1]]['argument']
                                                                                  ['evaluation_interval'], infos[best[1]]['batches_done'], np.array(infos[best[1]]['eval_results']).mean(1).mean()))
     print(infos[best[1]]['argument'])
