@@ -302,19 +302,18 @@ def train(opt):
                 if opt.lambda_hist > 0:
                     nnz = np.array(nnz)
                     for k in range(2):
-                        if lambdas[k] <= 0:
-                            continue
-                        c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
-                        e_max = b[(np.cumsum(c) > len(nnz**[1, opt.scaling_power][k])*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
-                        print("found e_max to be %.2f" % e_max)
-                        sorted_nnz = np.sort(nnz)
-                        sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
-                        k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
-                        binedgesk = np.sort(k_mean.cluster_centers_.flatten())
-                        binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
-                        info['binedges%i' % k] = list(binedges[-1])
-                        histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
-                        criterion_hist[k] = KLD_hist(torch.from_numpy(binedges[-1])).to(device)
+                        if lambdas[k] > 0:
+                            c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
+                            e_max = b[(np.cumsum(c) > len(nnz**[1, opt.scaling_power][k])*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
+                            print("found e_max to be %.2f" % e_max)
+                            sorted_nnz = np.sort(nnz)
+                            sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
+                            k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
+                            binedgesk = np.sort(k_mean.cluster_centers_.flatten())
+                            binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
+                            info['binedges%i' % k] = list(binedges[-1])
+                            histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
+                            criterion_hist[k] = KLD_hist(torch.from_numpy(binedges[-1])).to(device)
                 del nnz
 
             # Main training loop
@@ -336,8 +335,7 @@ def train(opt):
             tot_loss = pointerList(loss_def, loss_pow)
             # iterate over both the normal image and the image raised to opt.scaling_power
             for k in range(2):
-                lam = lambdas[k]
-                if lam > 0:
+                if lambdas[k] > 0:
                     # Measure pixel-wise loss against ground truth
                     loss_pixel += criterion_pixel(generated[k], ground_truth[k])
                     if opt.lambda_lr > 0 and wait('lr'):
@@ -377,7 +375,7 @@ def train(opt):
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                         loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser
                     # Total generator loss
-                    loss_G += lam * tot_loss[k]
+                    loss_G += lambdas[k] * tot_loss[k]
             loss_G.backward()
             # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
             optimizer_G.step()
