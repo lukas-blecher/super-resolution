@@ -276,7 +276,7 @@ def train(opt):
 
             optimizer_G.zero_grad()
 
-            if batches_done < opt.warmup_batches:
+            if batches_done - batches_trained < opt.warmup_batches:
                 # Warm-up (pixel-wise loss only)
                 if opt.learn_warmup:
                     # Generate a high resolution image from low resolution input
@@ -298,7 +298,7 @@ def train(opt):
                     imgs_hr = imgs_hr.cpu().view(-1).numpy()
                     nnz.extend(list(imgs_hr[imgs_hr > 0]))
                 continue
-            elif batches_done == opt.warmup_batches:
+            elif batches_done - batches_trained == opt.warmup_batches:
                 if opt.lambda_hist > 0:
                     nnz = np.array(nnz)
                     for k in range(2):
