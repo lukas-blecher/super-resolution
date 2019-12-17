@@ -79,6 +79,7 @@ def get_parser():
     parser.add_argument("--wait", nargs='+', default=default.wait, help="how many batches to wait until a certain loss is used. Usage example: --wait hist 2e4 lr 100")
     parser.add_argument("--d_threshold", type=float, default=default.d_threshold, help="only train discriminator if the loss is below this threshold")
     parser.add_argument("--sinkhorn_eps", type=float, default=default.sinkhorn_eps, help="epsilon for sinkhorn distance")
+    parser.add_argument("--d_channels", type=int, default=default.d_channels, nargs='+', help="how the discriminator is constructed eg --d_channels 16 32 32 64")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -132,15 +133,15 @@ def train(opt):
     Discriminators = pointerList()
     if opt.lambda_pix > 0:
         if opt.discriminator == 'patch':
-            discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+            discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
         elif opt.discriminator == 'standard':
-            discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+            discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
         Discriminators[0] = discriminator
     if opt.lambda_pow > 0:
         if opt.discriminator == 'patch':
-            discriminator_pow = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+            discriminator_pow = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
         elif opt.discriminator == 'standard':
-            discriminator_pow = Standard_Discriminator(input_shape=(opt.channels, *hr_shape)).to(device)
+            discriminator_pow = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
         Discriminators[1] = discriminator_pow
     discriminator_outshape = Discriminators.get(0).output_shape
 
@@ -406,7 +407,7 @@ def train(opt):
                     # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot += loss_D * lam
                     # only train discriminator if it is not already too good
-                    if loss_D.item()>opt.d_threshold:
+                    if loss_D.item() > opt.d_threshold:
                         optimizer_D[k].step()
 
             # --------------

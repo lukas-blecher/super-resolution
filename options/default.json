@@ -55,5 +55,10 @@
     "N": 5000,
     "wait": [],
     "d_threshold": 0.001,
-    "sinkhorn_eps": 0.1
+    "sinkhorn_eps": 0.1,
+    "d_channels": [
+        16,
+        32,
+        64
+    ]
 }

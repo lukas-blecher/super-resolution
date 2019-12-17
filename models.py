@@ -120,9 +120,9 @@ def discriminator_block(in_filters, out_filters, first_block=False):
 
 
 class Markovian_Discriminator(nn.Module):
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, channels=[16, 32, 32, 64]):
         super(Markovian_Discriminator, self).__init__()
-        self.channels = [16, 32, 32, 64]
+        self.channels = channels
         self.input_shape = input_shape
         in_channels, in_height, in_width = self.input_shape
 
@@ -148,8 +148,8 @@ class Markovian_Discriminator(nn.Module):
 
 
 class Standard_Discriminator(Markovian_Discriminator):
-    def __init__(self, input_shape):
-        super(Standard_Discriminator, self).__init__(input_shape)
+    def __init__(self, input_shape, channels):
+        super(Standard_Discriminator, self).__init__(input_shape, channels)
         # fully connected layers
         self.fc = nn.Sequential(nn.Linear(self.channels[-1]*self.output_shape[-2]*self.output_shape[-1], 256), nn.ReLU(), nn.Linear(256, 1))
         self.output_shape = (1,)
