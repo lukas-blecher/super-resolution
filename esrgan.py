@@ -77,6 +77,8 @@ def get_parser():
                                                                                             (when the best overlay for the histograms for ground truth and model prediction is found)")
     parser.add_argument("-N", type=int, default=default.N, help="Amount of images to check during evaluation")
     parser.add_argument("--wait", nargs='+', default=default.wait, help="how many batches to wait until a certain loss is used. Usage example: --wait hist 2e4 lr 100")
+    parser.add_argument("--d_threshold", type=float, default=default.d_threshold, help="only train discriminator if the loss is below this threshold")
+    parser.add_argument("--sinkhorn_eps", type=float, default=default.sinkhorn_eps, help="epsilon for sinkhorn distance")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -209,7 +211,7 @@ def train(opt):
     )
     eps = 1e-10
     pool = SumPool2d(opt.factor).to(device)
-    WasserDist = SinkhornDistance(1e-1, 100, 'sum').to(device)
+    WasserDist = SinkhornDistance(opt.sinkhorn_eps, 100, 'sum').to(device)
     e_max = 50  # random initialization number for the maximal pixel value
     nnz = []  # list with nonzero values during the first few batches
     binedges = []  # list with bin edges for energy distribution training
@@ -403,7 +405,9 @@ def train(opt):
                     loss_D.backward()
                     # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot += loss_D * lam
-                    optimizer_D[k].step()
+                    # only train discriminator if it is not already too good
+                    if loss_D.item()>opt.d_threshold:
+                        optimizer_D[k].step()
 
             # --------------
             #  Log Progress

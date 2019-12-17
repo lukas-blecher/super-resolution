@@ -53,5 +53,7 @@
     "plot_grad": false,
     "smart_save": false,
     "N": 5000,
-    "wait": []
+    "wait": [],
+    "d_threshold": 0.001,
+    "sinkhorn_eps": 0.1
 }
