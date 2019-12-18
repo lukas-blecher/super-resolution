@@ -135,7 +135,8 @@ def train(opt):
         seed = opt.seed
     else:
         seed = np.random.randint(2**31-1)
-    
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     torch.manual_seed(seed)
     np.random.seed(seed)
     info['seed'] = seed
