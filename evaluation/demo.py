@@ -28,7 +28,7 @@ def toArray(x):
 
 def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    dataset = get_dataset(args.dataset_type, args.input, *args.hw, args.factor, pre=args.pre_factor)
+    dataset = get_dataset(args.dataset_type, args.input, *args.hw, args.factor, pre=args.pre_factor, threshold=args.E_thres, N=n_hardest)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -108,6 +108,9 @@ if __name__ == "__main__":
     parser.add_argument("--no_colors", action="store_false", help="Don't use colors in the plot")
     parser.add_argument("--threshold", type=float, default=0, help="threshold for pixel activation")
     parser.add_argument("--vmax", type=float, default=None, help="maximum value in the plots")
+    parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
+    parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
+
     args = parser.parse_args()
     global colors, vmax
     vmax = args.vmax

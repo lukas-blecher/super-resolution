@@ -167,9 +167,43 @@ class EventDatasetText(Dataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
+class ThresholdImageCutter:
+    def __init__(self, threshold):
+        self.thres = threshold
+
+    def __call__(self, x):
+        return torch.where(x > self.thres, x, torch.zeros_like(x))
+
+
+class NHardestCutter:
+    def __init__(self, N):
+        self.N = N
+
+    def __call__(self, x):
+        highest = torch.sort(x.view(-1))[0][-self.N]
+        out = torch.zeros_like(x)
+        out = torch.where(x >= highest, x, out)
+        return out
+
+
+class Cutter:
+    def __init__(self, thres=None, amount=None):
+        if thres and amount:
+            raise NotImplementedError("only one of thres and amount can be specified")
+        elif thres:
+            self.cutter = ThresholdImageCutter(thres)
+        elif amount:
+            self.cutter = NHardestCutter(amount)
+        else:
+            self.cutter = lambda x: x
+
+    def __call__(self, x):
+        return self.cutter(x)
+
+
 class JetDataset(Dataset):
 
-    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2, pre_factor=1):
+    def __init__(self, path, amount=None, etaBins=40, phiBins=40, factor=2, pre_factor=1, threshold=None, N=None):
         super(JetDataset, self).__init__()
         self.phiBins = phiBins
         self.etaBins = etaBins
@@ -181,12 +215,13 @@ class JetDataset(Dataset):
         self.df = pd.read_hdf(path, 'table')
         if amount is not None:
             self.df = self.df.iloc[:amount]
+        self.cutter = Cutter(threshold, N)
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, item):
-        img = torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)*70
+        img = self.cutter(torch.FloatTensor(self.df.iloc[item]).view(1, 1, self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)*70)
         if self.pre_factor > 1:
             img = self.pre_pool(img)
         img_lr = self.pool(img)[0]
@@ -195,11 +230,11 @@ class JetDataset(Dataset):
 
 
 class SparseJetDataset(JetDataset):
-    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=1):
-        super(SparseJetDataset, self).__init__(path, amount, etaBins, phiBins, factor, pre_factor)
+    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=1, threshold=None, N=None):
+        super(SparseJetDataset, self).__init__(path, amount, etaBins, phiBins, factor, pre_factor, threshold, N)
 
     def __getitem__(self, item):
-        img = extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]
+        img = self.cutter(extract(torch.Tensor(self.df.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor))[None, ...]
         if self.pre_factor > 1:
             img = self.pre_pool(img)
         img_lr = self.pool(img)[0]
@@ -207,12 +242,12 @@ class SparseJetDataset(JetDataset):
         return {"lr": img_lr, "hr": img_hr}
 
 
-def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1):
+def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, threshold=None, N=None):
     if dataset_type == 'h5':
         return EventDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'txt':
         return EventDatasetText(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
     elif dataset_type == 'jet':
-        return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre)
+        return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N)
     elif dataset_type == 'spjet':
-        return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre)
+        return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N)

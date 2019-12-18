@@ -86,11 +86,11 @@ class GeneratorRRDB(nn.Module):
                 param = param.data
             own_state[name].copy_(param)
 
-    def out(self, x):
+    def out(self, x, pow=torch.ones(1)):
         if self.training:
-            return x
+            return F.hardshrink(x, lambd=self.thres**pow.item())
         else:
-            return F.hardshrink(F.relu(x), lambd=self.thres)
+            return F.hardshrink(F.relu(x), lambd=self.thres**pow.item())
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
@@ -101,7 +101,7 @@ class GeneratorRRDB(nn.Module):
         out = torch.add(out1, out2)
         out = self.upsampling(out)
         out = self.conv3(out)/self.multiplier
-        self.srs = self.out(out)
+        self.srs = self.out(out, self.power)
         if self.power != 1:
             out = F.relu(out)**(1/self.power)
         return self.out(out)

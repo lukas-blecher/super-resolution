@@ -138,8 +138,6 @@ def delta_r(arr,n=1,m=2,etarange=1.,phirange=1.):
         m_args = np.where(tmp == np.sort(tmp.flatten())[-m])
         n_etabin,n_phibin = n_args
         m_etabin,m_phibin = m_args
-        n_pt = tmp[n_etabin,n_phibin]
-        m_pt = tmp[m_etabin,m_phibin]
         eta_n = float(n_etabin*2*etarange/bins-etarange)
         eta_m = float(m_etabin*2*etarange/bins-etarange)
         phi_n = float(n_phibin*2*phirange/bins-phirange)
@@ -282,16 +280,16 @@ def call_func(opt):
     if 'naive_generator' in dopt:
         if opt.naive_generator:
             generator = NaiveGenerator(int(np.log2(opt.factor)))
-    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount, opt.pre_factor]
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount, opt.pre_factor, opt.E_thres, opt.n_hardest]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
     else:
         return calculate_metrics(*args)
 
 
-def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1):
+def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1, thres=None, N=None):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -354,9 +352,9 @@ def to_hist(data, bins):
 
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
-                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, mode='max'):
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max'):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -539,6 +537,8 @@ if __name__ == "__main__":
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
     parser.add_argument("--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
+    parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
+    parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
 
     opt = vars(parser.parse_args())
     show = opt['no_show']

@@ -80,6 +80,8 @@ def get_parser():
     parser.add_argument("--d_threshold", type=float, default=default.d_threshold, help="only train discriminator if the loss is below this threshold")
     parser.add_argument("--sinkhorn_eps", type=float, default=default.sinkhorn_eps, help="epsilon for sinkhorn distance")
     parser.add_argument("--d_channels", type=int, default=default.d_channels, nargs='+', help="how the discriminator is constructed eg --d_channels 16 32 32 64")
+    parser.add_argument("--n_hardest", type=int, default=default.n_hardest, help="how many of the hardest constituents should be in the ground truth")
+    parser.add_argument("--E_thres", type=float, default=default.E_thres, help="Energy threshold for the ground truth and the generator")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -130,6 +132,8 @@ def train(opt):
 
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
+    if opt.E_thres:
+        generator.thres = opt.E_thres
     Discriminators = pointerList()
     if opt.lambda_pix > 0:
         if opt.discriminator == 'patch':
@@ -202,7 +206,7 @@ def train(opt):
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, threshold=opt.E_thres, N=opt.n_hardest)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
