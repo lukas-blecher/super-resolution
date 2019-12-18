@@ -63,5 +63,6 @@
         64
     ],
     "n_hardest": null,
-    "E_thres": null
+    "E_thres": null,
+    "seed": null
 }

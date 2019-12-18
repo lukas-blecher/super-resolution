@@ -82,6 +82,7 @@ def get_parser():
     parser.add_argument("--d_channels", type=int, default=default.d_channels, nargs='+', help="how the discriminator is constructed eg --d_channels 16 32 32 64")
     parser.add_argument("--n_hardest", type=int, default=default.n_hardest, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=default.E_thres, help="Energy threshold for the ground truth and the generator")
+    parser.add_argument("--seed", type=int, default=default.seed, help="if used seed will be set to SEED. Else a random seed will be used")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -130,7 +131,11 @@ def train(opt):
 
     hr_shape = (opt.hr_height, opt.hr_width)
     # set seed
-    seed = torch.seed()
+    if opt.seed:
+        seed = opt.seed
+        torch.manual_seed(seed)
+    else:
+        seed = torch.seed()
     np.random.seed(seed)
     info['seed'] = seed
 
