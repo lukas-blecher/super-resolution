@@ -133,9 +133,10 @@ def train(opt):
     # set seed
     if opt.seed:
         seed = opt.seed
-        torch.manual_seed(seed)
     else:
-        seed = torch.seed()
+        seed = np.random.randint(2**31-1)
+    
+    torch.manual_seed(seed)
     np.random.seed(seed)
     info['seed'] = seed
 
