@@ -129,6 +129,10 @@ def train(opt):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     hr_shape = (opt.hr_height, opt.hr_width)
+    # set seed
+    seed = torch.seed()
+    np.random.seed(seed)
+    info['seed'] = seed
 
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
