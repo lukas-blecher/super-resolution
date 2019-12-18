@@ -131,7 +131,7 @@ def train(opt):
 
     hr_shape = (opt.hr_height, opt.hr_width)
     # set seed
-    if opt.seed:
+    '''if opt.seed:
         seed = opt.seed
     else:
         seed = np.random.randint(2**31-1)
@@ -139,8 +139,7 @@ def train(opt):
     torch.backends.cudnn.benchmark = False
     torch.manual_seed(seed)
     np.random.seed(seed)
-    info['seed'] = seed
-
+    info['seed'] = seed'''
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power).to(device)
     if opt.E_thres:
