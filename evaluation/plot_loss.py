@@ -13,7 +13,10 @@ def plot_losses(j, file, ax):
     if not 'loss' in info:
         raise KeyError('No Loss in the info file.')
     loss = info['loss']
-    warmup = info['warmup_batches']
+    try:
+        warmup = info['warmup_batches']
+    except KeyError:
+        warmup = info['argument']['warmup_batches']
     if len(loss['g_loss']) == len(loss['d_loss']):
         warmup = 0
     name = os.path.basename(file).replace('_info.json', '')
