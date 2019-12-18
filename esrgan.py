@@ -477,7 +477,7 @@ def train(opt):
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 eval_result = distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
-                                           30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, mode=['max', 'nnz', 'meannnz', 'E'])
+                                           30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest, mode=['max', 'nnz', 'meannnz', 'E'])
                 generator.train()
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(eval_result))
