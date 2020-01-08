@@ -187,7 +187,7 @@ class MultHist:
 
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
-            if any(Ln != Ln): 
+            if (Ln != Ln).any(): 
                 # check if the image contains Nans
                 continue
             try:
