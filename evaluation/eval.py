@@ -187,6 +187,9 @@ class MultHist:
 
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
+            if any(Ln != Ln): 
+                # check if the image contains Nans
+                continue
             try:
                 if self.mode == 'max':
                     self.list[i].extend(list(Ln.max((1, 2, 3))))
