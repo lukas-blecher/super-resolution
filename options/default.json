@@ -64,5 +64,18 @@
     ],
     "n_hardest": null,
     "E_thres": null,
-    "seed": null
+    "seed": null,
+    "eval_modes": [
+        "nnz",
+        "meannnz",
+        "E_1",
+        "E_2",
+        "E_3",
+        "E_4",
+        "E_5",
+        "E_10",
+        "E_20",
+        "E_30"
+    ],
+    "drop_rate": 0
 }
