@@ -83,13 +83,13 @@ class GeneratorRRDB(nn.Module):
         self.power = nn.Parameter(torch.Tensor([power]), False)
         self.multiplier = nn.Parameter(torch.Tensor([multiplier]), False)
 
-    def load_state_dict(self, state_dict):
+    '''def load_state_dict(self, state_dict):
         own_state = self.state_dict()
         for name, param in state_dict.items():
             if isinstance(param, nn.Parameter):
                 # backwards compatibility for serialized parameters
                 param = param.data
-            own_state[name].copy_(param)
+            own_state[name].copy_(param)'''
 
     def out(self, x, pow=torch.ones(1)):
         if self.training:

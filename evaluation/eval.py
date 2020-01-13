@@ -280,10 +280,13 @@ def call_func(opt):
 
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=torch.device(device)))
+    if opt.E_thres:
+        generator.thres=opt.E_thres
     if 'naive_generator' in dopt:
         if opt.naive_generator:
             generator = NaiveGenerator(int(np.log2(opt.factor)))
-    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width, opt.factor, opt.amount, opt.pre_factor, opt.E_thres, opt.n_hardest]
+    args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width,
+            opt.factor, opt.amount, opt.pre_factor, opt.E_thres, opt.n_hardest]
     if opt.histogram:
         return distribution(*args, mode=opt.histogram)
     else:
