@@ -61,7 +61,7 @@ class GeneratorRRDB(nn.Module):
         # First layer
         self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=1)
         # Residual blocks
-        self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters, drop_rate) for _ in range(num_res_blocks)])
+        self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters, drop_rate=drop_rate) for _ in range(num_res_blocks)])
         # Second conv layer post residual blocks
         self.conv2 = nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1)
         # Upsampling layers
