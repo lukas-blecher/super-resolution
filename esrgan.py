@@ -85,6 +85,7 @@ def get_parser():
     parser.add_argument("--seed", type=int, default=default.seed, help="if used seed will be set to SEED. Else a random seed will be used")
     parser.add_argument("--eval_modes", nargs='+', type=str, default=default.eval_modes, help="what modes to calculate the distributions for during evaluation")
     parser.add_argument("--drop_rate", type=float, default=default.drop_rate, help="drop rate for the Generator")
+    parser.add_argument("--res_scale", type=float, default=default.res_scale, help="residual weighting factor")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -144,7 +145,7 @@ def train(opt):
     info['seed'] = seed'''
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
-        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate).to(device)
+        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale).to(device)
     if opt.E_thres:
         generator.thres = opt.E_thres
     Discriminators = pointerList()

@@ -77,5 +77,6 @@
         "E_20",
         "E_30"
     ],
-    "drop_rate": 0
+    "drop_rate": 0,
+    "res_scale": 0.2
 }

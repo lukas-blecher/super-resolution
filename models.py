@@ -55,13 +55,13 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 
 class GeneratorRRDB(nn.Module):
-    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0):
+    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.2):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
         self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=1)
         # Residual blocks
-        self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters, drop_rate=drop_rate) for _ in range(num_res_blocks)])
+        self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters, res_scale=res_scale, drop_rate=drop_rate) for _ in range(num_res_blocks)])
         # Second conv layer post residual blocks
         self.conv2 = nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1)
         # Upsampling layers

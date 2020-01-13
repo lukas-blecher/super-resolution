@@ -278,7 +278,7 @@ def call_func(opt):
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
 
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power, res_scale=opt.res_scale).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=torch.device(device)))
     if opt.E_thres:
         generator.thres=opt.E_thres
@@ -545,6 +545,7 @@ if __name__ == "__main__":
     parser.add_argument("--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
     parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
+    parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
 
     opt = vars(parser.parse_args())
     show = opt['no_show']
