@@ -243,3 +243,127 @@ def softgreater(x, val, sigma=5000, delta=0):
 
 def nnz_mask(x, sigma=5e4):
     return torch.sigmoid(sigma*x)
+
+
+class Raster:
+    'iterator for HR and SR images to compare them'
+
+    def __init__(self, factor, SR, HR):
+        self.factor = factor
+        self.SR = SR
+        self.HR = HR
+        self.L = SR.shape[-1]
+        self.num = int(np.floor((self.L-self.factor)/self.factor+1)**2)
+        self.pos, self.x, self.y = 0, 0, 0
+        self.nnzLR = 0
+
+    def __iter__(self):
+        return self
+
+    def __len__(self):
+        return self.num
+
+    def get_of(self, t):
+        f = self.factor
+        return t[..., self.y:self.y+f, self.x:self.x+f]
+
+    def __next__(self):
+        if self.pos == self.num:
+            raise StopIteration
+        sr = self.get_of(self.SR)
+        hr = self.get_of(self.HR)
+        if (hr != 0).sum().item() > 0:
+            self.nnzLR += 1
+        self.pos += 1
+        self.x += self.factor
+        if self.x >= self.L:
+            self.y += self.factor
+            self.x = 0
+        return torch.squeeze(sr), torch.squeeze(hr)
+
+    def reset(self):
+        self.pos, self.x, self.y, self.nnzLR = 0, 0, 0, 0
+
+
+class BatchRaster:
+    'saves multiple SR-HR pairs for later iteration'
+
+    def __init__(self, factor):
+        self.rasters = []
+        self.factor = factor
+        self.pos = 0
+
+    def __len__(self):
+        return sum([len(r) for r in self.rasters])
+
+    def __iter__(self):
+        return self
+
+    def append(self, SR, HR):
+        if len(SR.shape) == 3:
+            SR = SR.unsqueeze(0)
+            HR = HR.unsqueeze(0)
+        assert len(SR.shape) == 4 and len(HR.shape) == 4, 'incorrect shape'
+        for i in range(len(SR)):
+            self.rasters.append(Raster(self.factor, SR[i].unsqueeze(0), HR[i].unsqueeze(0)))
+
+    def __next__(self):
+        if self.pos >= len(self.rasters):
+            raise StopIteration
+        try:
+            return next(self.rasters[self.pos])
+        except StopIteration:
+            self.pos += 1
+            return next(self)
+
+    def reset(self):
+        self.pos = 0
+        for r in self.rasters:
+            r.reset()
+
+
+class SumRaster:
+    def __init__(self, factor, threshold=.1):
+        self.sr, self.hr = [torch.zeros(factor, factor) for _ in range(2)]
+        self.factor = factor
+        self.threshold = threshold
+
+    def add(self, SR, HR):
+        br = BatchRaster(self.factor)
+        br.append(SR, HR)
+        for s, h in br:
+            self.sr += (s > self.threshold)
+            self.hr += (h > self.threshold)
+    
+    def reset(self):
+        pass
+
+    def get_hist(self):
+        return self.sr, self.hr
+
+
+def make_hist(raster, threshold=.1):
+    'Takes a Raster class and returns two histograms each of the shape (factor, factor).'
+    raster.reset()
+    sr, hr = [torch.zeros(raster.factor, raster.factor) for _ in range(2)]
+    for s, h in raster:
+        sr += (s > threshold)
+        hr += (h > threshold)
+    return sr, hr
+
+
+def plot_hist2d(sr, hr, cmap='viridis'):
+    vmin = min([hr.min().item(), sr.min().item()])
+    vmax = max([hr.max().item(), sr.max().item()])
+    f, ax = plt.subplots(1, 2)
+    ax = ax.flatten()
+    ax[0].imshow(sr, cmap=cmap, vmin=vmin, vmax=vmax)
+    ax[0].set_title('prediction')
+    ax[0].axis('off')
+    gt = ax[1].imshow(hr, cmap=cmap, vmin=vmin, vmax=vmax)
+    ax[1].set_title('ground truth')
+    ax[1].axis('off')
+    f.subplots_adjust(right=0.8)
+    cbar_ax = f.add_axes([0.85, 0.25, 0.05, 0.5])
+    f.colorbar(gt, cax=cbar_ax)
+    return f

@@ -152,17 +152,17 @@ def delta_r(arr,n=1,m=2,etarange=1.,phirange=1.):
 
 class MultHist:
     '''A class to collect data for any number of histograms
-    modes: 'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values,
-           'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels, 'wmass' extracts a prediction 
-                 for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed,
-           'E' will extract the total energy distribution
-  'E_n' plots the distribution of the n-th hardest constituent NOTE: start from 1 , not 0
-
-'R_nm' plots the ratio of the nth and mth hardest consts, eg R_25 for ratio of second and fifth hardest NOTE: atm n AND m have to be smaller 10 ie 1 digit
-'deltaR_nm' plots deltaR distribution for nth and mth hardest constituents   
+    modes:  'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values,
+            'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels, 'wmass' extracts a prediction 
+                  for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed,
+            'E' will extract the total energy distribution
+            'E_n' plots the distribution of the n-th hardest constituent NOTE: start from 1 , not 0
+            'R_nm' plots the ratio of the nth and mth hardest consts, eg R_25 for ratio of second and fifth hardest NOTE: atm n AND m have to be smaller 10 ie 1 digit
+            'deltaR_nm' plots deltaR distribution for nth and mth hardest constituents
+            'hitogram' returns the gives insight in how the constituents are distributed in the super resolved image
  '''
 
-    def __init__(self, num, mode='max'):
+    def __init__(self, num, mode='max', factor=None):
         self.num = num
         self.list = [[] for _ in range(num)]
         self.mode = mode
@@ -171,16 +171,16 @@ class MultHist:
         self.ratio = '0'
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
-
         elif 'deltaR_' in self.mode:
             self.dr=self.mode[7:]
             self.dr1=self.mode[7]
             self.dr2=self.mode[8]
-
         elif 'R_' in self.mode:
             self.ratio = self.mode[2:]
             self.harder = self.mode[2]
             self.softer = self.mode[3]
+        elif self.mode == 'hitogram':
+            self.raster=SumRaster(factor)
 
     def append(self, *argv):
         assert len(argv) == self.num
@@ -220,12 +220,14 @@ class MultHist:
                     self.list[i].extend(get_nth_hardest(Ln, n=int(self.inpl)))
                 elif 'deltaR_' in self.mode:
                     self.list[i].extend(delta_r(Ln,int(self.dr1),int(self.dr2)))
-
                 elif 'R_' in self.mode:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
-
+                
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
+
+        if self.mode == 'hitogram':
+            self.raster.add(*[T.detach().cpu() for T in argv])
 
     def get_range(self):
         mins = [min(self.list[i]) for i in range(self.num)]
@@ -256,13 +258,13 @@ class MultHist:
 
 
 class MultModeHist:
-    def __init__(self, modes, num='standard'):
+    def __init__(self, modes, num='standard', factor=default.factor):
         self.modes = modes
-        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2}
         self.hist = []
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] if '_' not in mode else 3 for mode in self.modes]
         for i in range(len(self.modes)):
-            self.hist.append(MultHist(self.nums[i], modes[i]))
+            self.hist.append(MultHist(self.nums[i], modes[i], factor))
 
     def append(self, *argv):
         for i in range(len(self.hist)):
@@ -370,7 +372,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     if output_path:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
     modes = mode if type(mode) is list else [mode]
-    hhd = MultModeHist(modes)
+    hhd = MultModeHist(modes, factor=factor)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
         with torch.no_grad():
@@ -387,10 +389,16 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         entries_gen = len(hhd[0].list[0])
         entries_real = len(hhd[0].list[1])
         print('hist entries real / gen: ', entries_real, entries_gen)
-
+    global show
     total_kld = []
     for m in range(len(modes)):
         plt.figure()
+        # check for hitogram
+        if modes[m] == 'hitogram':
+            f=plot_hist2d(*hhd[m].raster.get_hist())
+            if output_path:
+                f.savefig((output_path+"_hitogram").replace(".png",""))
+            continue
         bin_entries = []
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
             if hhd.nums[m] == i:
@@ -411,13 +419,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         if hhd.nums[m] >= 2 and len(bin_entries) == 2:
             KLDiv = KLD_hist(torch.Tensor(binedges))
             total_kld.append(float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item()))
-
+        plt.ylabel('Entries')
         #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
         plt.legend()
         if output_path:
             out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
             plt.savefig(out_path.replace('.png', ''))
-        global show
         if show:
             plt.show()
     plt.close('all')
