@@ -86,6 +86,7 @@ def get_parser():
     parser.add_argument("--eval_modes", nargs='+', type=str, default=default.eval_modes, help="what modes to calculate the distributions for during evaluation")
     parser.add_argument("--drop_rate", type=float, default=default.drop_rate, help="drop rate for the Generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="residual weighting factor")
+    parser.add_argument("--lambda_reg", type=float, default=default.lambda_reg, help="Regularization weighting factor for gradient penalty")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -421,6 +422,18 @@ def train(opt):
                     # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
                     # Total loss
                     loss_D = (loss_real + loss_fake) / 2
+                    if opt.lambda_reg > 0:
+                        # generate interpolation between real and fake data
+                        epsilon = torch.rand(batch_size, 1, 1, 1).to(device)
+                        interpolation = epsilon*ground_truth[k]+(1-epsilon)*generated[k].detach()
+                        interpolation.requires_grad = True
+                        pred_interpolation = Discriminators[k](interpolation)
+                        gradients = torch.autograd.grad(outputs=pred_interpolation, inputs=interpolation, grad_outputs=valid,
+                                                        create_graph=True, retain_graph=True, only_inputs=True)[0]
+                        gradients = gradients.view(batch_size, -1)
+                        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * opt.lambda_reg/2
+                        loss_D += gradient_penalty
+
                     loss_D.backward()
                     # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot += loss_D * lam
