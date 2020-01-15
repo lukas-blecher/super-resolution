@@ -503,7 +503,10 @@ def train(opt):
                     if eval_result_mean < best_eval_result:
                         best_eval_result = eval_result_mean
                         if opt.smart_save:
-                            info['saved_batch'] = batches_done
+                            try:
+                                info['saved_batch'][epoch] = batches_done
+                            except KeyError:
+                                info['saved_batch'] = {epoch: batches_done}
                             save_weights(epoch)
                     save_info()
 
