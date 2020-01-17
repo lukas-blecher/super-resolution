@@ -277,8 +277,8 @@ class MultHist:
                     self.list[i].extend(delta_r(Ln,int(self.dr1),int(self.dr2)))
                 elif 'R_' in self.mode:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
-            elif 'FWM_' in self.mode:
-                self.list[i].extend(FWM(Ln,l=self.l,j=self.j))
+                elif 'FWM_' in self.mode:
+                    self.list[i].extend(FWM(Ln,l=self.l,j=self.j))
                 
                  
             except Exception as e:
