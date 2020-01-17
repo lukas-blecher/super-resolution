@@ -3,7 +3,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-
+import os
 
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
@@ -367,3 +367,12 @@ def plot_hist2d(sr, hr, cmap='viridis'):
     cbar_ax = f.add_axes([0.85, 0.25, 0.05, 0.5])
     f.colorbar(gt, cax=cbar_ax)
     return f
+
+def get_gpu_index():
+    os.system('qstat > q.txt')
+    q=open('q.txt', 'r').read()
+    ids=[x.split('.gpu02')[0] for x in q.split('\n')[2:-1]]
+    os.system('qstat -f %s > q.txt'%ids[-1])
+    f=open('q.txt', 'r').read()
+    os.remove('q.txt')
+    return int([x for x in f.split('\n') if 'exec_host' in x][0].split('/')[1])

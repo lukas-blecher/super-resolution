@@ -11,7 +11,7 @@ import warnings
 from collections import namedtuple
 from sklearn.model_selection import ParameterGrid
 from options.default import *
-from utils import str_to_bool
+from utils import str_to_bool, get_gpu_index
 from esrgan import train
 from evaluation.eval import distribution
 '''
@@ -19,6 +19,7 @@ The goal of this script is to find the best hyperparameters for the model.
 A grid search is performed over all the possible hyperparameter combinations that are defined in the argument 'options'.
 A fixed amount of checkpoints are saved during training and evaluated on two metrics. The results are saved in a json file.
 '''
+gpu = 0
 
 
 def grid_search(args):
@@ -32,7 +33,7 @@ def grid_search(args):
             This option can be used if you want to scale a parameter accordingly to another specified hyperparameter
     For all types there is the option 'include_zero' which should be a boolean. If true the value 0 will be be added to the list. Usefull for the range types.
     '''
-
+    global gpu
     results, args_dict = {}, {}
     os.makedirs(os.path.split(args.results)[0], exist_ok=True)
     with open(args.options) as options_file:
@@ -103,7 +104,7 @@ def grid_search(args):
         arguments_ntuple = namedtuple("arguments", arguments.keys())(*arguments.values())
         try:
             torch.cuda.empty_cache()
-            info[-1]['metrics'] = train(arguments_ntuple)['validation']
+            info[-1]['metrics'] = train(arguments_ntuple, gpu=gpu)['validation']
         except RuntimeError as e:
             print('RuntimeError: %s' % e)
             continue
@@ -113,6 +114,7 @@ def grid_search(args):
 
 
 def random_search(args):
+    global gpu
     results, args_dict = {}, {}
     os.makedirs(os.path.split(args.results)[0], exist_ok=True)
     with open(args.options) as options_file:
@@ -157,7 +159,7 @@ def random_search(args):
         arguments_ntuple = namedtuple("arguments", arguments.keys())(*arguments.values())
         try:
             torch.cuda.empty_cache()
-            eval_results = train(arguments_ntuple)['eval_results']
+            eval_results = train(arguments_ntuple, gpu=gpu)['eval_results']
         except RuntimeError as e:
             print('RuntimeError: %s' % e)
             continue
@@ -204,6 +206,14 @@ if __name__ == '__main__':
     parser.add_argument('--amount', type=int, default=6, help='amount of points to check in the hyperparameter space if used with random')
     args = parser.parse_args()
     print(args)
+    try:
+        gpu=get_gpu_index()        
+        num_gpus=torch.cuda.device_count()
+        if gpu >= num_gpus:
+            gpu=np.random.randint(num_gpus)
+        print('running on gpu index {}'.format(gpu))
+    except Exception:
+        pass
     if args.random:
         random_search(args)
     else:

@@ -30,7 +30,7 @@ top_veto_real = 0
 top_veto_gen = 0
 w_veto_real = 0
 w_veto_gen = 0
-
+gpu=0
 
 def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
     img = np.squeeze(arr)
@@ -333,7 +333,8 @@ class MultModeHist:
 
 
 def call_func(opt):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    global gpu
+    device = torch.device('cuda:%i'%gpu if torch.cuda.is_available() else 'cpu')
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
@@ -613,6 +614,14 @@ if __name__ == "__main__":
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
 
     opt = vars(parser.parse_args())
+    try:
+        gpu=get_gpu_index()        
+        num_gpus=torch.cuda.device_count()
+        if gpu >= num_gpus:
+            gpu=np.random.randint(num_gpus)
+        print('running on gpu index {}'.format(gpu))
+    except Exception:
+        pass
     show = opt['no_show']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'])

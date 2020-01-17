@@ -113,10 +113,12 @@ def get_parser():
     return opt
 
 
-def train(opt):
+def train(opt, **kwargs):
     model_name = '' if opt.name is None else (opt.name + '_')
     start_epoch = 0
     global gpu
+    if 'gpu' in kwargs:
+        gpu = kwargs['gpu']
     # check if enough warmup_batches are specified
     if opt.lambda_hist > 0:
         assert opt.warmup_batches > 0, "if distribution learning is enabled, warmup_batches needs to be greater than 0."
@@ -543,13 +545,11 @@ if __name__ == "__main__":
     print('cuda version:', torch.version.cuda)
     print('cudnn version:', torch.backends.cudnn.version())
     try:
-        os.system('qstat > q.txt')
-        q=open('q.txt', 'r').read()
-        ids=[x.split('.gpu02')[0] for x in q.split('\n')[2:-1]]
-        os.system('qstat -f %s > q.txt'%ids[-1])
-        f=open('q.txt', 'r').read()
-        gpu=int([x for x in f.split('\n') if 'exec_host' in x][0].split('/')[1])
-        os.remove('q.txt')
+        gpu=get_gpu_index()        
+        num_gpus=torch.cuda.device_count()
+        if gpu >= num_gpus:
+            gpu=np.random.randint(num_gpus)
+        print('running on gpu index {}'.format(gpu))
     except Exception:
         pass
     opt = get_parser()
