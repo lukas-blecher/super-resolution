@@ -22,6 +22,7 @@ import torch
 from PIL import Image
 from tqdm.auto import tqdm
 show = False
+from scipy.special import legendre
 
 total_entries = 0
 top_veto_real = 0
@@ -29,6 +30,44 @@ top_veto_gen = 0
 w_veto_real = 0
 w_veto_gen = 0
 
+def FWM(arr,l=1,j=2,etarange=1.,phirange=1.): # arr: input image batch, l: # of FWM to take, j: up to which const to consider
+    img = np.squeeze(arr)
+    bins=img.shape[1]
+    print('bins: ',bins,' l: ',l,' j: ',j)
+    ls = []
+    for i in range(img.shape[0]):
+        eta=[]
+        phi=[]
+        theta=[]
+        pt=[]
+        tmp = img[i]
+ 
+        for z in range(1,j+1):
+            args=np.where(tmp == np.sort(tmp.flatten())[-z]) # position of j-hardest const
+            etabin,phibin = args
+            eta_act = float(etabin[0]*2*etarange/bins-etarange)
+            eta.append(eta_act)
+            phi.append(float(phibin[0]*2*phirange/bins-phirange))
+            theta.append(2*np.arctan(np.exp((-1)*eta_act))) # formula for theta(eta)
+            pt.append(tmp[etabin,phibin])
+        ptabs=[abs(entry) for entry in pt]
+        ptsum = sum(ptabs)
+        out = 0.0
+        for a in range(j):
+            for b in range(j):
+                dtheta = theta[a] - theta[b]
+                stheta = theta[a] + theta[b]
+                dphi = phi[a] - phi[b]
+                cosine_angle=0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta)) #from Anja's bach.
+                term = ptabs[a]*ptabs[b]/(ptsum**2)*legendre(l)(cosine_angle)
+                if len(term) > 1:
+                    #print('ptabs[a]: ',ptabs[a],' ptabs[b] ',ptabs[b],' cosineangleab: ',cosine_angle,' term: ',term)
+                    continue
+                out += term
+        ls.append(out)
+    
+    return [float(x) for x in ls]
+ 
 
 def get_nth_hardest(arr, n=1):
     temp = np.squeeze(arr)
@@ -181,6 +220,22 @@ class MultHist:
             self.softer = self.mode[3]
         elif self.mode == 'hitogram':
             self.raster=SumRaster(factor)
+        elif 'FWM' in self.mode:
+            st1=''
+            st2=''
+            cnt=0
+            l=0
+            j=0
+            for j,ch in enumerate(self.mode):
+                if j > 3:
+                    if ch != '_' and cnt==0:
+                        st1+=ch
+                    elif ch == '_':
+                        cnt = 1
+                    if ch !='_' and cnt==1:
+                        st2+=ch
+            self.l=int(st1)
+            self.j=int(st2)
 
     def append(self, *argv):
         assert len(argv) == self.num
@@ -222,7 +277,10 @@ class MultHist:
                     self.list[i].extend(delta_r(Ln,int(self.dr1),int(self.dr2)))
                 elif 'R_' in self.mode:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
+            elif 'FWM_' in self.mode:
+                self.list[i].extend(FWM(Ln,l=self.l,j=self.j))
                 
+                 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
