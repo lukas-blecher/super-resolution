@@ -24,6 +24,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+gpu=0
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -115,6 +116,7 @@ def get_parser():
 def train(opt):
     model_name = '' if opt.name is None else (opt.name + '_')
     start_epoch = 0
+    global gpu
     # check if enough warmup_batches are specified
     if opt.lambda_hist > 0:
         assert opt.warmup_batches > 0, "if distribution learning is enabled, warmup_batches needs to be greater than 0."
@@ -130,8 +132,7 @@ def train(opt):
     lambdas = [opt.lambda_pix, opt.lambda_pow]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:%i"%gpu if torch.cuda.is_available() else "cpu")
 
     hr_shape = (opt.hr_height, opt.hr_width)
     # set seed
@@ -541,7 +542,16 @@ if __name__ == "__main__":
     print('GPU:', torch.cuda.get_device_name('cuda'))
     print('cuda version:', torch.version.cuda)
     print('cudnn version:', torch.backends.cudnn.version())
-
+    try:
+        os.system('qstat > q.txt')
+        q=open('q.txt', 'r').read()
+        ids=[x.split('.gpu02')[0] for x in q.split('\n')[2:-1]]
+        os.system('qstat -f %s > q.txt'%ids[-1])
+        f=open('q.txt', 'r').read()
+        gpu=int([x for x in f.split('\n') if 'exec_host' in x][0].split('/')[1])
+        os.remove('q.txt')
+    except Exception:
+        pass
     opt = get_parser()
     try:
         train(opt)
