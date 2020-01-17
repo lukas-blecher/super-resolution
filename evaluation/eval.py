@@ -21,8 +21,9 @@ import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 from tqdm.auto import tqdm
-show = False
 from scipy.special import legendre
+
+show = False
 
 total_entries = 0
 top_veto_real = 0
@@ -30,27 +31,28 @@ top_veto_gen = 0
 w_veto_real = 0
 w_veto_gen = 0
 
-def FWM(arr,l=1,j=2,etarange=1.,phirange=1.): # arr: input image batch, l: # of FWM to take, j: up to which const to consider
+
+def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
     img = np.squeeze(arr)
-    bins=img.shape[1]
-    print('bins: ',bins,' l: ',l,' j: ',j)
+    bins = img.shape[1]
+    #print('bins: ', bins, ' l: ', l, ' j: ', j)
     ls = []
     for i in range(img.shape[0]):
-        eta=[]
-        phi=[]
-        theta=[]
-        pt=[]
+        eta = []
+        phi = []
+        theta = []
+        pt = []
         tmp = img[i]
- 
-        for z in range(1,j+1):
-            args=np.where(tmp == np.sort(tmp.flatten())[-z]) # position of j-hardest const
-            etabin,phibin = args
+
+        for z in range(1, j+1):
+            args = np.where(tmp == np.sort(tmp.flatten())[-z])  # position of j-hardest const
+            etabin, phibin = args
             eta_act = float(etabin[0]*2*etarange/bins-etarange)
             eta.append(eta_act)
             phi.append(float(phibin[0]*2*phirange/bins-phirange))
-            theta.append(2*np.arctan(np.exp((-1)*eta_act))) # formula for theta(eta)
-            pt.append(tmp[etabin,phibin])
-        ptabs=[abs(entry) for entry in pt]
+            theta.append(2*np.arctan(np.exp((-1)*eta_act)))  # formula for theta(eta)
+            pt.append(tmp[etabin, phibin])
+        ptabs = [abs(entry) for entry in pt]
         ptsum = sum(ptabs)
         out = 0.0
         for a in range(j):
@@ -58,16 +60,15 @@ def FWM(arr,l=1,j=2,etarange=1.,phirange=1.): # arr: input image batch, l: # of 
                 dtheta = theta[a] - theta[b]
                 stheta = theta[a] + theta[b]
                 dphi = phi[a] - phi[b]
-                cosine_angle=0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta)) #from Anja's bach.
+                cosine_angle = 0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta))  # from Anja's bach.
                 term = ptabs[a]*ptabs[b]/(ptsum**2)*legendre(l)(cosine_angle)
                 if len(term) > 1:
                     #print('ptabs[a]: ',ptabs[a],' ptabs[b] ',ptabs[b],' cosineangleab: ',cosine_angle,' term: ',term)
                     continue
                 out += term
         ls.append(out)
-    
     return [float(x) for x in ls]
- 
+
 
 def get_nth_hardest(arr, n=1):
     temp = np.squeeze(arr)
@@ -167,16 +168,17 @@ class extract_const:
         phi_new = float(phibin*2*self.phirange/self.bins-self.phirange)
         return phi_new
 
-def delta_r(arr,n=1,m=2,etarange=1.,phirange=1.):
+
+def delta_r(arr, n=1, m=2, etarange=1., phirange=1.):
     img = np.squeeze(arr)
-    bins=arr.shape[1]
+    bins = arr.shape[1]
     ls = []
     for i in range(img.shape[0]):
         tmp = img[i]
         n_args = np.where(tmp == np.sort(tmp.flatten())[-n])
         m_args = np.where(tmp == np.sort(tmp.flatten())[-m])
-        n_etabin,n_phibin = n_args
-        m_etabin,m_phibin = m_args
+        n_etabin, n_phibin = n_args
+        m_etabin, m_phibin = m_args
         eta_n = float(n_etabin*2*etarange/bins-etarange)
         eta_m = float(m_etabin*2*etarange/bins-etarange)
         phi_n = float(n_phibin*2*phirange/bins-phirange)
@@ -186,8 +188,7 @@ def delta_r(arr,n=1,m=2,etarange=1.,phirange=1.):
         dr = np.sqrt(deta**2 + dphi**2)
         ls.append(dr)
     return ls
-    
-    
+
 
 class MultHist:
     '''A class to collect data for any number of histograms
@@ -211,38 +212,38 @@ class MultHist:
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
         elif 'deltaR_' in self.mode:
-            self.dr=self.mode[7:]
-            self.dr1=self.mode[7]
-            self.dr2=self.mode[8]
+            self.dr = self.mode[7:]
+            self.dr1 = self.mode[7]
+            self.dr2 = self.mode[8]
         elif 'R_' in self.mode:
             self.ratio = self.mode[2:]
             self.harder = self.mode[2]
             self.softer = self.mode[3]
         elif self.mode == 'hitogram':
-            self.raster=SumRaster(factor)
+            self.raster = SumRaster(factor)
         elif 'FWM' in self.mode:
-            st1=''
-            st2=''
-            cnt=0
-            l=0
-            j=0
-            for j,ch in enumerate(self.mode):
+            st1 = ''
+            st2 = ''
+            cnt = 0
+            l = 0
+            j = 0
+            for j, ch in enumerate(self.mode):
                 if j > 3:
-                    if ch != '_' and cnt==0:
-                        st1+=ch
+                    if ch != '_' and cnt == 0:
+                        st1 += ch
                     elif ch == '_':
                         cnt = 1
-                    if ch !='_' and cnt==1:
-                        st2+=ch
-            self.l=int(st1)
-            self.j=int(st2)
+                    if ch != '_' and cnt == 1:
+                        st2 += ch
+            self.l = int(st1)
+            self.j = int(st2)
 
     def append(self, *argv):
         assert len(argv) == self.num
 
         for i, L in enumerate(argv):
             Ln = L.detach().cpu().numpy()
-            if (Ln != Ln).any(): 
+            if (Ln != Ln).any():
                 # check if the image contains Nans
                 continue
             try:
@@ -274,13 +275,12 @@ class MultHist:
                 elif 'E_' in self.mode:
                     self.list[i].extend(get_nth_hardest(Ln, n=int(self.inpl)))
                 elif 'deltaR_' in self.mode:
-                    self.list[i].extend(delta_r(Ln,int(self.dr1),int(self.dr2)))
+                    self.list[i].extend(delta_r(Ln, int(self.dr1), int(self.dr2)))
                 elif 'R_' in self.mode:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
                 elif 'FWM_' in self.mode:
-                    self.list[i].extend(FWM(Ln,l=self.l,j=self.j))
-                
-                 
+                    self.list[i].extend(FWM(Ln, l=self.l, j=self.j))
+
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
 
@@ -341,7 +341,7 @@ def call_func(opt):
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power, res_scale=opt.res_scale).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=torch.device(device)))
     if opt.E_thres:
-        generator.thres=opt.E_thres
+        generator.thres = opt.E_thres
     if 'naive_generator' in dopt:
         if opt.naive_generator:
             generator = NaiveGenerator(int(np.log2(opt.factor)))
@@ -453,9 +453,9 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         plt.figure()
         # check for hitogram
         if modes[m] == 'hitogram':
-            f=plot_hist2d(*hhd[m].raster.get_hist())
+            f = plot_hist2d(*hhd[m].raster.get_hist())
             if output_path:
-                f.savefig((output_path+"_hitogram").replace(".png",""))
+                f.savefig((output_path+"_hitogram").replace(".png", ""))
             continue
         bin_entries = []
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):

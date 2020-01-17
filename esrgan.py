@@ -543,4 +543,12 @@ if __name__ == "__main__":
     print('cudnn version:', torch.backends.cudnn.version())
 
     opt = get_parser()
-    train(opt)
+    try:
+        train(opt)
+    except RuntimeError as e:
+        if 'CUDA' in str(e):
+            os.system('nvidia-smi > nsmi.txt')
+            raise RuntimeError(open('nsmi.txt', 'r').read(), e)
+        else: 
+            raise RuntimeError(e)
+
