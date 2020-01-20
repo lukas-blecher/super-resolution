@@ -24,7 +24,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-gpu=0
+gpu = 0
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -102,6 +103,8 @@ def get_parser():
         given = vars(opt)
         with open(opt.default, 'r') as f:
             arguments = json.load(f)
+        if 'argument' in arguments:  # check if an info.json file was given
+            arguments = arguments['argument']
         # reduce to only non default arguments
         given = {key: given[key] for key in given.keys() if default_dict[key] != given[key]}
         # add all arguments from opt.default
@@ -134,7 +137,7 @@ def train(opt, **kwargs):
     lambdas = [opt.lambda_pix, opt.lambda_pow]
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
-    device = torch.device("cuda:%i"%gpu if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:%i" % gpu if torch.cuda.is_available() else "cpu")
 
     hr_shape = (opt.hr_height, opt.hr_width)
     # set seed
@@ -545,10 +548,10 @@ if __name__ == "__main__":
     print('cuda version:', torch.version.cuda)
     print('cudnn version:', torch.backends.cudnn.version())
     try:
-        gpu=get_gpu_index()        
-        num_gpus=torch.cuda.device_count()
+        gpu = get_gpu_index()
+        num_gpus = torch.cuda.device_count()
         if gpu >= num_gpus:
-            gpu=np.random.randint(num_gpus)
+            gpu = np.random.randint(num_gpus)
         print('running on gpu index {}'.format(gpu))
     except Exception:
         pass
@@ -559,6 +562,5 @@ if __name__ == "__main__":
         if 'CUDA' in str(e):
             os.system('nvidia-smi > nsmi.txt')
             raise RuntimeError(open('nsmi.txt', 'r').read(), e)
-        else: 
+        else:
             raise RuntimeError(e)
-
