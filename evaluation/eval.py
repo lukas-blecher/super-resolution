@@ -30,44 +30,37 @@ top_veto_real = 0
 top_veto_gen = 0
 w_veto_real = 0
 w_veto_gen = 0
-gpu=0
+gpu = 0
+
 
 def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
     img = np.squeeze(arr)
     bins = img.shape[1]
     #print('bins: ', bins, ' l: ', l, ' j: ', j)
     ls = []
+    leg = legendre(l)
     for i in range(img.shape[0]):
-        eta = []
-        phi = []
-        theta = []
-        pt = []
-        tmp = img[i]
+        eta, phi, theta, pt, tmp = [], [], [], [], img[i]
 
-        for z in range(1, j+1):
-            args = np.where(tmp == np.sort(tmp.flatten())[-z])  # position of j-hardest const
-            etabin, phibin = args
-            eta_act = float(etabin[0]*2*etarange/bins-etarange)
-            eta.append(eta_act)
-            phi.append(float(phibin[0]*2*phirange/bins-phirange))
-            theta.append(2*np.arctan(np.exp((-1)*eta_act)))  # formula for theta(eta)
-            pt.append(tmp[etabin, phibin])
-        ptabs = [abs(entry) for entry in pt]
-        ptsum = sum(ptabs)
-        out = 0.0
-        for a in range(j):
-            for b in range(j):
-                dtheta = theta[a] - theta[b]
-                stheta = theta[a] + theta[b]
-                dphi = phi[a] - phi[b]
-                cosine_angle = 0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta))  # from Anja's bach.
-                term = ptabs[a]*ptabs[b]/(ptsum**2)*legendre(l)(cosine_angle)
-                if len(term) > 1:
-                    #print('ptabs[a]: ',ptabs[a],' ptabs[b] ',ptabs[b],' cosineangleab: ',cosine_angle,' term: ',term)
-                    continue
-                out += term
-        ls.append(out)
-    return [float(x) for x in ls]
+        idx = np.argsort(tmp.ravel())[-j:][::-1]
+        topN_val = tmp.ravel()[idx]
+        row_col = np.c_[np.unravel_index(idx, tmp.shape)]
+
+        etabin, phibin = row_col.T
+        eta = etabin*2*etarange/bins-etarange
+        phi = phibin*2*phirange/bins-phirange
+        theta = 2*np.arctan(np.exp(-eta))  # formula for theta(eta)
+        ptabs = np.abs(tmp[etabin, phibin]).flatten()
+
+        ptsum = np.sum(ptabs)
+        eta, theta, phi = np.array(eta), np.array(theta), np.array(phi)
+        dtheta = theta[:, None]-theta[None, :]
+        stheta = theta[:, None]+theta[None, :]
+        dphi = phi[:, None]-phi[None, :]
+        cos = 0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta))  # from Anja's bach.
+        term = ptabs[:, None]*ptabs[None, :]/(ptsum**2)*leg(cos)
+        ls.append(float(term.sum()))
+        return [float(x) for x in ls]
 
 
 def get_nth_hardest(arr, n=1):
@@ -334,7 +327,7 @@ class MultModeHist:
 
 def call_func(opt):
     global gpu
-    device = torch.device('cuda:%i'%gpu if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:%i' % gpu if torch.cuda.is_available() else 'cpu')
     dopt = dir(opt)
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
@@ -603,6 +596,7 @@ if __name__ == "__main__":
     parser.add_argument("-N", "--amount", type=int, default=None, help="amount of test samples to use. Standard: All")
     parser.add_argument("--hr_height", type=int, default=default_dict['hr_height'], help="input image height")
     parser.add_argument("--hr_width", type=int, default=default_dict['hr_width'], help="input image width")
+    parser.add_argument("--hw", type=int, default=None, nargs='+', help="specify image height and width at once")
     parser.add_argument("-r", "--hyper_results", type=str, default=None, help="if used, show hyperparameter search results")
     parser.add_argument("--histogram", nargs="+", default=None, help="what histogram to show if any")
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
@@ -613,12 +607,15 @@ if __name__ == "__main__":
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
 
-    opt = vars(parser.parse_args())
+    opt = parser.parse_args()
+    if opt.hw is not None and len(opt.hw) == 2:
+        opt.hr_height, opt.hr_width = opt.hw
+    opt = vars(opt)
     try:
-        gpu=get_gpu_index()        
-        num_gpus=torch.cuda.device_count()
+        gpu = get_gpu_index()
+        num_gpus = torch.cuda.device_count()
         if gpu >= num_gpus:
-            gpu=np.random.randint(num_gpus)
+            gpu = np.random.randint(num_gpus)
         print('running on gpu index {}'.format(gpu))
     except Exception:
         pass
