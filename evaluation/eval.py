@@ -40,10 +40,9 @@ def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: 
     ls = []
     leg = legendre(l)
     for i in range(img.shape[0]):
-        eta, phi, theta, pt, tmp = [], [], [], [], img[i]
+        tmp = img[i]
 
         idx = np.argsort(tmp.ravel())[-j:][::-1]
-        topN_val = tmp.ravel()[idx]
         row_col = np.c_[np.unravel_index(idx, tmp.shape)]
 
         etabin, phibin = row_col.T
@@ -60,7 +59,7 @@ def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: 
         cos = 0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta))  # from Anja's bach.
         term = ptabs[:, None]*ptabs[None, :]/(ptsum**2)*leg(cos)
         ls.append(float(term.sum()))
-        return [float(x) for x in ls]
+    return [float(x) for x in ls]
 
 
 def get_nth_hardest(arr, n=1):
