@@ -18,7 +18,6 @@ from models import GeneratorRRDB
 from torch.utils.data import DataLoader
 from datasets import *
 
-
 def toArray(x):
     if len(x.shape) == 4:
         return x.permute(0, 2, 3, 1).cpu().numpy()[..., 0]
@@ -35,9 +34,9 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale).to(device).eval()
     generator.thres = args.threshold
-    generator.load_state_dict(torch.load(args.model,map_location=device))
+    generator.load_state_dict(torch.load(args.model, map_location=device))
     criterion = torch.nn.L1Loss()
     mse = torch.nn.MSELoss()
     sumpool = SumPool2d(args.factor)
@@ -87,9 +86,9 @@ def subplot(N, M, num, img, title=''):
     plt.ylabel('$\\eta$')
     plt.xlabel('$\\varphi$')
     if colors:
-        plt.imshow(img, cmap='hot_r', norm=col.LogNorm(),vmax=vmax)
+        plt.imshow(img, cmap='hot_r', norm=col.LogNorm(), vmax=vmax)
     else:
-        plt.imshow(img, cmap='gray',vmax=vmax)
+        plt.imshow(img, cmap='gray', vmax=vmax)
 
 
 if __name__ == "__main__":
@@ -110,6 +109,7 @@ if __name__ == "__main__":
     parser.add_argument("--vmax", type=float, default=None, help="maximum value in the plots")
     parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
+    parser.add_argument("--res_scale", type=float, default=default_dict['res_scale'], help="residual scaling factor for the generator")
 
     args = parser.parse_args()
     global colors, vmax
