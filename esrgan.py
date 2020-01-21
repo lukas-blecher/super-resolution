@@ -59,6 +59,7 @@ def get_parser():
     parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
     parser.add_argument("--lambda_pow", type=float, default=default.lambda_pow, help="loss weight for multiple hr L1 pixel loss")
+    parser.add_argument("--lambda_hit", type=float, default=default.lambda_hit, help="loss weight for hitogram loss")
     parser.add_argument("--scaling_power", type=float, default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
@@ -89,6 +90,7 @@ def get_parser():
     parser.add_argument("--drop_rate", type=float, default=default.drop_rate, help="drop rate for the Generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="residual weighting factor")
     parser.add_argument("--lambda_reg", type=float, default=default.lambda_reg, help="Regularization weighting factor for gradient penalty")
+    parser.add_argument("--hit_threshold", type=float, default=default.hit_threshold, help='threshold for generating the hitogram')
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -247,7 +249,7 @@ def train(opt, **kwargs):
     #  Training
     # ----------
     loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'def_loss',
-                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss']}
+                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -345,7 +347,7 @@ def train(opt, **kwargs):
                 del nnz
 
             # Main training loop
-            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser = [torch.zeros(1, device=device, dtype=torch.float32) for _ in range(10)]
+            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
             # Generate a high resolution image from low resolution input
             generated = pointerList(generator(imgs_lr))
             generated.append(generator.srs)
@@ -400,8 +402,12 @@ def train(opt, **kwargs):
                         gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
                         real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
+                    if opt.lambda_hit > 0 and wait('hit'):
+                        gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)
+                        target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
+                        loss_hit += mse(gen_hit, target)
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                        loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser
+                        loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser +opt.lambda_hit * loss_hit
                     # Total generator loss
                     loss_G += lambdas[k] * tot_loss[k]
             loss_G.backward()
@@ -453,9 +459,9 @@ def train(opt, **kwargs):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f]"
+                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
