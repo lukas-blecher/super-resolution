@@ -36,30 +36,21 @@ gpu = 0
 def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
     img = np.squeeze(arr)
     bins = img.shape[1]
-    #print('bins: ', bins, ' l: ', l, ' j: ', j)
-    ls = []
     leg = legendre(l)
-    for i in range(img.shape[0]):
-        tmp = img[i]
+    idx = np.argsort(img.reshape(len(img), -1))[:, -j:][:, ::-1]
+    etabin, phibin = np.array(np.unravel_index(idx, img.shape)[1:])
+    eta = etabin*2*etarange/bins-etarange
+    phi = phibin*2*phirange/bins-phirange
+    theta = 2*np.arctan(np.exp(-eta))  # formula for theta(eta)
+    ptabs = np.abs(img[np.repeat(np.arange(len(img)), j).reshape(-1, j), etabin, phibin])
 
-        idx = np.argsort(tmp.ravel())[-j:][::-1]
-        row_col = np.c_[np.unravel_index(idx, tmp.shape)]
-
-        etabin, phibin = row_col.T
-        eta = etabin*2*etarange/bins-etarange
-        phi = phibin*2*phirange/bins-phirange
-        theta = 2*np.arctan(np.exp(-eta))  # formula for theta(eta)
-        ptabs = np.abs(tmp[etabin, phibin]).flatten()
-
-        ptsum = np.sum(ptabs)
-        eta, theta, phi = np.array(eta), np.array(theta), np.array(phi)
-        dtheta = theta[:, None]-theta[None, :]
-        stheta = theta[:, None]+theta[None, :]
-        dphi = phi[:, None]-phi[None, :]
-        cos = 0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta))  # from Anja's bach.
-        term = ptabs[:, None]*ptabs[None, :]/(ptsum**2)*leg(cos)
-        ls.append(float(term.sum()))
-    return [float(x) for x in ls]
+    ptsum = np.sum(ptabs, axis=1)
+    dtheta = theta[:, :, None]-theta[:, None, :]
+    stheta = theta[:, :, None]+theta[:, None, :]
+    dphi = phi[:, :, None]-phi[:, None, :]
+    cos = 0.5*(np.cos(dtheta)-np.cos(stheta))*np.cos(dphi) + 0.5*(np.cos(dtheta)+np.cos(stheta))  # from Anja's bach.
+    term = ptabs[:, :, None]*ptabs[:, None, :]/(ptsum[:, None, None]**2)*leg(cos)
+    return term.sum((1, 2)).tolist()
 
 
 def get_nth_hardest(arr, n=1):
@@ -98,15 +89,10 @@ def w_hist(info, i=0):
     # extract w masses for each picture in batch:
     for k in range(len(info)):
         total_entries += 1
-
         jet = np.array(info[k], dtype=dtype)
-
         sequence = cluster(jet, R=0.8, p=1)  # use kt-alg with a jet radius of 0.8 (same as top sample generation)
-
         jet = sequence.inclusive_jets()
-
         jet_2subs = sequence.exclusive_jets(2)  # go back in clustering history to where there have been 2 subjets
-
         # check if top mass is reasonable:
         if (jet[0].mass > 140. and jet[0].mass < 200.):
             w_hist.append(float(jet_2subs[0].mass))  # assume W coincides with hardest subjet, not always true but negligible
@@ -192,6 +178,7 @@ class MultHist:
             'R_nm' plots the ratio of the nth and mth hardest consts, eg R_25 for ratio of second and fifth hardest NOTE: atm n AND m have to be smaller 10 ie 1 digit
             'deltaR_nm' plots deltaR distribution for nth and mth hardest constituents
             'hitogram' returns the gives insight in how the constituents are distributed in the super resolved image
+            'FWM_i_j' plots the fox wolfram moments for the ith hardest constituent with respect to the 1...j hardest.
  '''
 
     def __init__(self, num, mode='max', factor=None):
@@ -214,21 +201,7 @@ class MultHist:
         elif self.mode == 'hitogram':
             self.raster = SumRaster(factor)
         elif 'FWM' in self.mode:
-            st1 = ''
-            st2 = ''
-            cnt = 0
-            l = 0
-            j = 0
-            for j, ch in enumerate(self.mode):
-                if j > 3:
-                    if ch != '_' and cnt == 0:
-                        st1 += ch
-                    elif ch == '_':
-                        cnt = 1
-                    if ch != '_' and cnt == 1:
-                        st2 += ch
-            self.l = int(st1)
-            self.j = int(st2)
+            self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
 
     def append(self, *argv):
         assert len(argv) == self.num

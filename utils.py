@@ -324,7 +324,7 @@ class BatchRaster:
 
 class SumRaster:
     def __init__(self, factor, threshold=.1):
-        self.sr, self.hr = [torch.zeros(factor, factor) for _ in range(2)]
+        self.sr, self.hr = [torch.zeros(factor, factor).bool() for _ in range(2)]
         self.factor = factor
         self.threshold = threshold
 
