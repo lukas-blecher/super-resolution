@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import os
 
+
 def toUInt(x):
     return np.squeeze(x*255/x.max()).astype(np.uint8)
 
@@ -245,98 +246,24 @@ def nnz_mask(x, sigma=5e4):
     return torch.sigmoid(sigma*x)
 
 
-class Raster:
-    'iterator for HR and SR images to compare them'
-
-    def __init__(self, factor, SR, HR):
-        self.factor = factor
-        self.SR = SR
-        self.HR = HR
-        self.L = SR.shape[-1]
-        self.num = int(np.floor((self.L-self.factor)/self.factor+1)**2)
-        self.pos, self.x, self.y = 0, 0, 0
-        self.nnzLR = 0
-
-    def __iter__(self):
-        return self
-
-    def __len__(self):
-        return self.num
-
-    def get_of(self, t):
-        f = self.factor
-        return t[..., self.y:self.y+f, self.x:self.x+f]
-
-    def __next__(self):
-        if self.pos == self.num:
-            raise StopIteration
-        sr = self.get_of(self.SR)
-        hr = self.get_of(self.HR)
-        if (hr != 0).sum().item() > 0:
-            self.nnzLR += 1
-        self.pos += 1
-        self.x += self.factor
-        if self.x >= self.L:
-            self.y += self.factor
-            self.x = 0
-        return torch.squeeze(sr), torch.squeeze(hr)
-
-    def reset(self):
-        self.pos, self.x, self.y, self.nnzLR = 0, 0, 0, 0
-
-
-class BatchRaster:
-    'saves multiple SR-HR pairs for later iteration'
-
-    def __init__(self, factor):
-        self.rasters = []
-        self.factor = factor
-        self.pos = 0
-
-    def __len__(self):
-        return sum([len(r) for r in self.rasters])
-
-    def __iter__(self):
-        return self
-
-    def append(self, SR, HR):
-        if len(SR.shape) == 3:
-            SR = SR.unsqueeze(0)
-            HR = HR.unsqueeze(0)
-        assert len(SR.shape) == 4 and len(HR.shape) == 4, 'incorrect shape'
-        for i in range(len(SR)):
-            self.rasters.append(Raster(self.factor, SR[i].unsqueeze(0), HR[i].unsqueeze(0)))
-
-    def __next__(self):
-        if self.pos >= len(self.rasters):
-            raise StopIteration
-        try:
-            return next(self.rasters[self.pos])
-        except StopIteration:
-            self.pos += 1
-            return next(self)
-
-    def reset(self):
-        self.pos = 0
-        for r in self.rasters:
-            r.reset()
-
-
 class SumRaster:
-    def __init__(self, factor, threshold=.1):
-        self.sr, self.hr = [torch.zeros(factor, factor).bool() for _ in range(2)]
+    def __init__(self, factor, height=None, width=None, threshold=.1):
+        self.width, self.height = width, height
         self.factor = factor
         self.threshold = threshold
+        if width is None:
+            self.width = height
+        self.sr, self.hr = [np.zeros((factor, factor)) for _ in range(2)]
 
     def add(self, SR, HR):
-        br = BatchRaster(self.factor)
-        br.append(SR, HR)
-        for s, h in br:
-            self.sr += (s > self.threshold)
-            self.hr += (h > self.threshold)
-    
-    def reset(self):
-        pass
+        if self.height is None:
+            self.height = HR.shape[-2]
+        if self.width is None:
+            self.width = HR.shape[-1]
+        self.sr += (np.array(np.split(np.array(np.split(SR.numpy(), self.height//self.factor, -2)),
+                                      self.width//self.factor, -1)) > self.threshold).sum((0, 1, 2, 3))
+        self.hr += (np.array(np.split(np.array(np.split(HR.numpy(), self.height//self.factor, -2)),
+                                      self.width//self.factor, -1)) > self.threshold).sum((0, 1, 2, 3))
 
     def get_hist(self):
         return self.sr, self.hr
@@ -368,13 +295,14 @@ def plot_hist2d(sr, hr, cmap='viridis'):
     f.colorbar(gt, cax=cbar_ax)
     return f
 
+
 def get_gpu_index():
     try:
         os.system('qstat > q.txt')
-        q=open('q.txt', 'r').read()
-        ids=[x.split('.gpu02')[0] for x in q.split('\n')[2:-1]]
-        os.system('qstat -f %s > q.txt'%ids[-1])
-        f=open('q.txt', 'r').read()
+        q = open('q.txt', 'r').read()
+        ids = [x.split('.gpu02')[0] for x in q.split('\n')[2:-1]]
+        os.system('qstat -f %s > q.txt' % ids[-1])
+        f = open('q.txt', 'r').read()
     except:
         pass
     try:
