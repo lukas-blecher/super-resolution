@@ -177,6 +177,7 @@ def train(opt, **kwargs):
     criterion_pixel = nn.L1Loss().to(device)
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
+    criterion_hit=nn.KLDivLoss(reduction='sum')
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -237,7 +238,7 @@ def train(opt, **kwargs):
         num_workers=opt.n_cpu,
         pin_memory=True
     )
-    eps = 1e-10
+    eps = 1e-7
     pool = SumPool2d(opt.factor).to(device)
     WasserDist = SinkhornDistance(opt.sinkhorn_eps, 100, 'sum').to(device)
     e_max = 50  # random initialization number for the maximal pixel value
@@ -403,9 +404,9 @@ def train(opt, **kwargs):
                         real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                     if opt.lambda_hit > 0 and wait('hit'):
-                        gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)
+                        gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)+eps
                         target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
-                        loss_hit += mse(gen_hit, target)
+                        loss_hit += criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                         loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser +opt.lambda_hit * loss_hit
                     # Total generator loss
@@ -531,7 +532,7 @@ def train(opt, **kwargs):
                             try:
                                 info['saved_batch'][epoch] = batches_done
                             except KeyError:
-                                info['saved_batch'] = {epoch: batches_done}
+                                info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
                             save_weights(epoch)
                     save_info()
 
