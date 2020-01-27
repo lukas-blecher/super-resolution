@@ -530,7 +530,7 @@ def train(opt, **kwargs):
                         best_eval_result = eval_result_mean
                         if opt.smart_save:
                             try:
-                                info['saved_batch'][epoch] = batches_done
+                                info['saved_batch'][epoch] = [batches_done, best_eval_result]
                             except KeyError:
                                 info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
                             save_weights(epoch)
