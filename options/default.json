@@ -68,8 +68,6 @@
     "E_thres": null,
     "seed": null,
     "eval_modes": [
-        "nnz",
-        "meannnz",
         "E_1",
         "E_2",
         "E_3",
