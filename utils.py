@@ -241,15 +241,17 @@ def softgreater(x, val, sigma=5000, delta=0):
     # differentiable verions of torch.where(x>val)
     return torch.sigmoid(sigma * (x-val+delta))
 
+
 def get_hitogram(t, factor, threshold=.1, sig=80):
-    return torch.sigmoid(sig*(torch.cat(torch.split(torch.cat(torch.split(t,factor,-2)),factor,-1))-threshold)).mean((0,1))
+    return torch.sigmoid(sig*(torch.cat(torch.split(torch.cat(torch.split(t, factor, -2)), factor, -1))-threshold)).mean((0, 1))
+
 
 def nnz_mask(x, sigma=5e4):
     return torch.sigmoid(sigma*x)
 
 
 class SumRaster:
-    def __init__(self, factor, height=None, width=None, threshold=.1):
+    def __init__(self, factor, height=None, width=None, threshold=.7):
         self.width, self.height = width, height
         self.factor = factor
         self.threshold = threshold
@@ -312,3 +314,16 @@ def get_gpu_index():
     except:
         pass
     return int([x for x in f.split('\n') if 'exec_host' in x][0].split('/')[1])
+
+
+def factor_shuffle(t, factor):
+    '''shuffles the tensor t in every factor x factor patches'''
+    bs = t.shape[0]
+    hw = t.shape[-1]
+    hwf = hw//factor
+    cut = torch.cat(torch.split(torch.cat(torch.split(t, factor, -2), 1), factor, -1), 1)
+    #idx=torch.cat([torch.randperm(factor**2)[None,:] for _ in range(hwf**2)])
+    idx = torch.cat([torch.randperm(factor**2)[None, :] for _ in range(hwf**2)]).view(hwf**2, -1)
+    perm = cut.view(bs, -1, factor**2)[:, :, idx][:, torch.eye(hwf**2).bool()]
+    perm = perm.view(bs, -1, factor).permute(0, 2, 1).reshape(bs, hw, hw).permute(0, 2, 1)[:, :, torch.arange(hw).t().reshape(factor, -1).t().reshape(-1)]
+    return perm.view(t.shape)

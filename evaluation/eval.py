@@ -7,8 +7,6 @@ else:
     sys.path.insert(0, '..')
 from datasets import *
 from utils import *
-#from evaluation.PSNR_SSIM_metric import calculate_ssim
-#from evaluation.PSNR_SSIM_metric import calculate_psnr
 from torch.utils.data import DataLoader
 from models import GeneratorRRDB, NaiveGenerator
 from options.default import *
@@ -33,7 +31,7 @@ w_veto_gen = 0
 gpu = 0
 
 
-def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
+def FWM(arr, l=1, j=2, etarange=1., phirange=1., power=.5):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
     img = np.squeeze(arr)
     bins = img.shape[1]
     leg = legendre(l)
@@ -42,7 +40,7 @@ def FWM(arr, l=1, j=2, etarange=1., phirange=1.):  # arr: input image batch, l: 
     eta = etabin*2*etarange/bins-etarange
     phi = phibin*2*phirange/bins-phirange
     theta = 2*np.arctan(np.exp(-eta))  # formula for theta(eta)
-    ptabs = np.abs(img[np.repeat(np.arange(len(img)), j).reshape(-1, j), etabin, phibin])
+    ptabs = np.abs(img[np.repeat(np.arange(len(img)), j).reshape(-1, j), etabin, phibin])**power
 
     ptsum = np.sum(ptabs, axis=1)
     dtheta = theta[:, :, None]-theta[:, None, :]
