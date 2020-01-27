@@ -323,7 +323,8 @@ def factor_shuffle(t, factor):
     hwf = hw//factor
     cut = torch.cat(torch.split(torch.cat(torch.split(t, factor, -2), 1), factor, -1), 1)
     #idx=torch.cat([torch.randperm(factor**2)[None,:] for _ in range(hwf**2)])
-    idx = torch.cat([torch.randperm(factor**2)[None, :] for _ in range(hwf**2)]).view(hwf**2, -1)
-    perm = cut.view(bs, -1, factor**2)[:, :, idx][:, torch.eye(hwf**2).bool()]
+    idx = idx = torch.cat([torch.randperm(factor**2)[None, :] for _ in range(bs*hwf**2)]).view(bs, hwf**2, -1)
+    eye = (torch.cat([torch.eye(hwf**2)[None, :] for _ in range(bs)])*torch.arange(1, bs+1)[:, None, None]).bool()
+    perm = cut.view(bs, -1, factor**2)[:, :, idx].permute(2, 0, 1, 3, 4)[:, eye, :][:, :hwf**2]
     perm = perm.view(bs, -1, factor).permute(0, 2, 1).reshape(bs, hw, hw).permute(0, 2, 1)[:, :, torch.arange(hw).t().reshape(factor, -1).t().reshape(-1)]
     return perm.view(t.shape)
