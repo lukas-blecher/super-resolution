@@ -566,7 +566,7 @@ if __name__ == "__main__":
     try:
         train(opt)
     except RuntimeError as e:
-        if 'CUDA' in str(e):
+        if 'cuda' in str(e).lower():
             os.system('nvidia-smi > nsmi.txt')
             raise RuntimeError(open('nsmi.txt', 'r').read(), e)
         else:
