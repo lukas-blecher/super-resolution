@@ -177,6 +177,7 @@ class MultHist:
             'deltaR_nm' plots deltaR distribution for nth and mth hardest constituents
             'hitogram' returns the gives insight in how the constituents are distributed in the super resolved image
             'FWM_i_j' plots the fox wolfram moments for the ith hardest constituent with respect to the 1...j hardest.
+            'meanimg' returns the mean of the hr and sr images
  '''
 
     def __init__(self, num, mode='max', factor=None):
@@ -198,6 +199,8 @@ class MultHist:
             self.softer = self.mode[3]
         elif self.mode == 'hitogram':
             self.raster = SumRaster(factor)
+        elif self.mode == 'meanimg':
+            self.meanimg = MeanImage(factor)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
 
@@ -249,6 +252,8 @@ class MultHist:
 
         if self.mode == 'hitogram':
             self.raster.add(*[T.detach().cpu() for T in argv])
+        elif self.mode == 'meanimg':
+            self.meanimg.add(*[T.detach().cpu().numpy() for T in argv])
 
     def get_range(self):
         mins = [min(self.list[i]) for i in range(self.num)]
@@ -281,7 +286,7 @@ class MultHist:
 class MultModeHist:
     def __init__(self, modes, num='standard', factor=default.factor):
         self.modes = modes
-        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] if '_' not in mode else 3 for mode in self.modes]
         for i in range(len(self.modes)):
@@ -415,11 +420,16 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     total_kld = []
     for m in range(len(modes)):
         plt.figure()
-        # check for hitogram
+        # check for hitogram and mean image
         if modes[m] == 'hitogram':
             f = plot_hist2d(*hhd[m].raster.get_hist())
             if output_path:
                 f.savefig((output_path+"_hitogram").replace(".png", ""))
+            continue
+        elif modes[m] == 'meanimg':
+            f = plot_mean(hhd[m].meanimg)
+            if output_path:
+                f.savefig((output_path+"meanimg").replace(".png", ""))
             continue
         bin_entries = []
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):

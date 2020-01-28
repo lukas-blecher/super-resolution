@@ -273,6 +273,24 @@ class SumRaster:
         return self.sr, self.hr
 
 
+class MeanImage:
+    def __init__(self, factor, height=None, threshold=.7):
+        self.height = height
+        self.factor = factor
+        self.threshold = threshold
+        self.ini = False
+
+    def add(self, SR, HR):
+        if not self.ini:
+            self.ini = True
+            self.height = HR.shape[-2]
+            self.sr, self.hr = [np.zeros((self.height, self.height)) for _ in range(2)]
+        self.sr += (SR > self.threshold).sum((0, 1))
+        self.hr += (HR > self.threshold).sum((0, 1))
+
+    def get_hist(self):
+        return self.sr, self.hr
+
 def make_hist(raster, threshold=.1):
     'Takes a Raster class and returns two histograms each of the shape (factor, factor).'
     raster.reset()
@@ -300,6 +318,28 @@ def plot_hist2d(sr, hr, cmap='viridis'):
     return f
 
 
+def plot_mean(MeanImage):
+    y = (2*MeanImage.factor*4*MeanImage.height//MeanImage.factor-1)/28.2/7.5
+    # y=10
+    f, ax = plt.subplots(1, 2, figsize=(2*y, y))
+    f.patch.set_facecolor('w')
+    axes = ax.flatten()
+    ims = list(MeanImage.get_hist())
+    vmin, vmax = min([ims[i].min() for i in range(2)]), max([ims[i].max() for i in range(2)])
+    for i in range(2):
+        ax = axes[i]
+        im = ax.imshow(ims[i], vmin=vmin, vmax=vmax, aspect='equal', interpolation=None)
+        MeanImage.height = ims[i].shape[0]
+        for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
+                    *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
+            tic.tick1line.set_visible(False)
+            tic.tick2line.set_visible(False)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+    f.colorbar(im, ax=axes.ravel().tolist())
+    return f
+
+
 def get_gpu_index():
     try:
         os.system('qstat > q.txt')
@@ -318,13 +358,13 @@ def get_gpu_index():
 
 def factor_shuffle(t, factor):
     '''shuffles the tensor t in every factor x factor patches'''
+    t=t.cpu()
     bs = t.shape[0]
     hw = t.shape[-1]
     hwf = hw//factor
     cut = torch.cat(torch.split(torch.cat(torch.split(t, factor, -2), 1), factor, -1), 1)
     #idx=torch.cat([torch.randperm(factor**2)[None,:] for _ in range(hwf**2)])
-    idx = idx = torch.cat([torch.randperm(factor**2)[None, :] for _ in range(bs*hwf**2)]).view(bs, hwf**2, -1)
-    eye = (torch.cat([torch.eye(hwf**2)[None, :] for _ in range(bs)])*torch.arange(1, bs+1)[:, None, None]).bool()
-    perm = cut.view(bs, -1, factor**2)[:, :, idx].permute(2, 0, 1, 3, 4)[:, eye, :][:, :hwf**2]
+    idx = torch.cat([torch.randperm(factor**2)[None, :] for _ in range(hwf**2)]).view(hwf**2, -1)
+    perm = cut.view(bs, -1, factor**2)[:, :, idx][:, torch.eye(hwf**2).bool()]
     perm = perm.view(bs, -1, factor).permute(0, 2, 1).reshape(bs, hw, hw).permute(0, 2, 1)[:, :, torch.arange(hw).t().reshape(factor, -1).t().reshape(-1)]
     return perm.view(t.shape)
