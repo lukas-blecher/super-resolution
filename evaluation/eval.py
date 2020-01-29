@@ -418,19 +418,23 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         print('hist entries real / gen: ', entries_real, entries_gen)
     global show
     total_kld = []
+    kldiv=nn.KLDivLoss(reduction='sum')
     for m in range(len(modes)):
-        plt.figure()
         # check for hitogram and mean image
-        if modes[m] == 'hitogram':
-            f = plot_hist2d(*hhd[m].raster.get_hist())
+        if modes[m] in ('hitogram','meanimg'):
+            if modes[m] == 'hitogram':
+                sr,hr=hhd[m].raster.get_hist()
+                f = plot_hist2d(sr,hr)
+            elif modes[m] == 'meanimg':
+                sr,hr=hhd[m].meanimg.get_hist()
+                f = plot_mean(hhd[m].meanimg)
+            sr,hr=.1+torch.Tensor(sr)[None,None,...],.1+torch.Tensor(hr)[None,None,...]
             if output_path:
-                f.savefig((output_path+"_hitogram").replace(".png", ""))
+                f.savefig((output_path+modes[m]).replace(".png", ""))
+            total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
             continue
-        elif modes[m] == 'meanimg':
-            f = plot_mean(hhd[m].meanimg)
-            if output_path:
-                f.savefig((output_path+"meanimg").replace(".png", ""))
-            continue
+        
+        plt.figure()
         bin_entries = []
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
             if hhd.nums[m] == i:
@@ -490,7 +494,7 @@ def evaluate_results(file):
     # print constant arguments
     hline()
     for key, value in results.items():
-        if key not in ('results', 'validation', 'binedges', 'loss'):
+        if key not in ('results', 'validation', 'binedges', 'loss', 'eval_results'):
             print(key, '\t'*(2*tmax-ts(key)), value)
     hline()
     val = False

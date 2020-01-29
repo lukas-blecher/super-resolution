@@ -5,7 +5,7 @@
     "batch_size": 8,
     "factor": 2,
     "pre_factor": 1,
-    "lr": 0.0002
+    "lr": 0.0002,
     "lr_g": 0.0,
     "lr_d": 0.0,
     "b1": 0.9,
@@ -77,7 +77,8 @@
         "E_5",
         "E_10",
         "E_20",
-        "E_30"
+        "E_30",
+        "meanimg"
     ],
     "drop_rate": 0,
     "res_scale": 0.2,
