@@ -562,8 +562,8 @@ if __name__ == "__main__":
         if gpu >= num_gpus:
             gpu = np.random.randint(num_gpus)
         print('running on gpu index {}'.format(gpu))
-    except Exception:
-        pass
+    except Exception as e:
+        print(e)
     opt = get_parser()
     try:
         train(opt)

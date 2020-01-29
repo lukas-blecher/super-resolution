@@ -319,24 +319,37 @@ def plot_hist2d(sr, hr, cmap='viridis'):
 
 
 def plot_mean(MeanImage):
-    y = (2*MeanImage.factor*4*MeanImage.height//MeanImage.factor-1)/28.2/7.5
-    # y=10
-    f, ax = plt.subplots(1, 2, figsize=(2*y, y))
+    f, ax = plt.subplots(1, 2)
+    plt.subplots_adjust(wspace=.7)
     f.patch.set_facecolor('w')
     axes = ax.flatten()
     ims = list(MeanImage.get_hist())
-    vmin, vmax = min([ims[i].min() for i in range(2)]), max([ims[i].max() for i in range(2)])
     for i in range(2):
         ax = axes[i]
-        im = ax.imshow(ims[i], vmin=vmin, vmax=vmax, aspect='equal', interpolation=None)
-        MeanImage.height = ims[i].shape[0]
-        for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
-                    *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
-            tic.tick1line.set_visible(False)
-            tic.tick2line.set_visible(False)
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-    f.colorbar(im, ax=axes.ravel().tolist())
+        image = ims[i]
+        im = ax.imshow(image, aspect='equal', interpolation=None)
+        space = .3
+        (left, bottom), (width, height) = ax.get_position().__array__()
+        rect_histx = [left, height, (width-left), (height-bottom)*space]
+        rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
+        rect_col = [width, bottom, 0.02, height-bottom]
+
+        axHistx = plt.axes(rect_histx)
+        axHistx.plot(image.sum(0))
+        axHistx.set_title(['prediction', 'ground truth'][i])
+        axHisty = plt.axes(rect_histy)
+        axHisty.invert_yaxis()
+        axHisty.invert_xaxis()
+        axHisty.plot(image.sum(1), np.arange(image.shape[0]))
+        axCol = plt.axes(rect_col)
+        f.colorbar(im, cax=axCol, ax=ax)
+        for ax in (ax, axHisty, axHistx):
+            for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
+                        *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
+                tic.tick1line.set_visible(False)
+                tic.tick2line.set_visible(False)
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
     return f
 
 
@@ -358,7 +371,7 @@ def get_gpu_index():
 
 def factor_shuffle(t, factor):
     '''shuffles the tensor t in every factor x factor patches'''
-    t=t.cpu()
+    t = t.cpu()
     bs = t.shape[0]
     hw = t.shape[-1]
     hwf = hw//factor
