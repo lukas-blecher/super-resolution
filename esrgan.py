@@ -61,7 +61,7 @@ def get_parser():
     parser.add_argument("--lambda_nnz", type=float, default=default.lambda_nnz, help="loss weight for amount of non zero pixels")
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
     parser.add_argument("--lambda_pow", type=float, default=default.lambda_pow, help="loss weight for multiple hr L1 pixel loss")
-    parser.add_argument("--lambda_hit", type=float, default=default.lambda_hit, help="loss weight for hitogram loss")
+    parser.add_argument("--lambda_hit", type=float, default=default.lambda_hit, help="loss weight for mean image loss")
     parser.add_argument("--scaling_power", type=float, default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
@@ -179,7 +179,7 @@ def train(opt, **kwargs):
     criterion_pixel = nn.L1Loss().to(device)
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
-    criterion_hit=nn.KLDivLoss(reduction='sum')
+    criterion_hit = nn.KLDivLoss(reduction='batchmean')
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -238,7 +238,7 @@ def train(opt, **kwargs):
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu,
-        pin_memory=True
+        #pin_memory=True
     )
     eps = 1e-7
     pool = SumPool2d(opt.factor).to(device)
@@ -350,7 +350,8 @@ def train(opt, **kwargs):
                 del nnz
 
             # Main training loop
-            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
+            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [
+                torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
             # Generate a high resolution image from low resolution input
             generated = pointerList(generator(imgs_lr))
             generated.append(generator.srs)
@@ -406,11 +407,10 @@ def train(opt, **kwargs):
                         real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                     if opt.lambda_hit > 0 and wait('hit'):
-                        gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)+eps
-                        target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
-                        loss_hit += criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
+                        gtsum = ground_truth[k].sum((1, 2, 3))[:, None, None, None]+eps
+                        loss_hit += criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None,...].log(), (ground_truth[k]/gtsum).mean(0)[None,...])
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                        loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser +opt.lambda_hit * loss_hit
+                        loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
                     # Total generator loss
                     loss_G += lambdas[k] * tot_loss[k]
             loss_G.backward()
