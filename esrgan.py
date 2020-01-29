@@ -35,7 +35,8 @@ def get_parser():
     parser.add_argument("--dataset_path", type=str, default=default.dataset_path, help="path to the dataset")
     parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet', 'spjet'], default=default.dataset_type, help="how is the dataset saved")
     parser.add_argument("--batch_size", type=int, default=default.batch_size, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=default.lr, help="adam: learning rate")
+    parser.add_argument("--lr_g", type=float, default=default.lr_g, help="adam: learning rate for generator")
+    parser.add_argument("--lr_d", type=float, default=default.lr_d, help="adam: learning rate for discriminator")
     parser.add_argument("--b1", type=float, default=default.b1, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=default.b2, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--n_cpu", type=int, default=default.n_cpu, help="number of cpu threads to use during batch generation")
@@ -221,12 +222,12 @@ def train(opt, **kwargs):
         n_batches = np.inf
 
     # Optimizers
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr_g, betas=(opt.b1, opt.b2))
     optimizer_D = pointerList()
     scheduler_D = pointerList()
     for k in range(2):
         if lambdas[k] > 0:
-            optimizer_D[k] = torch.optim.Adam(Discriminators[k].parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+            optimizer_D[k] = torch.optim.Adam(Discriminators[k].parameters(), lr=opt.lr_d, betas=(opt.b1, opt.b2))
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
