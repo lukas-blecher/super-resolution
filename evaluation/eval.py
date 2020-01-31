@@ -20,6 +20,7 @@ import torch
 from PIL import Image
 from tqdm.auto import tqdm
 from scipy.special import legendre
+import scipy.ndimage as ndimage
 
 show = False
 
@@ -200,7 +201,7 @@ class MultHist:
         elif self.mode == 'hitogram':
             self.raster = SumRaster(factor)
         elif self.mode == 'meanimg':
-            self.meanimg = MeanImage(factor)
+            self.meanimg = MeanImage(factor,preprocess=False)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
 
