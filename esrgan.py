@@ -319,9 +319,9 @@ def train(opt, **kwargs):
 
                     loss_pixel.backward()
                     optimizer_G.step()
-                    for gs in ['g_loss', 'pixel_loss']:
-                        loss_dict[gs].append(loss_pixel.item())
-                    if batches_done % opt.report_freq == 0:
+                    if batches_done % opt.report_freq == 0:                        
+                        for gs in ['g_loss', 'pixel_loss']:
+                            loss_dict[gs].append(loss_pixel.item())
                         print(
                             "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
                             % (i, total_batches, epoch, opt.n_epochs,  loss_pixel.item())
