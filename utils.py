@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 import os
+import scipy.ndimage as ndimage
 
 
 def toUInt(x):
@@ -274,17 +275,21 @@ class SumRaster:
 
 
 class MeanImage:
-    def __init__(self, factor, height=None, threshold=.7):
+    def __init__(self, factor, height=None, threshold=.7,preprocess=False):
         self.height = height
         self.factor = factor
         self.threshold = threshold
         self.ini = False
+        self.preprocess = preprocess
 
     def add(self, SR, HR):
         if not self.ini:
             self.ini = True
             self.height = HR.shape[-2]
             self.sr, self.hr = [np.zeros((self.height, self.height)) for _ in range(2)]
+        if self.preprocess == True:
+            SR = preprocessing(SR)
+            HR = preprocessing(HR)
         self.sr += (SR > self.threshold).sum((0, 1))
         self.hr += (HR > self.threshold).sum((0, 1))
 
@@ -381,3 +386,40 @@ def factor_shuffle(t, factor):
     perm = cut.view(bs, -1, factor**2)[:, :, idx][:, torch.eye(hwf**2).bool()]
     perm = perm.view(bs, -1, factor).permute(0, 2, 1).reshape(bs, hw, hw).permute(0, 2, 1)[:, :, torch.arange(hw).t().reshape(factor, -1).t().reshape(-1)]
     return perm.view(t.shape)
+
+def preprocessing(batch):
+    out = np.zeros_like(batch)
+    height = batch.shape[1]
+    for i in range(batch.shape[0]):
+        #shift so that hardest hit is in center
+        img = batch[i].squeeze()
+        ind = np.unravel_index(np.argmax(img, axis=None), img.shape)
+        shiftx = ind[0]-(height/2)
+        shifty = ind[1]-(height/2)
+        img_trans = ndimage.shift(img,[-shiftx,-shifty],order=0,prefilter=False)
+        # resize img, rotate, then resize backwards
+        img_trans_big = ndimage.zoom(img_trans,zoom=4,order=0)
+        x2 = np.where(img_trans == np.unique(np.sort(img_trans.flatten()))[-2])
+        if len(x2[0]) > 1: #check if there are multiple pixels with same entry
+            x2 = x2[0][0],x2[1][0]
+        rotangle = np.rad2deg(float(np.arctan2(x2[0]-(height/2),x2[1]-(height/2)))) - 90
+        
+        img_trans_big_rot= rotateImage(img_trans_big,angle=rotangle,pivot=(height*2,height*2))
+        img_trans_rot = ndimage.zoom(img_trans_big_rot,zoom=0.25,order=0)
+        
+        #check whether or not to flip image
+        x3 = np.where(img_trans_rot == np.unique(np.sort(img_trans_rot.flatten()))[-3])
+        if len(x3[0]) > 1: #check if there are multiple pixels with same entry
+            x3 = x3[0][0],x3[1][0]
+        
+        if x3[1] < (height/2):
+            img_trans_rot=np.fliplr(img_trans_rot)
+        out[i] = img_trans_rot
+    return out
+
+def rotateImage(img, angle, pivot):
+    padX = [img.shape[1] - pivot[0], pivot[0]]
+    padY = [img.shape[0] - pivot[1], pivot[1]]
+    imgP = np.pad(img, [padY, padX], 'constant')
+    imgR = ndimage.rotate(imgP, angle, reshape=False,order=0)
+    return imgR[padY[0] : -padY[1], padX[0] : -padX[1]]
