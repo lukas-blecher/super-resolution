@@ -201,7 +201,10 @@ class MultHist:
         elif self.mode == 'hitogram':
             self.raster = SumRaster(factor)
         elif self.mode == 'meanimg':
-            self.meanimg = MeanImage(factor,preprocess=False)
+            self.preprocess = False
+            if opt.preprocessing:
+                self.preprocess = True
+            self.meanimg = MeanImage(factor,preprocess=self.preprocess)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
 
@@ -591,6 +594,8 @@ if __name__ == "__main__":
     parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
+    parser.add_argument("--preprocessing", action="store_true", help="preprocess pictures used for meanimg")
+
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
