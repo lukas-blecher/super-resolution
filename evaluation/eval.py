@@ -202,8 +202,11 @@ class MultHist:
             self.raster = SumRaster(factor)
         elif self.mode == 'meanimg':
             self.preprocess = False
-            if opt.preprocessing:
-                self.preprocess = True
+            try:
+                if opt.preprocessing:
+                    self.preprocess = True
+            except NameError:
+                self.preprocess = False
             self.meanimg = MeanImage(factor,preprocess=self.preprocess)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
