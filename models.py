@@ -155,6 +155,7 @@ class Markovian_Discriminator(nn.Module):
 class Standard_Discriminator(Markovian_Discriminator):
     def __init__(self, input_shape, channels):
         super(Standard_Discriminator, self).__init__(input_shape, channels)
+        self.model = self.model[:-1]
         # fully connected layers
         self.fc = nn.Sequential(nn.Linear(self.channels[-1]*self.output_shape[-2]*self.output_shape[-1], 256), nn.ReLU(), nn.Linear(256, 1))
         self.output_shape = (1,)
