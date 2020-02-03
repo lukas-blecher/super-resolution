@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import json
 import argparse
 import os
+import glob
 
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
@@ -24,8 +25,13 @@ def plot_losses(j, file, ax):
 
     for i, k in enumerate(loss.keys()):
         ax[i].set_title(k)
-        start = 0 if len(loss[k]) == len(batches) else warmup
-        ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name)
+        try:
+            start = 0 if len(loss[k]) == len(batches) else warmup
+            ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name)
+        except ValueError:
+            start = 0 if len(loss[k]) == len(batches) else warmup//info['argument']['report_freq']
+            ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name)
+
         if i in range(N-a, N):
             ax[i].set_xlabel('iterations')
         if i == 0:
@@ -36,6 +42,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', type=str, nargs='+', required=True, help='info file with loss')
     args = parser.parse_args()
+    if len(args.file)==1:
+        args.file = glob.glob(args.file[0])
     with open(args.file[0]) as f:
         info = json.load(f)
     if not 'loss' in info:
