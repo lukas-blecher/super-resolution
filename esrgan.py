@@ -39,7 +39,7 @@ def get_parser():
     parser.add_argument("--lr_g", type=float, default=default.lr_g, help="adam: learning rate for generator")
     parser.add_argument("--lr_d", type=float, default=default.lr_d, help="adam: learning rate for discriminator")
     parser.add_argument("--b1", type=float, default=default.b1, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--b2", type=float, default=default.b2, help="adam: decay of first order momentum of gradient")  
+    parser.add_argument("--b2", type=float, default=default.b2, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--l2decay", type=float, default=default.l2decay, help="adam: L2 regularization parameter")
     parser.add_argument("--n_cpu", type=int, default=default.n_cpu, help="number of cpu threads to use during batch generation")
     parser.add_argument("--hr_height", type=int, default=default.hr_height, help="high res. image height")
@@ -224,7 +224,7 @@ def train(opt, **kwargs):
         n_batches = np.inf
 
     # Optimizers
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr_g if opt.lr_g > 0 else opt.lr, betas=(opt.b1, opt.b2),weight_decay=opt.l2decay)
+    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr_g if opt.lr_g > 0 else opt.lr, betas=(opt.b1, opt.b2), weight_decay=opt.l2decay)
     optimizer_D = pointerList()
     scheduler_D = pointerList()
     for k in range(2):
@@ -239,7 +239,7 @@ def train(opt, **kwargs):
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu,
-        #pin_memory=True
+        # pin_memory=True
     )
     eps = 1e-7
     pool = SumPool2d(opt.factor).to(device)
@@ -320,7 +320,7 @@ def train(opt, **kwargs):
 
                     loss_pixel.backward()
                     optimizer_G.step()
-                    if batches_done % opt.report_freq == 0:                        
+                    if batches_done % opt.report_freq == 0:
                         for gs in ['g_loss', 'pixel_loss']:
                             loss_dict[gs].append(loss_pixel.item())
                         print(
@@ -383,7 +383,7 @@ def train(opt, **kwargs):
 
                         if opt.relativistic:
                             # Adversarial loss (relativistic average GAN)
-                            loss_GAN += criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid)
+                            loss_GAN += .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) + criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
                         else:
                             loss_GAN += criterion_GAN(eps + pred_fake, valid)
                     if opt.lambda_nnz > 0 and wait('nnz'):
@@ -409,7 +409,7 @@ def train(opt, **kwargs):
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                     if opt.lambda_hit > 0 and wait('hit'):
                         gtsum = ground_truth[k].sum((1, 2, 3))[:, None, None, None]+eps
-                        loss_hit += criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None,...].log(), (ground_truth[k]/gtsum).mean(0)[None,...])
+                        loss_hit += criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None, ...].log(), (ground_truth[k]/gtsum).mean(0)[None, ...])
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                         loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
                     # Total generator loss
