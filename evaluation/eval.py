@@ -315,7 +315,7 @@ def call_func(opt):
     bins = opt.bins if 'bins' in dopt else default.bins
 
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power, res_scale=opt.res_scale).to(device)
-    generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=torch.device(device)))
+    generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=device))
     if opt.E_thres:
         generator.thres = opt.E_thres
     if 'naive_generator' in dopt:

@@ -184,12 +184,12 @@ def train(opt, **kwargs):
 
     if opt.load_checkpoint:
         # Load pretrained models
-        generator.load_state_dict(torch.load(opt.load_checkpoint))
+        generator.load_state_dict(torch.load(opt.load_checkpoint, map_location=device))
         generator_file = os.path.basename(opt.load_checkpoint)
         for k in range(2):
             if lambdas[k] > 0:
                 try:
-                    Discriminators[k].load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', ['discriminator', 'discriminator_pow'][k]))))
+                    Discriminators[k].load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', ['discriminator', 'discriminator_pow'][k])), map_location=device))
                 except FileNotFoundError:
                     pass
         # extract model name if no name specified
@@ -372,10 +372,10 @@ def train(opt, **kwargs):
             for k in range(2):
                 if lambdas[k] > 0:
                     # Measure pixel-wise loss against ground truth
-                    loss_pixel += criterion_pixel(generated[k], ground_truth[k])
+                    loss_pixel = criterion_pixel(generated[k], ground_truth[k])
                     if opt.lambda_lr > 0 and wait('lr'):
                         # Measure pixel-wise loss against ground truth for downsampled images
-                        loss_lr_pixel += criterion_pixel(generated_lr[k], ground_truth_lr[k])
+                        loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
                     if opt.lambda_adv > 0 and wait('adv'):
                         # Extract validity generated[k]s from discriminator
                         pred_real = Discriminators[k](ground_truth[k]).detach()
@@ -383,17 +383,18 @@ def train(opt, **kwargs):
 
                         if opt.relativistic:
                             # Adversarial loss (relativistic average GAN)
-                            loss_GAN += .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) + criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
+                            loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                                           criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
                         else:
-                            loss_GAN += criterion_GAN(eps + pred_fake, valid)
+                            loss_GAN = criterion_GAN(eps + pred_fake, valid)
                     if opt.lambda_nnz > 0 and wait('nnz'):
                         gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                         target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
-                        loss_nnz += mse(gen_nnz, target)
+                        loss_nnz = mse(gen_nnz, target)
                     if opt.lambda_mask > 0 and wait('mask'):
                         gen_mask = nnz_mask(generated[k])
                         real_mask = nnz_mask(ground_truth[k])
-                        loss_mask += criterion_pixel(gen_mask, real_mask)
+                        loss_mask = criterion_pixel(gen_mask, real_mask)
                     if opt.lambda_hist > 0 and wait('hist'):
                         # calculate the energy distribution loss
                         # first calculate the both histograms
@@ -401,7 +402,7 @@ def train(opt, **kwargs):
                         real_nnz = ground_truth[k][ground_truth[k] > 0]
                         gen_hist = histograms[k](gen_nnz)
                         real_hist = histograms[k](real_nnz)
-                        loss_hist += criterion_hist[k](gen_hist, real_hist)
+                        loss_hist = criterion_hist[k](gen_hist, real_hist)
                         # print(gen_hist,real_hist,loss_hist)
                     if opt.lambda_wasser > 0 and wait('wasser'):
                         gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
@@ -409,7 +410,7 @@ def train(opt, **kwargs):
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                     if opt.lambda_hit > 0 and wait('hit'):
                         gtsum = ground_truth[k].sum((1, 2, 3))[:, None, None, None]+eps
-                        loss_hit += criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None, ...].log(), (ground_truth[k]/gtsum).mean(0)[None, ...])
+                        loss_hit = criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None, ...].log(), (ground_truth[k]/gtsum).mean(0)[None, ...])
                     tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                         loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
                     # Total generator loss
@@ -562,9 +563,10 @@ if __name__ == "__main__":
         num_gpus = torch.cuda.device_count()
         if gpu >= num_gpus:
             gpu = np.random.randint(num_gpus)
-        print('running on gpu index {}'.format(gpu))
     except Exception as e:
         print(e)
+    
+    print('running on gpu index {}'.format(gpu))
     opt = get_parser()
     try:
         train(opt)
