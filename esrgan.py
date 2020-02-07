@@ -162,7 +162,7 @@ def train(opt):
             loss_content = criterion_content(gen_features, real_features)
 
             # Total generator loss
-            loss_G = loss_content + opt.lambda_adv * loss_GAN + opt.lambda_pixel * loss_pixel
+            loss_G = opt.lambda_cont * loss_content + opt.lambda_adv * loss_GAN + opt.lambda_pixel * loss_pixel
 
             loss_G.backward()
             optimizer_G.step()
