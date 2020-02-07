@@ -47,7 +47,7 @@ def get_parser():
     parser.add_argument("--name", type=str, default=default.name, help='name of the model')
     parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
     parser.add_argument("--model_path", type=str, default=default.model_path, help="where the model is saved/should be saved")
-
+    parser.add_argument("--d_channels", type=int, nargs='+', default=[64, 128, 256, 512], help="number of channels for the discriminator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
     parser.add_argument("--n_batches", type=int, default=default.n_batches, help="number of batches of training")
