@@ -20,6 +20,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+gpu = 0
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -57,11 +59,27 @@ def get_parser():
     return opt
 
 
+def get_gpu_index():
+    try:
+        os.system('qstat > q.txt')
+        q = open('q.txt', 'r').read()
+        ids = [x.split('.gpu02')[0] for x in q.split('\n')[2:-1]]
+        os.system('qstat -f %s > q.txt' % ids[-1])
+        f = open('q.txt', 'r').read()
+    except:
+        pass
+    try:
+        os.remove('q.txt')
+    except:
+        pass
+    return int([x for x in f.split('\n') if 'exec_host' in x][0].split('/')[1])
+
+
 def train(opt):
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:%i" % gpu if torch.cuda.is_available() else "cpu")
 
     hr_shape = (opt.hr_height, opt.hr_width)
 
@@ -99,7 +117,7 @@ def train(opt):
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
 
-    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
+    #Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataloader = DataLoader(
         #ImageDataset(opt.dataset_path, hr_shape=hr_shape),
         STLDataset(opt.dataset_path, factor=opt.factor),
@@ -118,12 +136,12 @@ def train(opt):
             batches_done = epoch * len(dataloader) + i
 
             # Configure model input
-            imgs_lr = Variable(imgs["lr"].type(Tensor))
-            imgs_hr = Variable(imgs["hr"].type(Tensor))
+            imgs_lr = imgs["lr"].to(device)
+            imgs_hr = imgs["hr"].to(device)
             batch_size = len(imgs_lr)
             # Adversarial ground truths
-            valid = Variable(Tensor(np.ones((batch_size, *discriminator.output_shape))), requires_grad=False)
-            fake = Variable(Tensor(np.zeros((batch_size, *discriminator.output_shape))), requires_grad=False)
+            valid = np.ones((batch_size, *discriminator.output_shape)).to(device)
+            fake = np.zeros((batch_size, *discriminator.output_shape)).to(device)
 
             # ------------------
             #  Train Generators
@@ -234,4 +252,5 @@ def train(opt):
 
 if __name__ == "__main__":
     opt = get_parser()
+    gpu = get_gpu_index()
     train(opt)
