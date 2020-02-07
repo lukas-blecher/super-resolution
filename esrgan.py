@@ -41,8 +41,8 @@ def get_parser():
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
     parser.add_argument("--lambda_pixel", type=float, default=default.lambda_pixel, help="pixel-wise loss weight")
-    parser.add_argument("--lambda_cont", type=float,default=default.lambda_cont, help="content loss weight")
-    parser.add_argument("--lambda_reg", type=float,default=0, help="gp loss weight")
+    parser.add_argument("--lambda_cont", type=float, default=default.lambda_cont, help="content loss weight")
+    parser.add_argument("--lambda_reg", type=float, default=0, help="gp loss weight")
     parser.add_argument("--root", type=str, default=default.root, help="root directory for the model")
     parser.add_argument("--name", type=str, default=default.name, help='name of the model')
     parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
@@ -59,7 +59,6 @@ def get_parser():
 
 def train(opt):
 
-    
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -79,7 +78,7 @@ def train(opt):
     criterion_content = torch.nn.L1Loss().to(device)
     criterion_pixel = torch.nn.L1Loss().to(device)
     model_name = '' if opt.name is None else (opt.name + '_')
-    os.makedirs(os.path.join(opt.root, "images/%straining"%model_name), exist_ok=True)
+    os.makedirs(os.path.join(opt.root, "images/%straining" % model_name), exist_ok=True)
     if opt.epoch != 0:
         # Load pretrained models
         generator.load_state_dict(torch.load(
@@ -103,7 +102,7 @@ def train(opt):
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     dataloader = DataLoader(
         #ImageDataset(opt.dataset_path, hr_shape=hr_shape),
-        STLDataset(opt.dataset_path,factor=opt.factor),
+        STLDataset(opt.dataset_path, factor=opt.factor),
         batch_size=opt.batch_size,
         shuffle=True,
         num_workers=opt.n_cpu
@@ -121,10 +120,10 @@ def train(opt):
             # Configure model input
             imgs_lr = Variable(imgs["lr"].type(Tensor))
             imgs_hr = Variable(imgs["hr"].type(Tensor))
-
+            batch_size = len(imgs_lr)
             # Adversarial ground truths
-            valid = Variable(Tensor(np.ones((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
-            fake = Variable(Tensor(np.zeros((imgs_lr.size(0), *discriminator.output_shape))), requires_grad=False)
+            valid = Variable(Tensor(np.ones((batch_size, *discriminator.output_shape))), requires_grad=False)
+            fake = Variable(Tensor(np.zeros((batch_size, *discriminator.output_shape))), requires_grad=False)
 
             # ------------------
             #  Train Generators
@@ -154,7 +153,8 @@ def train(opt):
             pred_fake = discriminator(gen_hr)
 
             # Adversarial loss (relativistic average GAN)
-            loss_GAN = criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), valid)
+            loss_GAN = (criterion_GAN(pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                        criterion_GAN(pred_real - pred_fake.mean(0, keepdim=True), fake))/2
 
             # Content loss
             gen_features = feature_extractor(gen_hr)
@@ -219,7 +219,7 @@ def train(opt):
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
                 img_grid = denormalize(torch.cat((imgs_hr, imgs_lr, gen_hr), -1))
-                save_image(img_grid, os.path.join(opt.root, "images/%straining/%d.png" %(model_name, batches_done)), nrow=1, normalize=False)
+                save_image(img_grid, os.path.join(opt.root, "images/%straining/%d.png" % (model_name, batches_done)), nrow=1, normalize=False)
 
             if (checkpoint_interval != np.inf and batches_done % checkpoint_interval == 0) or (
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
