@@ -45,6 +45,7 @@ def get_parser():
     parser.add_argument("--lambda_pixel", type=float, default=default.lambda_pixel, help="pixel-wise loss weight")
     parser.add_argument("--lambda_cont", type=float, default=default.lambda_cont, help="content loss weight")
     parser.add_argument("--lambda_reg", type=float, default=0, help="gp loss weight")
+    parser.add_argument("--lambda_lr", type=float, default=0, help="lr loss weight")
     parser.add_argument("--root", type=str, default=default.root, help="root directory for the model")
     parser.add_argument("--name", type=str, default=default.name, help='name of the model')
     parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
@@ -179,8 +180,12 @@ def train(opt):
             real_features = feature_extractor(imgs_hr).detach()
             loss_content = criterion_content(gen_features, real_features)
 
+            # LR loss
+            gen_lr = F.interpolate(gen_hr, scaling=1/opt.factor, mode='bilinear', align_corners=True)
+            loss_lr = criterion_pixel(gen_lr, imgs_lr)
+
             # Total generator loss
-            loss_G = opt.lambda_cont * loss_content + opt.lambda_adv * loss_GAN + opt.lambda_pixel * loss_pixel
+            loss_G = opt.lambda_cont * loss_content + opt.lambda_adv * loss_GAN + opt.lambda_pixel * loss_pixel + opt.lambda_lr * loss_lr
 
             loss_G.backward()
             optimizer_G.step()
@@ -219,7 +224,7 @@ def train(opt):
             # --------------
             if batches_done % opt.report_freq == 0:
                 print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, content: %f, adv: %f, pixel: %f]"
+                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, content: %f, adv: %f, pixel: %f, lr: %f]"
                     % (
                         epoch,
                         opt.n_epochs,
@@ -230,6 +235,7 @@ def train(opt):
                         loss_content.item(),
                         loss_GAN.item(),
                         loss_pixel.item(),
+                        loss_lr.item(),
                     )
                 )
 
