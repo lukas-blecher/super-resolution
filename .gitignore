@@ -1,0 +1,9 @@
+
+*.pyc
+*.pdf
+*.h5
+*.png
+*.drawio
+*.tar
+*.json
+*.pth

@@ -42,6 +42,7 @@ def get_parser():
     parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
     parser.add_argument("--lambda_pixel", type=float, default=default.lambda_pixel, help="pixel-wise loss weight")
     parser.add_argument("--lambda_cont", type=float,default=default.lambda_cont, help="content loss weight")
+    parser.add_argument("--lambda_reg", type=float,default=0, help="gp loss weight")
     parser.add_argument("--root", type=str, default=default.root, help="root directory for the model")
     parser.add_argument("--name", type=str, default=default.name, help='name of the model')
     parser.add_argument("--report_freq", type=int, default=default.report_freq, help='report frequency determines how often the loss is printed')
@@ -181,7 +182,17 @@ def train(opt):
 
             # Total loss
             loss_D = (loss_real + loss_fake) / 2
-
+            if opt.lambda_reg > 0:
+                # generate interpolation between real and fake data
+                epsilon = torch.rand(batch_size, 1, 1, 1).to(device)
+                interpolation = epsilon*imgs_hr+(1-epsilon)*gen_hr.detach()
+                interpolation.requires_grad = True
+                pred_interpolation = discriminator(interpolation)
+                gradients = torch.autograd.grad(outputs=pred_interpolation, inputs=interpolation, grad_outputs=valid,
+                                                create_graph=True, retain_graph=True, only_inputs=True)[0]
+                gradients = gradients.view(batch_size, -1)
+                gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * opt.lambda_reg/2
+                loss_D += gradient_penalty
             loss_D.backward()
             optimizer_D.step()
 
