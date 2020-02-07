@@ -181,7 +181,7 @@ def train(opt):
             loss_content = criterion_content(gen_features, real_features)
 
             # LR loss
-            gen_lr = F.interpolate(gen_hr, scaling=1/opt.factor, mode='bilinear', align_corners=True)
+            gen_lr = F.interpolate(gen_hr, scale_factor=1/opt.factor, mode='bilinear', align_corners=True)
             loss_lr = criterion_pixel(gen_lr, imgs_lr)
 
             # Total generator loss
