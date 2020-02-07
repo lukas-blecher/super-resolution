@@ -252,5 +252,12 @@ def train(opt):
 
 if __name__ == "__main__":
     opt = get_parser()
-    gpu = get_gpu_index()
+    try:
+        gpu = get_gpu_index()
+        num_gpus = torch.cuda.device_count()
+        if gpu >= num_gpus:
+            gpu = np.random.randint(num_gpus)
+    except Exception as e:
+        print(e)
+
     train(opt)
