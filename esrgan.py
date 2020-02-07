@@ -140,8 +140,8 @@ def train(opt):
             imgs_hr = imgs["hr"].to(device)
             batch_size = len(imgs_lr)
             # Adversarial ground truths
-            valid = np.ones((batch_size, *discriminator.output_shape)).to(device)
-            fake = np.zeros((batch_size, *discriminator.output_shape)).to(device)
+            valid = torch.ones(batch_size, *discriminator.output_shape).to(device)
+            fake = torch.zeros(batch_size, *discriminator.output_shape).to(device)
 
             # ------------------
             #  Train Generators
