@@ -252,7 +252,7 @@ def train(opt, **kwargs):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss', 'g_loss', 'def_loss',
+    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
@@ -422,7 +422,7 @@ def train(opt, **kwargs):
             # ---------------------
             #  Train Discriminator
             # ---------------------
-            loss_D_tot = torch.zeros(1, device=device)
+            loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
             for k in range(2):
                 lam = lambdas[k]
                 if lam > 0:
@@ -453,7 +453,7 @@ def train(opt, **kwargs):
 
                     loss_D.backward()
                     # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
-                    loss_D_tot += loss_D * lam
+                    loss_D_tot[k] = loss_D
                     # only train discriminator if it is not already too good
                     if loss_D.item() > opt.d_threshold:
                         optimizer_D[k].step()
@@ -464,13 +464,12 @@ def train(opt, **kwargs):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
                     v.append(l)
-                print("[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
-                      % (batches_done, *[l[-1] for l in loss_dict.values()],))
+                print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
 
             # check if loss is NaN
-            if any(l != l for l in [loss_D_tot.item(), loss_G.item()]):
+            if any(l != l for l in [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item()]):
                 save_info()
                 raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]' % (
                     i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
