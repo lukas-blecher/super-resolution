@@ -83,5 +83,6 @@
     ],
     "drop_rate": 0,
     "res_scale": 0.2,
-    "lambda_reg": 0.01
+    "lambda_reg": 0.01,
+    "emd_save": false
 }

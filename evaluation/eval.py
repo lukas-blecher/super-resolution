@@ -207,7 +207,7 @@ class MultHist:
                     self.preprocess = True
             except NameError:
                 self.preprocess = False
-            self.meanimg = MeanImage(factor,preprocess=self.preprocess)
+            self.meanimg = MeanImage(factor, preprocess=self.preprocess)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
 
@@ -339,10 +339,10 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
         num_workers=n_cpu
     )
 
-    energy_dist, lr_similarity, hr_similarity, nnz = [], [], [], []
+    emd, lr_similarity, hr_similarity = [], [], []
     l1_criterion = nn.L1Loss(reduction='none')
-    l2_criterion = nn.MSELoss()
     pool = SumPool2d(factor)
+    Ethres = thres if thres is not None else 0
     for _, imgs in enumerate(dataloader):
         with torch.no_grad():
             # Configure model input
@@ -361,24 +361,11 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
             # high resolution image L1 metric
             hr_similarity.extend(list(l1_criterion(gen_hr, imgs_hr).numpy().mean((1, 2, 3))))
 
-            # energy distribution
-            for i in range(len(imgs_lr)):
-                gen_nnz = gen_hr[i][gen_hr[i] > 0]
-                if len(gen_nnz) > 0:
-                    real_nnz = imgs_hr[i][imgs_hr[i] > 0]
-                    t_min = torch.min(torch.cat((gen_nnz, real_nnz), 0)).item()
-                    t_max = torch.max(torch.cat((gen_nnz, real_nnz), 0)).item()
-                    gen_hist = torch.histc(gen_nnz, bins, min=t_min, max=t_max).float()
-                    real_hist = torch.histc(real_nnz, bins, min=t_min, max=t_max).float()
-                    energy_dist.append(l2_criterion(gen_hist, real_hist).item())
-
-                # non-zero pixels
-                real_amount_nnz = (imgs_hr.numpy() > 0).sum((1, 2, 3))
-                pred_amount_nnz = (gen_hr.numpy() > 0).sum((1, 2, 3))
-                nnz.extend(np.abs(real_amount_nnz-pred_amount_nnz))
+            # Energy moving distance
+            emd.extend(get_emd(gen_hr.numpy(), imgs_hr.numpy(), thres=Ethres))
 
     results = {}
-    for metric_name, metric_values in zip(['hr_l1', 'lr_l1', 'energy distribution', 'non-zero'], [lr_similarity, hr_similarity, energy_dist, nnz]):
+    for metric_name, metric_values in zip(['hr_l1', 'lr_l1', 'emd'], [lr_similarity, hr_similarity, emd]):
         results[metric_name] = {'mean': float(np.mean(metric_values)), 'std': float(np.std(metric_values))}
 
     return results
@@ -425,22 +412,22 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         print('hist entries real / gen: ', entries_real, entries_gen)
     global show
     total_kld = []
-    kldiv=nn.KLDivLoss(reduction='sum')
+    kldiv = nn.KLDivLoss(reduction='sum')
     for m in range(len(modes)):
         # check for hitogram and mean image
-        if modes[m] in ('hitogram','meanimg'):
+        if modes[m] in ('hitogram', 'meanimg'):
             if modes[m] == 'hitogram':
-                sr,hr=hhd[m].raster.get_hist()
-                f = plot_hist2d(sr,hr)
+                sr, hr = hhd[m].raster.get_hist()
+                f = plot_hist2d(sr, hr)
             elif modes[m] == 'meanimg':
-                sr,hr=hhd[m].meanimg.get_hist()
+                sr, hr = hhd[m].meanimg.get_hist()
                 f = plot_mean(hhd[m].meanimg)
-            sr,hr=.1+torch.Tensor(sr)[None,None,...],.1+torch.Tensor(hr)[None,None,...]
+            sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
             if output_path:
                 f.savefig((output_path+modes[m]).replace(".png", ""))
             total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
             continue
-        
+
         plt.figure()
         bin_entries = []
         for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
@@ -598,7 +585,6 @@ if __name__ == "__main__":
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
     parser.add_argument("--preprocessing", action="store_true", help="preprocess pictures used for meanimg")
-
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:

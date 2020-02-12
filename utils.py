@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import os
 import scipy.ndimage as ndimage
+import energyflow
 
 
 def toUInt(x):
@@ -327,7 +328,7 @@ def plot_hist2d(sr, hr, cmap='viridis'):
 def plot_mean(MeanImage):
     f, ax = plt.subplots(1, 2)
     plt.subplots_adjust(wspace=.7)
-    f.patch.set_facecolor('w')
+    # f.patch.set_facecolor('w')
     axes = ax.flatten()
     ims = list(MeanImage.get_hist())
     for i in range(2):
@@ -426,3 +427,32 @@ def rotateImage(img, angle, pivot):
     imgP = np.pad(img, [padY, padX], 'constant')
     imgR = ndimage.rotate(imgP, angle, reshape=False, order=0)
     return imgR[padY[0]: -padY[1], padX[0]: -padX[1]]
+
+
+def coord2val(x, R, bins):
+    return x*2*R/bins-R
+
+
+def get_event_array(img, etarange=1, phirange=1, thres=0):
+    '''
+    Takes an jet image and returns the tuple (pT,y,phi) as array for every constituent
+    '''
+    bins = img.shape[-1]
+    if len(img.shape) == 4:
+        b, c, y, x = np.where(img > thres)
+        return [np.concatenate((img[b, c, y, x][None, b == i],
+                                coord2val(y[None, b == i], etarange, bins),
+                                coord2val(x[None, b == i], phirange, bins))).T for i in range(len(img))]
+    elif len(img.shape) == 3:
+        c, y, x = np.where(img > thres)
+        return np.concatenate((img[c, y, x][None, ...],
+                               coord2val(y[None, ...], etarange, bins),
+                               coord2val(x[None, ...], phirange, bins))).T
+    else:
+        raise NotImplementedError
+
+
+def get_emd(gen, real, thres=0):
+    gen_pyphi = get_event_array(gen, thres=thres)
+    real_pyphi = get_event_array(real, thres=thres)
+    return [energyflow.emd.emd(gen_pyphi[i], real_pyphi[i]) for i in range(len(real))]

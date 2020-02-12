@@ -94,6 +94,7 @@ def get_parser():
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="residual weighting factor")
     parser.add_argument("--lambda_reg", type=float, default=default.lambda_reg, help="Regularization weighting factor for gradient penalty")
     parser.add_argument("--hit_threshold", type=float, default=default.hit_threshold, help='threshold for generating the hitogram')
+    parser.add_argument("--emd_save", type=str_to_bool, default=default.emd_save, help="Whether to save the Energy moving distance has decreased. smart_save needs to be enabled.")
     # parser.add_argument("--learn_powers", type=str_to_bool, default=default.learn_powers, help="whether to learn the powers of the MultiGenerator")
     # number of batches to train from instead of number of epochs.
     # If specified the training will be interrupted after N_BATCHES of training.
@@ -189,7 +190,8 @@ def train(opt, **kwargs):
         for k in range(2):
             if lambdas[k] > 0:
                 try:
-                    Discriminators[k].load_state_dict(torch.load(opt.load_checkpoint.replace(generator_file, generator_file.replace('generator', ['discriminator', 'discriminator_pow'][k])), map_location=device))
+                    Discriminators[k].load_state_dict(torch.load(opt.load_checkpoint.replace(
+                        generator_file, generator_file.replace('generator', ['discriminator', 'discriminator_pow'][k])), map_location=device))
                 except FileNotFoundError:
                     pass
         # extract model name if no name specified
@@ -248,7 +250,8 @@ def train(opt, **kwargs):
     nnz = []  # list with nonzero values during the first few batches
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
-    best_eval_result = float('inf')
+    best_eval_result, best_emd_result = float('inf'),float('inf')
+
     # ----------
     #  Training
     # ----------
@@ -488,7 +491,7 @@ def train(opt, **kwargs):
                 print('Validation')
                 output_path = opt.output_path if 'output_path' in dir(opt) else None
                 val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size,
-                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor)
+                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N, thres=opt.E_thres, N=opt.n_hardest)
                 val_results['epoch'] = epoch
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
@@ -520,10 +523,10 @@ def train(opt, **kwargs):
 
             if (evaluation_interval != np.inf and (batches_done+1) % evaluation_interval == 0) or (
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
-                eval_result = distribution(opt.testset_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
+                eval_result = distribution(opt.validation_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
                                            mode=opt.eval_modes)
-                generator.train()
+                
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(eval_result))
                     if 'eval_results' in info:
@@ -533,12 +536,32 @@ def train(opt, **kwargs):
                     if eval_result_mean < best_eval_result:
                         best_eval_result = eval_result_mean
                         if opt.smart_save:
-                            try:
-                                info['saved_batch'][epoch] = [batches_done, best_eval_result]
-                            except KeyError:
-                                info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
-                            save_weights(epoch)
-                    save_info()
+                            if not opt.emd_save:
+                                try:
+                                    info['saved_batch'][epoch] = [batches_done, best_eval_result]
+                                except KeyError:
+                                    info['saved_batch'] = {epoch: [batches_done, best_eval_result]}                            
+                                save_weights(epoch)
+                if opt.emd_save and opt.smart_save:
+                    val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, None, opt.batch_size,
+                                                    opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N, thres=opt.E_thres, N=opt.n_hardest)
+                    val_results['epoch'] = epoch
+                    val_results['batch'] = batches_done
+                    try:
+                        info['validation'].append(val_results)
+                    except KeyError:
+                        info['validation'] = [val_results]
+                    emd_result=val_results['emd']['mean']
+                    if emd_result<best_emd_result:
+                        best_emd_result = emd_result
+                        try:
+                            info['saved_batch'][epoch] = [batches_done, best_emd_result]
+                        except KeyError:
+                            info['saved_batch'] = {epoch: [batches_done, best_emd_result]}
+                        save_weights(epoch)
+                
+                save_info()
+                generator.train()
 
             # Save model checkpoints
             if (checkpoint_interval != np.inf and (batches_done+1) % checkpoint_interval == 0) or (
@@ -565,7 +588,7 @@ if __name__ == "__main__":
             gpu = np.random.randint(num_gpus)
     except Exception as e:
         print(e)
-    
+
     print('running on gpu index {}'.format(gpu))
     opt = get_parser()
     try:
