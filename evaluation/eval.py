@@ -382,17 +382,16 @@ def to_hist(data, bins):
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max', **kwargs):
-    
+
     statement = Wrapper(output_path)
     if output_path:
         if 'pdf' in kwargs and kwargs['pdf']:
             from matplotlib.backends.backend_pdf import PdfPages
-            statement = PdfPages(output_path.replace('.png','')+'.pdf')
+            statement = PdfPages(output_path.replace('.png', '')+'.pdf')
             plt.rc('text', usetex=True)
-            plt.rc('font', family='serif')
+            plt.rc('font', family='serif', size=kwargs['fontsize'])
             plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
-    
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
     dataloader = DataLoader(
@@ -436,11 +435,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     f = plot_mean(hhd[m].meanimg)
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
-                    if type(output)==str:
+                    if type(output) == str:
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         plt.savefig(output, format='pdf')
-                   
+
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 continue
 
@@ -469,7 +468,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
             plt.legend()
             if output_path:
-                if type(output)==str:
+                if type(output) == str:
                     out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
                     plt.savefig(out_path.replace('.png', ''))
                 else:
@@ -605,11 +604,12 @@ if __name__ == "__main__":
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
     parser.add_argument("--preprocessing", action="store_true", help="preprocess pictures used for meanimg")
     parser.add_argument("--pdf", action="store_true", help="wheter to save the figures as pdf files and tex files")
+    parser.add_argument("--fontsize", default=12, type=float)
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
-    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram']}
+    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize']}
     try:
         gpu = get_gpu_index()
         num_gpus = torch.cuda.device_count()
