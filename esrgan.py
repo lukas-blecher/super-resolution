@@ -377,7 +377,7 @@ def train(opt, **kwargs):
                 if lambdas[k] > 0:
                     if opt.lambda_hr > 0 and wait('hr'):
                         # Measure pixel-wise loss against ground truth
-                        loss_pixel = criterion_pixel(generated[k], ground_truth[k])
+                        loss_pixel = criterion_pixel(generated[k].mean(0)[None, ...], ground_truth[k].mean(0)[None, ...])
                     if opt.lambda_lr > 0 and wait('lr'):
                         # Measure pixel-wise loss against ground truth for downsampled images
                         loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
