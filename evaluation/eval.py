@@ -324,7 +324,7 @@ def call_func(opt):
     args = [opt.dataset_path, opt.dataset_type, generator, device, output_path, opt.batch_size, opt.n_cpu, bins, opt.hr_height, opt.hr_width,
             opt.factor, opt.amount, opt.pre_factor, opt.E_thres, opt.n_hardest]
     if opt.histogram:
-        return distribution(*args, mode=opt.histogram)
+        return distribution(*args, **opt.kwargs)
     else:
         return calculate_metrics(*args)
 
@@ -609,7 +609,7 @@ if __name__ == "__main__":
     if opt.hw is not None and len(opt.hw) == 2:
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
-    opt['kwargs'] = {'pdf': opt['pdf']}
+    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram']}
     try:
         gpu = get_gpu_index()
         num_gpus = torch.cuda.device_count()
