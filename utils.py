@@ -373,7 +373,7 @@ def get_gpu_index():
         os.remove('q.txt')
     except:
         pass
-    return int([x for x in f.split('\n') if 'exec_host' in x][0].split('/')[1])
+    return int([x for x in f.split('\n') if 'exec_gpus' in x][0].split('/')[1])
 
 
 def factor_shuffle(t, factor):
