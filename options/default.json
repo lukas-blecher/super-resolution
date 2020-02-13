@@ -83,7 +83,7 @@
         "meanimg"
     ],
     "drop_rate": 0,
-    "res_scale": 0.2,
+    "res_scale": 0.1,
     "lambda_reg": 0.01,
     "emd_save": false
 }

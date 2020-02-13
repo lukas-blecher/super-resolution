@@ -456,3 +456,16 @@ def get_emd(gen, real, thres=0):
     gen_pyphi = get_event_array(gen, thres=thres)
     real_pyphi = get_event_array(real, thres=thres)
     return [energyflow.emd.emd(gen_pyphi[i], real_pyphi[i]) for i in range(len(real))]
+
+
+class Wrapper:
+    '''with statement wrapper'''
+
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __enter__(self, *args, **kwargs):
+        return self.obj
+
+    def __exit__(self, *args, **kwargs):
+        pass
