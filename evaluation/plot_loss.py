@@ -18,8 +18,13 @@ def plot_losses(j, file, ax):
         warmup = info['warmup_batches']
     except KeyError:
         warmup = info['argument']['warmup_batches']
-    if len(loss['g_loss']) == len(loss['d_loss']):
-        warmup = 0
+    try:
+        if len(loss['g_loss']) == len(loss['d_loss']):
+            warmup = 0
+    except KeyError:
+        if len(loss['g_loss']) == len(loss['d_loss_def']):
+            warmup = 0
+
     name = os.path.basename(file).replace('_info.json', '')
     batches = np.arange(0, len(loss['g_loss']))
 
@@ -27,7 +32,7 @@ def plot_losses(j, file, ax):
         ax[i].set_title(k)
         try:
             start = 0 if len(loss[k]) == len(batches) else warmup
-            ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name)
+            ax[i].plot(batches[start:], np.array(loss[k]), color=colors[j % len(colors)], label=name)
         except ValueError:
             start = 0 if len(loss[k]) == len(batches) else warmup//info['argument']['report_freq']
             ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name)
@@ -49,6 +54,7 @@ if __name__ == '__main__':
     if not 'loss' in info:
         raise KeyError('No Loss in the info file.')
     N = len(info['loss'].keys())
+    
     a = int(np.sqrt(N))
     b = int(np.ceil(N/a))
     fig, ax = plt.subplots(b, a, sharex=True)

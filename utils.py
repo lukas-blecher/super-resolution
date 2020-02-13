@@ -308,7 +308,7 @@ def make_hist(raster, threshold=.1):
     return sr, hr
 
 
-def plot_hist2d(sr, hr, cmap='viridis'):
+def plot_hist2d(sr, hr, cmap='jet'):
     vmin = min([hr.min().item(), sr.min().item()])
     vmax = max([hr.max().item(), sr.max().item()])
     f, ax = plt.subplots(1, 2)
@@ -325,7 +325,7 @@ def plot_hist2d(sr, hr, cmap='viridis'):
     return f
 
 
-def plot_mean(MeanImage):
+def plot_mean(MeanImage, cmap='jet'):
     f, ax = plt.subplots(1, 2)
     plt.subplots_adjust(wspace=.7)
     # f.patch.set_facecolor('w')
@@ -334,7 +334,7 @@ def plot_mean(MeanImage):
     for i in range(2):
         ax = axes[i]
         image = ims[i]
-        im = ax.imshow(image, aspect='equal', interpolation=None)
+        im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap)
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]

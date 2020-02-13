@@ -86,7 +86,7 @@ def subplot(N, M, num, img, title=''):
     plt.ylabel('$\\eta$')
     plt.xlabel('$\\varphi$')
     if colors:
-        plt.imshow(img, cmap='hot_r', norm=col.LogNorm(), vmax=vmax)
+        plt.imshow(img, cmap='jet', norm=col.LogNorm(), vmax=vmax)
     else:
         plt.imshow(img, cmap='gray', vmax=vmax)
 

@@ -26,8 +26,11 @@ if __name__ == '__main__':
     d = None
     for i, f in enumerate(args.file):
         with open(f) as fs:
-            info = json.load(fs)
-
+            try:
+                info = json.load(fs)
+            except UnicodeDecodeError:
+                print('Error:', f)
+                continue
         if d is None:
             d = {k: [] for k in info['argument'].keys()}
             d['saved_batch'] = []
@@ -36,7 +39,17 @@ if __name__ == '__main__':
                 d[k].append(info['argument'][k])
             except KeyError:
                 pass
-        d['saved_batch'].append(round_list(list(info['saved_batch'].values())[-1]))
+        try:
+            it=list(info['saved_batch'].values())
+        except:
+            print(f)
+            continue
+        if type(it[0])==list:
+            it=it[-1]
+        else:
+            print(f,it)
+            continue
+        d['saved_batch'].append(round_list(it))
     delkeys = []
     for k in d.keys():
         same = True
@@ -52,6 +65,9 @@ if __name__ == '__main__':
             delkeys.append(k)
     for k in delkeys:
         del d[k]
-    df = pd.DataFrame(d)
-
-    print(df)
+    try:
+        df = pd.DataFrame(d)
+        print(df)
+    except ValueError:
+        print(d)
+        

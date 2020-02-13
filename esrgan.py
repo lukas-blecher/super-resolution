@@ -55,6 +55,7 @@ def get_parser():
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
     parser.add_argument("--pixel_multiplier", type=float, default=default.pixel_multiplier, help="multiply the image by this factors")
     parser.add_argument("--lambda_pix", type=float, default=default.lambda_pix, help="loss weight for high resolution pixel difference")
+    parser.add_argument("--lambda_hr", type=float, default=default.lambda_hr, help="loss weight for high resolution pixel difference")
     parser.add_argument("--lambda_adv", type=float, default=default.lambda_adv, help="adversarial loss weight")
     parser.add_argument("--lambda_lr", type=float, default=default.lambda_lr, help="pixel-wise loss weight for the low resolution L1 pixel loss")
     parser.add_argument("--lambda_hist", type=float, default=default.lambda_hist, help="energy distribution loss weight")
@@ -250,7 +251,7 @@ def train(opt, **kwargs):
     nnz = []  # list with nonzero values during the first few batches
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
-    best_eval_result, best_emd_result = float('inf'),float('inf')
+    best_eval_result, best_emd_result = float('inf'), float('inf')
 
     # ----------
     #  Training
@@ -374,8 +375,9 @@ def train(opt, **kwargs):
             # iterate over both the normal image and the image raised to opt.scaling_power
             for k in range(2):
                 if lambdas[k] > 0:
-                    # Measure pixel-wise loss against ground truth
-                    loss_pixel = criterion_pixel(generated[k], ground_truth[k])
+                    if opt.lambda_hr > 0 and wait('hr'):
+                        # Measure pixel-wise loss against ground truth
+                        loss_pixel = criterion_pixel(generated[k], ground_truth[k])
                     if opt.lambda_lr > 0 and wait('lr'):
                         # Measure pixel-wise loss against ground truth for downsampled images
                         loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
@@ -414,7 +416,7 @@ def train(opt, **kwargs):
                     if opt.lambda_hit > 0 and wait('hit'):
                         gtsum = ground_truth[k].sum((1, 2, 3))[:, None, None, None]+eps
                         loss_hit = criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None, ...].log(), (ground_truth[k]/gtsum).mean(0)[None, ...])
-                    tot_loss[k] = loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
+                    tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                         loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
                     # Total generator loss
                     loss_G += lambdas[k] * tot_loss[k]
@@ -526,7 +528,7 @@ def train(opt, **kwargs):
                 eval_result = distribution(opt.validation_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
                                            mode=opt.eval_modes)
-                
+
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(eval_result))
                     if 'eval_results' in info:
@@ -540,7 +542,7 @@ def train(opt, **kwargs):
                                 try:
                                     info['saved_batch'][epoch] = [batches_done, best_eval_result]
                                 except KeyError:
-                                    info['saved_batch'] = {epoch: [batches_done, best_eval_result]}                            
+                                    info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
                                 save_weights(epoch)
                 if opt.emd_save and opt.smart_save:
                     val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, None, opt.batch_size,
@@ -551,15 +553,15 @@ def train(opt, **kwargs):
                         info['validation'].append(val_results)
                     except KeyError:
                         info['validation'] = [val_results]
-                    emd_result=val_results['emd']['mean']
-                    if emd_result<best_emd_result:
+                    emd_result = val_results['emd']['mean']
+                    if emd_result < best_emd_result:
                         best_emd_result = emd_result
                         try:
                             info['saved_batch'][epoch] = [batches_done, best_emd_result]
                         except KeyError:
                             info['saved_batch'] = {epoch: [batches_done, best_emd_result]}
                         save_weights(epoch)
-                
+
                 save_info()
                 generator.train()
 
