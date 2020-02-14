@@ -25,6 +25,19 @@ def str_to_bool(value):
         return True
     raise ValueError(f'{value} is not a valid boolean value')
 
+def num_to_str(num, latex=True):
+    superscr=r'th'
+    if num<=1:
+        return ''
+    elif num%10==1 and num != 11:
+        superscr=r'st'
+    elif num%10==2 and num != 12:
+        superscr=r'nd'
+    elif num%10==3 and num != 13:
+        superscr=r'rd'
+    if latex:
+        superscr=r'\textsuperscript{%s}'%superscr
+    return str(num)+superscr
 
 class pointerList:
     def __init__(self, *argv):

@@ -181,15 +181,17 @@ class MultHist:
             'meanimg' returns the mean of the hr and sr images
  '''
 
-    def __init__(self, num, mode='max', factor=None):
+    def __init__(self, num, mode='max', factor=None, **kwargs):
         self.num = num
         self.list = [[] for _ in range(num)]
         self.mode = mode
+        self.title, self.xlabel, self.ylabel = '', r'Energy [\sqrt{GeV}]', 'Entries'
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
+            self.title = 'Energy of the ' + num_to_str(int(self.inpl), latex=(kwargs['pdf'] if 'pdf' in kwargs else 0)) + 'hardest constituent'
         elif 'deltaR_' in self.mode:
             self.dr = self.mode[7:]
             self.dr1 = self.mode[7]
@@ -290,14 +292,15 @@ class MultHist:
             return np.histogram(L, bins)
 
 
+
 class MultModeHist:
-    def __init__(self, modes, num='standard', factor=default.factor):
+    def __init__(self, modes, num='standard', factor=default.factor, **kwargs):
         self.modes = modes
         self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] if '_' not in mode else 3 for mode in self.modes]
         for i in range(len(self.modes)):
-            self.hist.append(MultHist(self.nums[i], modes[i], factor))
+            self.hist.append(MultHist(self.nums[i], modes[i], factor, **kwargs))
 
     def append(self, *argv):
         for i in range(len(self.hist)):
@@ -384,12 +387,14 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max', **kwargs):
 
     statement = Wrapper(output_path)
+    pdf=False
     if output_path:
         if 'pdf' in kwargs and kwargs['pdf']:
+            pdf=True
             from matplotlib.backends.backend_pdf import PdfPages
             statement = PdfPages(output_path.replace('.png', '')+'.pdf')
             plt.rc('text', usetex=True)
-            plt.rc('font', family='serif', size=kwargs['fontsize'])
+            plt.rc('font', family='serif', size=(kwargs['fontsize'] if 'fontsize' in kwargs else 12))
             plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
     generator.eval()
@@ -403,7 +408,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     if output_path:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
     modes = mode if type(mode) is list else [mode]
-    hhd = MultModeHist(modes, factor=factor)
+    hhd = MultModeHist(modes, factor=factor, pdf=pdf)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
         with torch.no_grad():
@@ -464,8 +469,9 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                 KLDiv = KLD_hist(torch.Tensor(binedges))
                 total_kld.append(float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item()))
-            plt.ylabel('Entries')
-            #plt.title('Highest energy distribution' if mode == 'max' else r'Amount of nonzero pixels $\geq 2\cdot 10^{-2}$')
+            plt.title(hhd[m].title)
+            plt.xlabel(hhd[m].xlabel)
+            plt.ylabel(hhd[m].ylabel)
             plt.legend()
             if output_path:
                 if type(output) == str:
@@ -603,7 +609,7 @@ if __name__ == "__main__":
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
     parser.add_argument("--preprocessing", action="store_true", help="preprocess pictures used for meanimg")
-    parser.add_argument("--pdf", action="store_true", help="wheter to save the figures as pdf files and tex files")
+    parser.add_argument("--pdf", type=str_to_bool, default=True, help="wheter to save the figures as pdf files and tex files")
     parser.add_argument("--fontsize", default=12, type=float)
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
