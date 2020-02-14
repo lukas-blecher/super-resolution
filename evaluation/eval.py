@@ -189,9 +189,10 @@ class MultHist:
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
+        latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
-            self.title = 'Energy of the ' + num_to_str(int(self.inpl), latex=(kwargs['pdf'] if 'pdf' in kwargs else 0)) + 'hardest constituent'
+            self.title = 'Energy of the ' + num_to_str(int(self.inpl), thres=1, latex=latex) + 'hardest constituent'
         elif 'deltaR_' in self.mode:
             self.dr = self.mode[7:]
             self.dr1 = self.mode[7]
@@ -212,6 +213,13 @@ class MultHist:
             self.meanimg = MeanImage(factor, preprocess=self.preprocess)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
+            self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
+        elif self.mode == 'meannnz':
+            self.xlabel = r'Energy [GeV]'
+            self.title = 'Mean energy per constituent'
+        elif self.mode == 'nnz':
+            self.xlabel = 'Constituents'
+            self.title = 'Number of constituents'
 
     def append(self, *argv):
         assert len(argv) == self.num
@@ -290,7 +298,6 @@ class MultHist:
                 return np.histogram(L, bins, range=self.get_range())
         else:
             return np.histogram(L, bins)
-
 
 
 class MultModeHist:
@@ -387,11 +394,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max', **kwargs):
 
     statement = Wrapper(output_path)
-    pdf=False
+    pdf = False
     if output_path:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         if 'pdf' in kwargs and kwargs['pdf']:
-            pdf=True
+            pdf = True
             from matplotlib.backends.backend_pdf import PdfPages
             statement = PdfPages(output_path.replace('.png', '')+'.pdf')
             plt.rc('text', usetex=True)
