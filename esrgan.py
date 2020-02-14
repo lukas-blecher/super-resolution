@@ -414,8 +414,10 @@ def train(opt, **kwargs):
                         real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                         loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                     if opt.lambda_hit > 0 and wait('hit'):
-                        gtsum = ground_truth[k].sum((1, 2, 3))[:, None, None, None]+eps
-                        loss_hit = criterion_hit((F.relu(generated[k])/gtsum+eps).mean(0)[None, ...].log(), (ground_truth[k]/gtsum).mean(0)[None, ...])
+                        gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)+eps
+                        target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
+                        loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
+
                     tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                         loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
                     # Total generator loss

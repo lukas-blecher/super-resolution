@@ -185,7 +185,7 @@ class MultHist:
         self.num = num
         self.list = [[] for _ in range(num)]
         self.mode = mode
-        self.title, self.xlabel, self.ylabel = '', r'Energy [\sqrt{GeV}]', 'Entries'
+        self.title, self.xlabel, self.ylabel = '', r'Energy [$\sqrt{\text{GeV}}$]', 'Entries'
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
