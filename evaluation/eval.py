@@ -184,7 +184,7 @@ class MultHist:
     def __init__(self, num, mode='max', factor=None, **kwargs):
         self.num = num
         self.list = [[] for _ in range(num)]
-        self.mode = mode.replace('corr_', '')        
+        self.mode = mode.replace('corr_', '').mode.replace('_lr', '')
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
@@ -216,7 +216,7 @@ class MultHist:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
         elif self.mode == 'meannnz':
-            self.xlabel = r'Energy [GeV]'
+            self.xlabel = 'Energy [GeV]'
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':
             self.xlabel = 'Constituents'
@@ -306,7 +306,7 @@ class MultModeHist:
         self.modes = modes
         self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
-        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode] if '_' not in mode else 3 for mode in self.modes]
+        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').mode.replace('_lr', '')] if '_' not in mode.replace('corr_', '').mode.replace('_lr', '') else 3 for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i], factor, **kwargs))
 
@@ -491,16 +491,19 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
-                f = plot_corr(hhd[m].list[0], hhd[m].list[1], title='Correlation plot: %s' % hhd[m].title, power=hhd[m].power)
-                if output_path:
-                    if type(output) == str:
-                        out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
-                        f.savefig(out_path.replace('.png', ''))
-                    else:
-                        f.savefig(output, format='pdf')
-                if show:
-                    f.show()
-                plt.close()
+                p=hhd[m].power
+                for i in range(1+int('_lr' in modes[m])):
+                    kw={'title':'Correlation plot: %s' % hhd[m].title, 'xlabel':'Ground truth HR [GeV$^%s$]'%p, 'ylabel':'Generated %s [GeV$^%s$]'%(['HR','LR'][i],p)}
+                    f = plot_corr(hhd[m].list[0], hhd[m].list[1+i], power=p, **kw)
+                    if output_path:
+                        if type(output) == str:
+                            out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
+                            f.savefig(out_path.replace('.png', ''))
+                        else:
+                            f.savefig(output, format='pdf')
+                    if show:
+                        f.show()
+                    plt.close()
         plt.close('all')
     return total_kld
 
