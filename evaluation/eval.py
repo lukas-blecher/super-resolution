@@ -306,7 +306,7 @@ class MultModeHist:
         self.modes = modes
         self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
-        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').mode.replace('_lr', '')] if '_' not in mode.replace('corr_', '').mode.replace('_lr', '') else 3 for mode in self.modes]
+        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').replace('_lr', '')] if '_' not in mode.replace('corr_', '').replace('_lr', '') else 3 for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i], factor, **kwargs))
 
