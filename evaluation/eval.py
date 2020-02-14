@@ -389,6 +389,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     statement = Wrapper(output_path)
     pdf=False
     if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         if 'pdf' in kwargs and kwargs['pdf']:
             pdf=True
             from matplotlib.backends.backend_pdf import PdfPages
@@ -405,8 +406,6 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         shuffle=False,
         num_workers=n_cpu
     )
-    if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
     modes = mode if type(mode) is list else [mode]
     hhd = MultModeHist(modes, factor=factor, pdf=pdf)
     print('collecting data from %s' % dataset_path)
