@@ -350,6 +350,7 @@ def plot_mean(MeanImage, cmap='jet'):
         ax = axes[i]
         image = ims[i]
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap)
+        ax.axis('equal')
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]
@@ -373,6 +374,23 @@ def plot_mean(MeanImage, cmap='jet'):
             ax.set_xticklabels([])
             ax.set_yticklabels([])
     return f
+
+
+def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', cmap='jet'):
+    plt.figure(figsize=(8, 6))
+    plt.hist2d(np.array(a)**power, np.array(b)**power, bins, cmap=cmap)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.axis('equal')
+    cbar = plt.colorbar()
+    cbar.ax.set_ylabel('# Entries', rotation=270)
+    ma = min([max(a), max(b)])**power
+    mi = max([min(a), min(b)])**power
+    plt.xlim(mi, ma)
+    plt.ylim(mi, ma)
+    plt.plot([mi, ma], [mi, ma], c='k', alpha=.6, lw=1)
+    return plt.gcf()
 
 
 def get_gpu_index():

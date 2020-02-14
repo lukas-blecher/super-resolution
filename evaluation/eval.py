@@ -184,12 +184,13 @@ class MultHist:
     def __init__(self, num, mode='max', factor=None, **kwargs):
         self.num = num
         self.list = [[] for _ in range(num)]
-        self.mode = mode
-        self.title, self.xlabel, self.ylabel = '', r'Energy [$\sqrt{\text{GeV}}$]', 'Entries'
+        self.mode = mode.replace('corr_', '')        
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
+        self.power = 1
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
+        self.title, self.xlabel, self.ylabel = '', r'Energy [$\sqrt{\text{GeV}}$]' if latex else 'Energy [GeV^0.5]', 'Entries'
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
             self.title = 'Energy of the ' + num_to_str(int(self.inpl), thres=1, latex=latex) + 'hardest constituent'
@@ -291,8 +292,8 @@ class MultHist:
     def histogram(self, L, bins=10, auto_range=True):
         if auto_range:
             if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode):
-                power = .5
-                return np.histogram(np.array(L)**power, bins, range=(self.get_range()[0], self.max(power=power)))
+                self.power = .5
+                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0], self.max(power=self.power)))
 
             else:
                 return np.histogram(L, bins, range=self.get_range())
@@ -481,12 +482,25 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.legend()
             if output_path:
                 if type(output) == str:
-                    out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
+                    out_path = output_path + ('_' + modes[m].replace('corr_', '') if len(modes) > 1 else '')
                     plt.savefig(out_path.replace('.png', ''))
                 else:
                     plt.savefig(output, format='pdf')
             if show:
                 plt.show()
+            plt.close()
+            # plot correlations if necessary.
+            if 'corr_' in modes[m]:
+                f = plot_corr(hhd[m].list[0], hhd[m].list[1], title='Correlation plot: %s' % hhd[m].title, power=hhd[m].power)
+                if output_path:
+                    if type(output) == str:
+                        out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
+                        f.savefig(out_path.replace('.png', ''))
+                    else:
+                        f.savefig(output, format='pdf')
+                if show:
+                    f.show()
+                plt.close()
         plt.close('all')
     return total_kld
 
