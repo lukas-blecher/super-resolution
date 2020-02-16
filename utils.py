@@ -350,7 +350,6 @@ def plot_mean(MeanImage, cmap='jet'):
         ax = axes[i]
         image = ims[i]
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap)
-        ax.axis('equal')
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]
