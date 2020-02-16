@@ -184,7 +184,7 @@ class MultHist:
     def __init__(self, num, mode='max', factor=None, **kwargs):
         self.num = num
         self.list = [[] for _ in range(num)]
-        self.mode = mode.replace('corr_', '').mode.replace('_lr', '')
+        self.mode = mode.replace('corr_', '').replace('_lr', '')
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
@@ -401,10 +401,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         if 'pdf' in kwargs and kwargs['pdf']:
             pdf = True
             from matplotlib.backends.backend_pdf import PdfPages
-            statement = PdfPages(output_path.replace('.png', '')+'.pdf')
             plt.rc('text', usetex=True)
             plt.rc('font', family='serif', size=(kwargs['fontsize'] if 'fontsize' in kwargs else 12))
             plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+            statement = PdfPages(output_path.replace('.png', '').replace('.pdf', '')+'.pdf')
 
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
