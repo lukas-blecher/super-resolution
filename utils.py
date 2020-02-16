@@ -384,7 +384,7 @@ def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', cmap='je
     plt.title(title)
     plt.axis('equal')
     cbar = plt.colorbar()
-    cbar.ax.set_ylabel('# Entries', rotation=270)
+    cbar.ax.set_ylabel('Entries', rotation=270)
     ma = min([max(a), max(b)])**power
     mi = max([min(a), min(b)])**power
     plt.xlim(mi, ma)
