@@ -189,6 +189,8 @@ class MultHist:
         self.inpl = '0'
         self.ratio = '0'
         self.power = 1
+        if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode):
+            self.power = .5
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
         self.title, self.xlabel, self.ylabel = '', r'Energy [$\sqrt{\text{GeV}}$]' if latex else 'Energy [GeV^0.5]', 'Entries'
         if 'E_' in self.mode:
@@ -291,10 +293,8 @@ class MultHist:
 
     def histogram(self, L, bins=10, auto_range=True):
         if auto_range:
-            if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode):
-                self.power = .5
+            if self.power != 1:
                 return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0], self.max(power=self.power)))
-
             else:
                 return np.histogram(L, bins, range=self.get_range())
         else:
@@ -493,7 +493,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if 'corr_' in modes[m]:
                 p=hhd[m].power
                 for i in range(1+int('_lr' in modes[m])):
-                    kw={'title':'Correlation plot: %s' % hhd[m].title, 'xlabel':'Ground truth HR [GeV$^%s$]'%p, 'ylabel':'Generated %s [GeV$^%s$]'%(['HR','LR'][i],p)}
+                    kw={'title':'Correlation plot: %s' % hhd[m].title, 'xlabel':'Ground truth HR [GeV$^{%s}$]'%p, 'ylabel':'Generated %s [GeV$^{%s}$]'%(['HR','LR'][i],p)}
                     f = plot_corr(hhd[m].list[0], hhd[m].list[1+i], power=p, **kw)
                     if output_path:
                         if type(output) == str:
