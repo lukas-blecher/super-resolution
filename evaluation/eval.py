@@ -306,7 +306,8 @@ class MultModeHist:
         self.modes = modes
         self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
-        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').replace('_lr', '')] if '_' not in mode.replace('corr_', '').replace('_lr', '') else 3 for mode in self.modes]
+        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').replace('_lr', '')]
+                                                                       if '_' not in mode.replace('corr_', '').replace('_lr', '') else 3 for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i], factor, **kwargs))
 
@@ -491,9 +492,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
-                p=hhd[m].power
+                p = hhd[m].power
                 for i in range(1+int('_lr' in modes[m])):
-                    kw={'title':'Correlation plot: %s' % hhd[m].title, 'xlabel':'Ground truth HR [GeV$^{%s}$]'%p, 'ylabel':'Generated %s [GeV$^{%s}$]'%(['HR','LR'][i],p)}
+                    unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
+                    kw = {'title': 'Correlation plot: %s' % hhd[m].title,
+                          'xlabel': 'Ground truth HR %s' % unit,
+                          'ylabel': 'Generated %s %s' % (['HR', 'LR'][i], unit)}
                     f = plot_corr(hhd[m].list[0], hhd[m].list[1+i], power=p, **kw)
                     if output_path:
                         if type(output) == str:
