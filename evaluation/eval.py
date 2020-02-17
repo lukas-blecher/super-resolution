@@ -188,11 +188,18 @@ class MultHist:
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
-        self.power = 1 if not 'power' in kwargs else kwargs['power']
+        self.power = 1 
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
+        if 'power' in kwargs:
+            self.power = kwargs['power']
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
-        self.title, self.xlabel, self.ylabel = '', r'Energy [$\sqrt{\text{GeV}}$]' if latex else 'Energy [GeV^0.5]', 'Entries'
+        self.title, self.xlabel, self.ylabel = '', 'Energy [GeV]', 'Entries'
+        if self.power==.5 and latex:
+            self.xlabel = r'Energy [$\sqrt{\text{GeV}}$]' 
+        elif self.power!=1:
+            self.xlabel = 'Energy [GeV$^{%s}$]'%self.power
+        
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
             self.title = 'Energy of the ' + num_to_str(int(self.inpl), thres=1, latex=latex) + 'hardest constituent'
@@ -218,7 +225,6 @@ class MultHist:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
         elif self.mode == 'meannnz':
-            self.xlabel = 'Energy [GeV]'
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':
             self.xlabel = 'Constituents'
@@ -383,15 +389,6 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
     return results
 
 
-def to_hist(data, bins):
-    '''nearest neighbor interpolation for 1d numpy arrays'''
-    hist = np.zeros(2*len(data))
-    hist[::2] = data.copy()
-    hist[1::2] = data.copy()
-    x = np.vstack((bins, bins)).flatten('F')
-    return x[1:-1], hist
-
-
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max', **kwargs):
 
@@ -449,7 +446,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     f = plot_mean(hhd[m].meanimg)
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
-                    if type(output) == str:
+                    if not pdf:
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         plt.savefig(output, format='pdf')
@@ -483,7 +480,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.ylabel(hhd[m].ylabel)
             plt.legend()
             if output_path:
-                if type(output) == str:
+                if not pdf:
                     out_path = output_path + ('_' + modes[m].replace('corr_', '').replace('_lr',''))
                     plt.savefig(out_path.replace('.png', ''))
                 else:
@@ -496,13 +493,16 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 p = hhd[m].power
                 for i in range(1+2*int('_lr' in modes[m])):
                     unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
+                    if p==0.5 and pdf:
+                        unit = r'[$\sqrt{\text{GeV}}$]' 
                     X,Y=['HR', 'HR', 'LR'][i],['HR', 'LR', 'LR'][i]
-                    kw = {'title': 'Correlation plot: %s' % hhd[m].title,
-                          'xlabel': 'Ground truth %s %s' % (X, unit),
-                          'ylabel': 'Generated %s %s' % (Y, unit)}
-                    f = plot_corr(hhd[m].list[[0,0,3][i]], hhd[m].list[[1,2,2][i]], bins=binedges, power=p, **kw)
+                    kw = {'title': hhd[m].title,
+                          'xlabel': 'Ground truth %s' % X,
+                          'ylabel': 'Generated %s' % Y,
+                          'unit' : unit}
+                    f,(M,x,y) = plot_corr(hhd[m].list[[0,0,3][i]], hhd[m].list[[1,2,2][i]], bins=binedges, power=p, **kw)
                     if output_path:
-                        if type(output) == str:
+                        if not pdf:
                             out_path = output_path + ('_' + modes[m]+X+'_'+Y)
                             f.savefig(out_path.replace('.png', ''))
                         else:
@@ -510,6 +510,19 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if show:
                         f.show()
                     plt.close()
+                    if 'slices' in kwargs:
+                        kw['slices'] = kwargs['slices']
+                    if i==0:
+                        f=slice_plot(M,x,y,**kw)
+                        if output_path:
+                            if not pdf:
+                                out_path = output_path + ('_' + modes[m]+'_slice')
+                                f.savefig(out_path.replace('.png', ''))
+                            else:
+                                f.savefig(output, format='pdf')
+                        if show:
+                            f.show()
+
         plt.close('all')
     return total_kld
 
@@ -640,11 +653,13 @@ if __name__ == "__main__":
     parser.add_argument("--preprocessing", action="store_true", help="preprocess pictures used for meanimg")
     parser.add_argument("--pdf", type=str_to_bool, default=True, help="wheter to save the figures as pdf files and tex files")
     parser.add_argument("--fontsize", default=12, type=float)
+    parser.add_argument("--slices",type=int, default=5, help='how many slices in slice plot')
+
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
-    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'power': opt['power']}
+    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'power': opt['power'], 'slices': opt['slices']}
     try:
         gpu = get_gpu_index()
         num_gpus = torch.cuda.device_count()

@@ -312,6 +312,14 @@ class MeanImage:
     def get_hist(self):
         return self.sr, self.hr
 
+def to_hist(data, bins):
+    '''nearest neighbor interpolation for 1d numpy arrays'''
+    hist = np.zeros(2*len(data))
+    hist[::2] = data.copy()
+    hist[1::2] = data.copy()
+    x = np.vstack((bins, bins)).flatten('F')
+    return x[1:-1], hist
+
 
 def make_hist(raster, threshold=.1):
     'Takes a Raster class and returns two histograms each of the shape (factor, factor).'
@@ -375,23 +383,52 @@ def plot_mean(MeanImage, cmap='jet'):
     return f
 
 
-def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', cmap='jet'):
+def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True):
+    mn = min([min(a), min(b)])**power
+    mx = max([max(a), max(b)])**power
     plt.figure(figsize=(8, 6))
-    plt.hist2d(np.array(a)**power, np.array(b)**power, bins, cmap=cmap)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
+    M, x, y, _ = plt.hist2d(np.array(a)**power, np.array(b)**power, bins, [[mn, mx], [mn, mx]], cmap=cmap)
+    plt.xlabel(xlabel+' '+unit)
+    plt.ylabel(ylabel+' '+unit)
+    plt.title('Correlation plot: '+title)
     cbar = plt.colorbar()
     cbar.ax.set_ylabel('Entries', rotation=270)
-    if type(bins)==np.ndarray:
-        mi,ma=bins.min(),bins.max()
+    mn, mx = bins.min(), bins.max()
+    plt.plot([mn, mx], [mn, mx], c='k', alpha=.6, lw=1)
+    if return_matrix:
+        return plt.gcf(), (M, x, y)
     else:
-        ma = min([max(a), max(b)])**power
-        mi = max([min(a), min(b)])**power
-    plt.xlim(mi, ma)
-    plt.ylim(mi, ma)
-    plt.plot([mi, ma], [mi, ma], c='k', alpha=.6, lw=1)
-    return plt.gcf()
+        return plt.gcf()
+
+
+def slice_plot(M, x, y, slices=5, **kwargs):
+    slice_bin = len(M)//slices
+    last0, last1 = np.zeros(len(M)), 0
+    f, ax = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
+    ax = ax.flatten()
+    for i in range(slices):
+        data = M[slice_bin*i:slice_bin*(i+1)].sum(0)
+        a, b = to_hist(data+last0, x)
+        ax[0].plot(a, b, zorder=-i)
+
+        ax[0].fill_between(*to_hist(last0, x), b, alpha=.3)
+        last0 = data+last0
+        data = M[slice_bin*i:slice_bin*(i+1)].sum(1)
+        if i > 0:
+            a, b = to_hist(np.insert(data, 0, last1), y[slice_bin*i-1:slice_bin*(i+1)+1])
+            ax[1].fill_between(a[1:], np.zeros_like(b)[1:], b[1:], alpha=.3)
+        else:
+            a, b = to_hist(data, y[slice_bin*i:slice_bin*(i+1)+1])
+            ax[1].fill_between(a, np.zeros_like(b), b, alpha=.3)
+        ax[1].plot(a, b, zorder=-i)
+        last1 = data[-1]
+    ax[1].set_title(kwargs['xlabel'])
+    ax[0].set_title(kwargs['ylabel'])
+    ax[0].set_xlabel('Energy '+ kwargs['unit'])
+    ax[1].set_xlabel('Energy '+ kwargs['unit'])
+
+    plt.suptitle('Slice plot: '+kwargs['title'])
+    return f
 
 
 def get_gpu_index():
