@@ -492,16 +492,16 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
                 p = hhd[m].power
-                for i in range(1+2*int('_lr' in modes[m])):
+                for i in range(1+3*int('_lr' in modes[m])):
                     unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
                     if p==0.5 and pdf:
                         unit = r'[$\sqrt{\text{GeV}}$]' 
-                    X,Y=['HR', 'HR', 'LR'][i],['SR', 'LR', 'LR'][i]
+                    X,Y=['HR', 'HR', 'LR', 'LR'][i],['SR', 'LR', 'LR', 'SR'][i]
                     kw = {'title': hhd[m].title,
                           'xlabel': 'Ground truth %s' % X,
                           'ylabel': 'Generated %s' % Y,
                           'unit' : unit}
-                    f,(M,x,y) = plot_corr(hhd[m].list[[0,0,3][i]], hhd[m].list[[1,2,2][i]], bins=binedges, power=p, **kw)
+                    f,(M,x,y) = plot_corr(hhd[m].list[[0,0,3,3][i]], hhd[m].list[[1,2,2,1][i]], bins=binedges, power=p, **kw)
                     if output_path:
                         if not pdf:
                             out_path = output_path + ('_' + modes[m]+X+'_'+Y)
