@@ -513,7 +513,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if 'slices' in kwargs:
                         kw['slices'] = kwargs['slices']
                     if i==0:
-                        f=slice_plot(M,x,y,**kw)
+                        f=slice_plot(M.T,x,y,**kw)
                         if output_path:
                             if not pdf:
                                 out_path = output_path + ('_' + modes[m]+'_slice')

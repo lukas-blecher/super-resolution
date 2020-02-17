@@ -409,23 +409,23 @@ def slice_plot(M, x, y, slices=5, **kwargs):
     for i in range(slices):
         data = M[slice_bin*i:slice_bin*(i+1)].sum(0)
         a, b = to_hist(data+last0, x)
-        ax[0].plot(a, b, zorder=-i)
+        ax[1].plot(a, b, zorder=-i)
 
-        ax[0].fill_between(*to_hist(last0, x), b, alpha=.3)
+        ax[1].fill_between(*to_hist(last0, x), b, alpha=.3)
         last0 = data+last0
         data = M[slice_bin*i:slice_bin*(i+1)].sum(1)
         if i > 0:
             a, b = to_hist(np.insert(data, 0, last1), y[slice_bin*i-1:slice_bin*(i+1)+1])
-            ax[1].fill_between(a[1:], np.zeros_like(b)[1:], b[1:], alpha=.3)
+            ax[0].fill_between(a[1:], np.zeros_like(b)[1:], b[1:], alpha=.3)
         else:
             a, b = to_hist(data, y[slice_bin*i:slice_bin*(i+1)+1])
-            ax[1].fill_between(a, np.zeros_like(b), b, alpha=.3)
-        ax[1].plot(a, b, zorder=-i)
+            ax[0].fill_between(a, np.zeros_like(b), b, alpha=.3)
+        ax[0].plot(a, b, zorder=-i)
         last1 = data[-1]
-    ax[1].set_title(kwargs['xlabel'])
-    ax[0].set_title(kwargs['ylabel'])
-    ax[0].set_xlabel('Energy '+ kwargs['unit'])
+    ax[0].set_title(kwargs['xlabel'])
+    ax[1].set_title(kwargs['ylabel'])
     ax[1].set_xlabel('Energy '+ kwargs['unit'])
+    ax[0].set_xlabel('Energy '+ kwargs['unit'])
 
     plt.suptitle('Slice plot: '+kwargs['title'])
     return f
