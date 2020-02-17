@@ -381,11 +381,13 @@ def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', cmap='je
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.title(title)
-    plt.axis('equal')
     cbar = plt.colorbar()
     cbar.ax.set_ylabel('Entries', rotation=270)
-    ma = min([max(a), max(b)])**power
-    mi = max([min(a), min(b)])**power
+    if type(bins)==np.ndarray:
+        mi,ma=bins.min(),bins.max()
+    else:
+        ma = min([max(a), max(b)])**power
+        mi = max([min(a), min(b)])**power
     plt.xlim(mi, ma)
     plt.ylim(mi, ma)
     plt.plot([mi, ma], [mi, ma], c='k', alpha=.6, lw=1)
