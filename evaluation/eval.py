@@ -123,7 +123,7 @@ class extract_const:
         self.phirange = phirange
         self.batchsize = self.img_array.shape[0]
         self.ls = [[] for i in range(self.batchsize)]
-      #  self.out=[() for i in range(self.batchsize)]
+        # self.out=[() for i in range(self.batchsize)]
         for i in range(0, self.img_array.shape[0]):
 
             for j in range(0, self.img_array.shape[1]):
@@ -287,7 +287,7 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def max(self, threshold=1, power=1):
+    def max(self, threshold=.98, power=1):
         '''Function introduced for total energy distribution'''
         MAX = 0
         if threshold < 1:
@@ -298,7 +298,7 @@ class MultHist:
                 if e_max > MAX:
                     MAX = e_max
         else:
-            MAX = max([max(self.list[i]) for i in range(self.num)])
+            MAX = max([max(self.list[i]) for i in range(self.num)])**power
         return MAX
 
     def histogram(self, L, bins=10, auto_range=True):
@@ -464,7 +464,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 if hhd.nums[m] == i:
                     continue
                 try:
-                    entries, binedges = hhd[m].histogram(hhd[m].list[i], bins)
+                    try:
+                        entries, binedges = hhd[m].histogram(hhd[m].list[i], bins)
+                    except IndexError:
+                        continue
                     if i < 2:
                         bin_entries.append(entries)
                 except ValueError as e:

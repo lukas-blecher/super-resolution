@@ -507,7 +507,7 @@ def coord2val(x, R, bins):
 
 def get_event_array(img, etarange=1, phirange=1, thres=0):
     '''
-    Takes an jet image and returns the tuple (pT,y,phi) as array for every constituent
+    Takes an jet image and returns the tuple (pT,eta,phi) as array for every constituent
     '''
     bins = img.shape[-1]
     if len(img.shape) == 4:
@@ -528,6 +528,24 @@ def get_emd(gen, real, thres=0):
     gen_pyphi = get_event_array(gen, thres=thres)
     real_pyphi = get_event_array(real, thres=thres)
     return [energyflow.emd.emd(gen_pyphi[i], real_pyphi[i]) for i in range(len(real))]
+
+
+def img2cluster(img, etarange=1, phirange=1, thres=0, R=0.8, p=1):
+    from pyjet import cluster
+    dtype = np.dtype([('pT', 'f8'), ('eta', 'f8'), ('phi', 'f8'), ('mass', 'f8')])
+    jet = get_event_array(img, etarange, phirange, thres)
+    # add mass to the tuples
+    jet = np.array(np.concatenate((jet, np.zeros((len(jet), 1))), 1))
+    # convert to correct dtype
+    jet = np.array(list(map(tuple, jet)), dtype=dtype)
+    return cluster(jet, R=R, p=p)
+
+
+def nsubjettiness(cluster, n):
+    from pyjet.ClusterSequence import exclusive_jets
+    subjets = cluster.exclusive_jets(n)
+    pts = [J.pt for J in subjets]
+    return pts
 
 
 class Wrapper:
