@@ -188,7 +188,7 @@ class MultHist:
         self.thres = 0.002
         self.inpl = '0'
         self.ratio = '0'
-        self.power = 1
+        self.power = 1 if not 'power' in kwargs else kwargs['power']
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
@@ -280,7 +280,7 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def max(self, threshold=.9, power=.3):
+    def max(self, threshold=.95, power=1):
         '''Function introduced for total energy distribution'''
         MAX = 0
         for i in range(self.num):
@@ -326,7 +326,7 @@ def call_func(opt):
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
 
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), power=opt.scaling_power, res_scale=opt.res_scale).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), res_scale=opt.res_scale).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=device))
     if opt.E_thres:
         generator.thres = opt.E_thres
@@ -416,7 +416,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         num_workers=n_cpu
     )
     modes = mode if type(mode) is list else [mode]
-    hhd = MultModeHist(modes, factor=factor, pdf=pdf)
+    hhd = MultModeHist(modes, factor=factor, **kwargs)
     pool = SumPool2d(factor)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
@@ -633,7 +633,7 @@ if __name__ == "__main__":
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
-    parser.add_argument("--scaling_power", type=float, default=1, help="power to which to raise the input image pixelwise")
+    parser.add_argument("--power", type=float, default=1, help="power to which to raise the Energy in eval plots")
     parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
@@ -644,7 +644,7 @@ if __name__ == "__main__":
     if opt.hw is not None and len(opt.hw) == 2:
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
-    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize']}
+    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'power': opt['power']}
     try:
         gpu = get_gpu_index()
         num_gpus = torch.cuda.device_count()
