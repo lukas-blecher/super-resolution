@@ -456,7 +456,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
 
             plt.figure()
             bin_entries = []
-            for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled input"])):
+            for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
                 if hhd.nums[m] == i:
                     continue
                 try:
@@ -495,7 +495,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
                     if p==0.5 and pdf:
                         unit = r'[$\sqrt{\text{GeV}}$]' 
-                    X,Y=['HR', 'HR', 'LR'][i],['HR', 'LR', 'LR'][i]
+                    X,Y=['HR', 'HR', 'LR'][i],['SR', 'LR', 'LR'][i]
                     kw = {'title': hhd[m].title,
                           'xlabel': 'Ground truth %s' % X,
                           'ylabel': 'Generated %s' % Y,
