@@ -50,6 +50,7 @@ def get_parser():
     parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
     parser.add_argument("--validation_interval", type=int, default=default.validation_interval, help="batch interval between validation samples")
     parser.add_argument("--evaluation_interval", type=int, default=default.evaluation_interval, help="batch interval between evaluations (histograms)")
+    parser.add_argument("--upd_diff", type=int, default=default.upd_diff, help="how many times the gen is updated relative to 1 discr update")
     parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
@@ -252,6 +253,8 @@ def train(opt, **kwargs):
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
+    
+    upd_counter = 0
 
     # ----------
     #  Training
@@ -296,7 +299,7 @@ def train(opt, **kwargs):
 
     for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
-
+            upd_counter += 1
             batches_done += 1
             # batches_done = epoch * len(dataloader) + i
             # Configure model input
@@ -426,9 +429,10 @@ def train(opt, **kwargs):
             # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
             optimizer_G.step()
 
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
+                # ---------------------
+                #  Train Discriminator
+                # ---------------------
+            upd_counter = 0
             loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
             for k in range(2):
                 lam = lambdas[k]
@@ -462,14 +466,14 @@ def train(opt, **kwargs):
                     # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                     loss_D_tot[k] = loss_D
                     # only train discriminator if it is not already too good
-                    if loss_D.item() > opt.d_threshold:
+                    if ((loss_D.item() > opt.d_threshold) and (upd_counter % opt.upd_diff == 0)):
                         optimizer_D[k].step()
 
             # --------------
             #  Log Progress
             # --------------
             # save loss to dict
-
+            
             if batches_done % opt.report_freq == 0:
                 for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
                     v.append(l)
