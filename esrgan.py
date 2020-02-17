@@ -254,7 +254,6 @@ def train(opt, **kwargs):
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
     
-    upd_counter = 0
 
     # ----------
     #  Training
@@ -299,7 +298,6 @@ def train(opt, **kwargs):
 
     for epoch in range(start_epoch, opt.n_epochs):
         for i, imgs in enumerate(dataloader):
-            upd_counter += 1
             batches_done += 1
             # batches_done = epoch * len(dataloader) + i
             # Configure model input
@@ -429,45 +427,46 @@ def train(opt, **kwargs):
             # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
             optimizer_G.step()
 
-                # ---------------------
-                #  Train Discriminator
-                # ---------------------
-            upd_counter = 0
-            loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
-            for k in range(2):
-                lam = lambdas[k]
-                if lam > 0:
-                    optimizer_D[k].zero_grad()
-                    pred_real = Discriminators[k](ground_truth[k])
-                    pred_fake = Discriminators[k](generated[k].detach())
-                    if opt.relativistic:
-                        # Adversarial loss for real and fake images (relativistic average GAN)
-                        loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
-                        loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
-                    else:
-                        loss_real = criterion_GAN(eps + pred_real, valid)
-                        loss_fake = criterion_GAN(eps + pred_fake, fake)
-                    # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
-                    # Total loss
-                    loss_D = (loss_real + loss_fake) / 2
-                    if opt.lambda_reg > 0:
-                        # generate interpolation between real and fake data
-                        epsilon = torch.rand(batch_size, 1, 1, 1).to(device)
-                        interpolation = epsilon*ground_truth[k]+(1-epsilon)*generated[k].detach()
-                        interpolation.requires_grad = True
-                        pred_interpolation = Discriminators[k](interpolation)
-                        gradients = torch.autograd.grad(outputs=pred_interpolation, inputs=interpolation, grad_outputs=valid,
-                                                        create_graph=True, retain_graph=True, only_inputs=True)[0]
-                        gradients = gradients.view(batch_size, -1)
-                        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * opt.lambda_reg/2
-                        loss_D += gradient_penalty
+            # ---------------------
+            #  Train Discriminator
+            # ---------------------
+            
+            if (batches_done % opt.upd_diff == 0):
+                loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
+                for k in range(2):
+                    lam = lambdas[k]
+                    if lam > 0:
+                        optimizer_D[k].zero_grad()
+                        pred_real = Discriminators[k](ground_truth[k])
+                        pred_fake = Discriminators[k](generated[k].detach())
+                        if opt.relativistic:
+                            # Adversarial loss for real and fake images (relativistic average GAN)
+                            loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
+                            loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
+                        else:
+                            loss_real = criterion_GAN(eps + pred_real, valid)
+                            loss_fake = criterion_GAN(eps + pred_fake, fake)
+                        # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
+                        # Total loss
+                        loss_D = (loss_real + loss_fake) / 2
+                        if opt.lambda_reg > 0:
+                            # generate interpolation between real and fake data
+                            epsilon = torch.rand(batch_size, 1, 1, 1).to(device)
+                            interpolation = epsilon*ground_truth[k]+(1-epsilon)*generated[k].detach()
+                            interpolation.requires_grad = True
+                            pred_interpolation = Discriminators[k](interpolation)
+                            gradients = torch.autograd.grad(outputs=pred_interpolation, inputs=interpolation, grad_outputs=valid,
+                                                            create_graph=True, retain_graph=True, only_inputs=True)[0]
+                            gradients = gradients.view(batch_size, -1)
+                            gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * opt.lambda_reg/2
+                            loss_D += gradient_penalty
 
-                    loss_D.backward()
-                    # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
-                    loss_D_tot[k] = loss_D
-                    # only train discriminator if it is not already too good
-                    if ((loss_D.item() > opt.d_threshold) and (upd_counter % opt.upd_diff == 0)):
-                        optimizer_D[k].step()
+                        loss_D.backward()
+                        # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
+                        loss_D_tot[k] = loss_D
+                        # only train discriminator if it is not already too good
+                        if (loss_D.item() > opt.d_threshold):
+                            optimizer_D[k].step()
 
             # --------------
             #  Log Progress
