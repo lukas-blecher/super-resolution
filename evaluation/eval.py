@@ -287,15 +287,18 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def max(self, threshold=.95, power=1):
+    def max(self, threshold=1, power=1):
         '''Function introduced for total energy distribution'''
         MAX = 0
-        for i in range(self.num):
-            pl = np.array(self.list[i])**power
-            c, b = np.histogram(pl, 100)
-            e_max = b[(np.cumsum(c) > len(pl)*threshold).argmax()]
-            if e_max > MAX:
-                MAX = e_max
+        if threshold < 1:
+            for i in range(self.num):
+                pl = np.array(self.list[i])**power
+                c, b = np.histogram(pl, 100)
+                e_max = b[(np.cumsum(c) > len(pl)*threshold).argmax()]
+                if e_max > MAX:
+                    MAX = e_max
+        else:
+            MAX = max([max(self.list[i]) for i in range(self.num)])
         return MAX
 
     def histogram(self, L, bins=10, auto_range=True):
@@ -496,12 +499,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
                     if p==0.5 and pdf:
                         unit = r'[$\sqrt{\text{GeV}}$]' 
-                    X,Y=['HR', 'HR', 'LR', 'LR'][i],['SR', 'LR', 'LR', 'SR'][i]
+                    X,Y=['HR', 'HR', 'LR', 'LR'][i],['SR', 'LR', 'SR', 'LR'][i]
                     kw = {'title': hhd[m].title,
                           'xlabel': 'Ground truth %s' % X,
                           'ylabel': 'Generated %s' % Y,
                           'unit' : unit}
-                    f,(M,x,y) = plot_corr(hhd[m].list[[0,0,3,3][i]], hhd[m].list[[1,2,2,1][i]], bins=binedges, power=p, **kw)
+                    f,(M,x,y) = plot_corr(hhd[m].list[[0,0,3,3][i]], hhd[m].list[[1,2,1,2][i]], bins=binedges, power=p, **kw)
                     if output_path:
                         if not pdf:
                             out_path = output_path + ('_' + modes[m]+X+'_'+Y)
