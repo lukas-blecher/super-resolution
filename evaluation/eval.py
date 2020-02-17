@@ -189,7 +189,7 @@ class MultHist:
         self.inpl = '0'
         self.ratio = '0'
         self.power = 1
-        if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode):
+        if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
         self.title, self.xlabel, self.ylabel = '', r'Energy [$\sqrt{\text{GeV}}$]' if latex else 'Energy [GeV^0.5]', 'Entries'
@@ -294,7 +294,7 @@ class MultHist:
     def histogram(self, L, bins=10, auto_range=True):
         if auto_range:
             if self.power != 1:
-                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0], self.max(power=self.power)))
+                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0]**self.power, self.max(power=self.power)))
             else:
                 return np.histogram(L, bins, range=self.get_range())
         else:
@@ -307,7 +307,7 @@ class MultModeHist:
         self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').replace('_lr', '')]
-                                                                       if '_' not in mode.replace('corr_', '').replace('_lr', '') else 3 for mode in self.modes]
+                                                                       if '_' not in mode.replace('corr_', '').replace('_lr', '') else 4 for mode in self.modes]
         for i in range(len(self.modes)):
             self.hist.append(MultHist(self.nums[i], modes[i], factor, **kwargs))
 
@@ -417,6 +417,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     )
     modes = mode if type(mode) is list else [mode]
     hhd = MultModeHist(modes, factor=factor, pdf=pdf)
+    pool = SumPool2d(factor)
     print('collecting data from %s' % dataset_path)
     for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
         with torch.no_grad():
@@ -425,7 +426,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             imgs_hr = imgs["hr"]
             # Generate a high resolution image from low resolution input
             gen_hr = generator(imgs_lr).detach()
-            hhd.append(gen_hr, imgs_hr, imgs_lr)
+            hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
     if 'wmass' in modes:
         print('total entries: ', total_entries)
         print('top veto real / gen:', top_veto_real, top_veto_gen)
@@ -458,19 +459,19 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
 
             plt.figure()
             bin_entries = []
-            for i, (ls, lab) in enumerate(zip(['-', '--', '-.'], ["model prediction", "ground truth", "low resolution input"])):
+            for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled input"])):
                 if hhd.nums[m] == i:
                     continue
                 try:
                     entries, binedges = hhd[m].histogram(hhd[m].list[i], bins)
                     if i < 2:
                         bin_entries.append(entries)
-                except ValueError:
+                except ValueError as e:
                     print('auto range failed for %s' % modes[m])
-                    print(hhd[m].list[i])
+                    print(e)
                     entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
                 x, y = to_hist(entries, binedges)
-                plt.plot(x, y, ls, label=lab)
+                plt.plot(x, y, linestyle=ls, label=lab)
                 std = np.sqrt(y)
                 std[y == 0] = 0
                 plt.fill_between(x, y+std, y-std, alpha=.2)
@@ -483,7 +484,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.legend()
             if output_path:
                 if type(output) == str:
-                    out_path = output_path + ('_' + modes[m].replace('corr_', '') if len(modes) > 1 else '')
+                    out_path = output_path + ('_' + modes[m].replace('corr_', '').replace('_lr',''))
                     plt.savefig(out_path.replace('.png', ''))
                 else:
                     plt.savefig(output, format='pdf')
@@ -493,15 +494,16 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
                 p = hhd[m].power
-                for i in range(1+int('_lr' in modes[m])):
+                for i in range(1+2*int('_lr' in modes[m])):
                     unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
+                    X,Y=['HR', 'HR', 'LR'][i],['HR', 'LR', 'LR'][i]
                     kw = {'title': 'Correlation plot: %s' % hhd[m].title,
-                          'xlabel': 'Ground truth HR %s' % unit,
-                          'ylabel': 'Generated %s %s' % (['HR', 'LR'][i], unit)}
-                    f = plot_corr(hhd[m].list[0], hhd[m].list[1+i], power=p, **kw)
+                          'xlabel': 'Ground truth %s %s' % (X, unit),
+                          'ylabel': 'Generated %s %s' % (Y, unit)}
+                    f = plot_corr(hhd[m].list[[0,0,3][i]], hhd[m].list[[1,2,2][i]], bins=binedges, power=p, **kw)
                     if output_path:
                         if type(output) == str:
-                            out_path = output_path + ('_' + modes[m] if len(modes) > 1 else '')
+                            out_path = output_path + ('_' + modes[m]+X+'_'+Y)
                             f.savefig(out_path.replace('.png', ''))
                         else:
                             f.savefig(output, format='pdf')
