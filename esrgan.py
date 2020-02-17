@@ -253,7 +253,6 @@ def train(opt, **kwargs):
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
-    
 
     # ----------
     #  Training
@@ -430,8 +429,8 @@ def train(opt, **kwargs):
             # ---------------------
             #  Train Discriminator
             # ---------------------
-            
-            if (batches_done % opt.upd_diff == 0):
+
+            if i==opt.warmup_batches or (batches_done % opt.upd_diff == 0):
                 loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
                 for k in range(2):
                     lam = lambdas[k]
@@ -472,7 +471,7 @@ def train(opt, **kwargs):
             #  Log Progress
             # --------------
             # save loss to dict
-            
+
             if batches_done % opt.report_freq == 0:
                 for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
                     v.append(l)

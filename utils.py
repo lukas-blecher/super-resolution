@@ -312,6 +312,7 @@ class MeanImage:
     def get_hist(self):
         return self.sr, self.hr
 
+
 def to_hist(data, bins):
     '''nearest neighbor interpolation for 1d numpy arrays'''
     hist = np.zeros(2*len(data))
@@ -424,8 +425,8 @@ def slice_plot(M, x, y, slices=5, **kwargs):
         last1 = data[-1]
     ax[0].set_title(kwargs['xlabel'])
     ax[1].set_title(kwargs['ylabel'])
-    ax[1].set_xlabel('Energy '+ kwargs['unit'])
-    ax[0].set_xlabel('Energy '+ kwargs['unit'])
+    ax[1].set_xlabel('Energy ' + kwargs['unit'])
+    ax[0].set_xlabel('Energy ' + kwargs['unit'])
 
     plt.suptitle('Slice plot: '+kwargs['title'])
     return f
