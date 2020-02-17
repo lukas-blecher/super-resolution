@@ -192,7 +192,8 @@ class MultHist:
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
         if 'power' in kwargs:
-            self.power = kwargs['power']
+            if kwargs['power'] is not None:
+                self.power = kwargs['power']
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
         self.title, self.xlabel, self.ylabel = '', 'Energy [GeV]', 'Entries'
         if self.power==.5 and latex:
@@ -646,7 +647,7 @@ if __name__ == "__main__":
     parser.add_argument("--bins", type=int, default=30, help="number of bins in the histogram")
     parser.add_argument("--naive_generator", action="store_true", help="use a naive upsampler")
     parser.add_argument("--no_show", action="store_false", help="don't show figure")
-    parser.add_argument("--power", type=float, default=1, help="power to which to raise the Energy in eval plots")
+    parser.add_argument("--power", type=float, default=None, help="power to which to raise the Energy in eval plots")
     parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="Residual weighting factor")
