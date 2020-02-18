@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-from torchvision.models import vgg19
 import math
 import numpy as np
 from itertools import product
@@ -112,14 +111,11 @@ class GeneratorRRDB(nn.Module):
         return self.out(out)
 
 
-def discriminator_block(in_filters, out_filters, first_block=False):
+def discriminator_block(in_filters, out_filters, stride=(1, 2)):
     layers = []
-    layers.append(nn.Conv2d(in_filters, out_filters, kernel_size=3, stride=1, padding=1))
-    # if not first_block:
-    #    layers.append(nn.BatchNorm2d(out_filters))
+    layers.append(nn.Conv2d(in_filters, out_filters, kernel_size=3, stride=stride[0], padding=1))
     layers.append(nn.LeakyReLU(0.2, inplace=True))
-    layers.append(nn.Conv2d(out_filters, out_filters, kernel_size=3, stride=2, padding=1))
-    # layers.append(nn.BatchNorm2d(out_filters))
+    layers.append(nn.Conv2d(out_filters, out_filters, kernel_size=3, stride=stride[1], padding=1))
     layers.append(nn.LeakyReLU(0.2, inplace=True))
     return layers
 
@@ -138,7 +134,7 @@ class Markovian_Discriminator(nn.Module):
         layers = []
         in_filters = in_channels
         for i, out_filters in enumerate(self.channels):
-            layers.extend(discriminator_block(in_filters, out_filters, first_block=(i == 0)))
+            layers.extend(discriminator_block(in_filters, out_filters))
             in_filters = out_filters
             patch_h = stride2(patch_h)
             patch_w = stride2(patch_w)
@@ -148,7 +144,7 @@ class Markovian_Discriminator(nn.Module):
         self.output_shape = (1, patch_h, patch_w)
         self.model = nn.Sequential(*layers)
 
-    def forward(self, img):
+    def forward(self, img, *args):
         return self.model(img)
 
 
@@ -160,8 +156,45 @@ class Standard_Discriminator(Markovian_Discriminator):
         self.fc = nn.Sequential(nn.Linear(self.channels[-1]*self.output_shape[-2]*self.output_shape[-1], 256), nn.ReLU(), nn.Linear(256, 1))
         self.output_shape = (1,)
 
-    def forward(self, img):
+    def forward(self, img, *args):
         return self.fc(self.model(img).view(img.shape[0], -1))
+
+
+class Conditional_Discriminator(nn.Module):
+    def __init__(self, input_shape, channels=[32, 64, 128, 256], num_upsample=3):
+        super(Conditional_Discriminator, self).__init__()
+        self.channels = channels
+        self.input_shape = input_shape
+        in_channels, in_height, in_width = self.input_shape
+
+        def stride2(x):
+            return int(np.ceil(x/2))
+        patch_h, patch_w = in_height, in_width
+
+        hrlayers, clayers, endlayers = [], [], []
+        in_filters = in_channels
+        for i, out_filters in enumerate(self.channels):
+            if i < num_upsample:
+                hrlayers.extend(discriminator_block(in_filters, out_filters))
+                clayers.extend(discriminator_block(in_filters, out_filters, stride=(1, 1)))
+            elif i == num_upsample:
+                endlayers.extend(discriminator_block(in_filters*2, out_filters))
+            else:
+                endlayers.extend(discriminator_block(in_filters, out_filters))
+            in_filters = out_filters
+            patch_h = stride2(patch_h)
+            patch_w = stride2(patch_w)
+
+        endlayers.append(nn.Conv2d(out_filters, 1, kernel_size=3, stride=1, padding=1))
+        self.output_shape = (1, patch_h, patch_w)
+        self.model_hr = nn.Sequential(*hrlayers)
+        self.model_c = nn.Sequential(*clayers)
+        self.endmodel = nn.Sequential(*endlayers)
+
+    def forward(self, img, cond):
+        img = self.model_hr(img)
+        cond = self.model_c(cond)
+        return self.endmodel(torch.cat([img, cond], 1))
 
 
 class SumPool2d(torch.nn.Module):
