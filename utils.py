@@ -547,7 +547,7 @@ def nsubjettiness(event, n, R=0.8, p=1):
                     (event['eta'][:, None]-np.array([[J.eta for J in subjets]]))**2)
     taun = event['pT']*np.min(delRs, axis=1)
 
-    return taun/(event['pT'].sum()*R)
+    return taun.sum()/(event['pT'].sum()*R)
 
 
 class Wrapper:
