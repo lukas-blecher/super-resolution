@@ -226,7 +226,9 @@ class MultHist:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
         elif 'nsubj' in self.mode:
-            self.n = [int(s) for s in self.mode.split('nsubj_')[1]]
+            self.n = int(self.mode.split('nsubj_')[1])
+            self.xlabel = r'$\tau_{%i}$' % self.n
+            self.title = 'N-subjettiness for $N=%i$' % self.n
         elif self.mode == 'meannnz':
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':

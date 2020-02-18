@@ -541,14 +541,11 @@ def img2event(img, etarange=1, phirange=1, thres=0):
 
 
 def nsubjettiness(event, n, R=0.8, p=1):
-    from pyjet.ClusterSequence import exclusive_jets
     from pyjet import cluster
     subjets = cluster(event, R=R, p=p).exclusive_jets(n)
     delRs = np.sqrt((event['phi'][:, None]-np.array([[J.phi for J in subjets]]))**2 +
                     (event['eta'][:, None]-np.array([[J.eta for J in subjets]]))**2)
-    taun = 0
-    for k in range(len(event)):
-        taun+=event[k]['pT']*np.min(delRs[k])
+    taun = event['pT']*np.min(delRs, axis=1)
 
     return taun/(event['pT'].sum()*R)
 
