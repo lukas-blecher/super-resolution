@@ -76,6 +76,7 @@ def get_parser():
     parser.add_argument("--model_path", type=str, default=default.model_path, help="directory where the model is saved/should be saved")
     parser.add_argument("--discriminator", choices=['patch', 'standard'], default=default.discriminator, help="discriminator model to use")
     parser.add_argument("--relativistic", type=str_to_bool, default=default.relativistic, help="whether to use relativistic average GAN")
+    parser.add_argument("--conditional", type=str_to_bool, default=default.conditional, help="whether to use conditional discriminator")
     parser.add_argument("--save", type=str_to_bool, default=default.save, help="whether to save the model weights or not")
     parser.add_argument("--save_info", type=str_to_bool, default=default.save_info, help="whether to save the info.json file or not")
     parser.add_argument("--validation_path", type=str, default=default.validation_path, help="Path to validation data. Validating when creating a new checkpoint")
@@ -164,18 +165,16 @@ def train(opt, **kwargs):
     if opt.E_thres:
         generator.thres = opt.E_thres
     Discriminators = pointerList()
-    if opt.lambda_pix > 0:
-        if opt.discriminator == 'patch':
-            discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-        elif opt.discriminator == 'standard':
-            discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-        Discriminators[0] = discriminator
-    if opt.lambda_pow > 0:
-        if opt.discriminator == 'patch':
-            discriminator_pow = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-        elif opt.discriminator == 'standard':
-            discriminator_pow = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-        Discriminators[1] = discriminator_pow
+    for k in range(2):
+        if lambdas[k] > 0:
+            if opt.discriminator == 'patch':
+                discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+            elif opt.discriminator == 'standard':
+                discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+            elif opt.discriminator == 'conditional':
+                discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
+            Discriminators[k] = discriminator
+
     discriminator_outshape = Discriminators.get(0).output_shape
 
     # Losses
@@ -383,8 +382,8 @@ def train(opt, **kwargs):
                         loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
                     if opt.lambda_adv > 0 and wait('adv'):
                         # Extract validity generated[k]s from discriminator
-                        pred_real = Discriminators[k](ground_truth[k]).detach()
-                        pred_fake = Discriminators[k](generated[k])
+                        pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
+                        pred_fake = Discriminators[k](generated[k], generated_lr[k])
 
                         if opt.relativistic:
                             # Adversarial loss (relativistic average GAN)
@@ -430,14 +429,14 @@ def train(opt, **kwargs):
             #  Train Discriminator
             # ---------------------
 
-            if i==opt.warmup_batches or (batches_done % opt.upd_diff == 0):
+            if i == opt.warmup_batches or (batches_done % opt.upd_diff == 0):
                 loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
                 for k in range(2):
                     lam = lambdas[k]
                     if lam > 0:
                         optimizer_D[k].zero_grad()
-                        pred_real = Discriminators[k](ground_truth[k])
-                        pred_fake = Discriminators[k](generated[k].detach())
+                        pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k])
+                        pred_fake = Discriminators[k](generated[k].detach(), generated_lr[k].detach())
                         if opt.relativistic:
                             # Adversarial loss for real and fake images (relativistic average GAN)
                             loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
@@ -452,8 +451,10 @@ def train(opt, **kwargs):
                             # generate interpolation between real and fake data
                             epsilon = torch.rand(batch_size, 1, 1, 1).to(device)
                             interpolation = epsilon*ground_truth[k]+(1-epsilon)*generated[k].detach()
+                            interpolation_lr = epsilon*ground_truth_lr[k]+(1-epsilon)*generated_lr[k].detach()
                             interpolation.requires_grad = True
-                            pred_interpolation = Discriminators[k](interpolation)
+                            interpolation_lr.requires_grad = True
+                            pred_interpolation = Discriminators[k](interpolation, interpolation_lr)
                             gradients = torch.autograd.grad(outputs=pred_interpolation, inputs=interpolation, grad_outputs=valid,
                                                             create_graph=True, retain_graph=True, only_inputs=True)[0]
                             gradients = gradients.view(batch_size, -1)
