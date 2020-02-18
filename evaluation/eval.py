@@ -276,7 +276,7 @@ class MultHist:
                 elif 'FWM_' in self.mode:
                     self.list[i].extend(FWM(Ln, l=self.l, j=self.j))
                 elif 'nsubj' in self.mode:
-                    self.list[i].extend([nsubjettiness(img2cluster(Ln[k]),self.n) for k in range(len(Ln))])
+                    self.list[i].extend([nsubjettiness(img2event(Ln[k]), self.n) for k in range(len(Ln))])
 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
