@@ -530,22 +530,27 @@ def get_emd(gen, real, thres=0):
     return [energyflow.emd.emd(gen_pyphi[i], real_pyphi[i]) for i in range(len(real))]
 
 
-def img2cluster(img, etarange=1, phirange=1, thres=0, R=0.8, p=1):
-    from pyjet import cluster
+def img2event(img, etarange=1, phirange=1, thres=0):
     dtype = np.dtype([('pT', 'f8'), ('eta', 'f8'), ('phi', 'f8'), ('mass', 'f8')])
     jet = get_event_array(img, etarange, phirange, thres)
     # add mass to the tuples
     jet = np.array(np.concatenate((jet, np.zeros((len(jet), 1))), 1))
     # convert to correct dtype
     jet = np.array(list(map(tuple, jet)), dtype=dtype)
-    return cluster(jet, R=R, p=p)
+    return jet
 
 
-def nsubjettiness(cluster, n):
+def nsubjettiness(event, n, R=0.8, p=1):
     from pyjet.ClusterSequence import exclusive_jets
-    subjets = cluster.exclusive_jets(n)
-    pts = [J.pt for J in subjets]
-    return pts
+    from pyjet import cluster
+    subjets = cluster(event, R=R, p=p).exclusive_jets(n)
+    delRs = np.sqrt((event['phi'][:, None]-np.array([[J.phi for J in subjets]]))**2 +
+                    (event['eta'][:, None]-np.array([[J.eta for J in subjets]]))**2)
+    taun = 0
+    for k in range(len(event)):
+        taun+=event[k]['pT']*np.min(delRs[k])
+
+    return taun/(event['pT'].sum()*R)
 
 
 class Wrapper:

@@ -174,11 +174,14 @@ class MultHist:
                   for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed,
             'E' will extract the total energy distribution
             'E_n' plots the distribution of the n-th hardest constituent NOTE: start from 1 , not 0
+                'corr_' in front will plot the correlation between HR and SR (also a slice plot will be made)
+                '_lr' after will plot the correlation between all combinations of HR, LR and SR
             'R_nm' plots the ratio of the nth and mth hardest consts, eg R_25 for ratio of second and fifth hardest NOTE: atm n AND m have to be smaller 10 ie 1 digit
             'deltaR_nm' plots deltaR distribution for nth and mth hardest constituents
             'hitogram' returns the gives insight in how the constituents are distributed in the super resolved image
             'FWM_i_j' plots the fox wolfram moments for the ith hardest constituent with respect to the 1...j hardest.
             'meanimg' returns the mean of the hr and sr images
+            'nsubj_i' plots the N-subjettiness for N=i
  '''
 
     def __init__(self, num, mode='max', factor=None, **kwargs):
@@ -186,8 +189,6 @@ class MultHist:
         self.list = [[] for _ in range(num)]
         self.mode = mode.replace('corr_', '').replace('_lr', '')
         self.thres = 0.002
-        self.inpl = '0'
-        self.ratio = '0'
         self.power = 1 
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
@@ -209,7 +210,6 @@ class MultHist:
             self.dr1 = self.mode[7]
             self.dr2 = self.mode[8]
         elif 'R_' in self.mode:
-            self.ratio = self.mode[2:]
             self.harder = self.mode[2]
             self.softer = self.mode[3]
         elif self.mode == 'hitogram':
@@ -225,6 +225,8 @@ class MultHist:
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
+        elif 'nsubj' in self.mode:
+            self.n = [int(s) for s in self.mode.split('nsubj_')[1]]
         elif self.mode == 'meannnz':
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':
@@ -273,6 +275,8 @@ class MultHist:
                     self.list[i].extend(get_const_ratio(Ln, n=int(self.harder), m=int(self.softer)))
                 elif 'FWM_' in self.mode:
                     self.list[i].extend(FWM(Ln, l=self.l, j=self.j))
+                elif 'nsubj' in self.mode:
+                    self.list[i].extend([nsubjettiness(img2cluster(Ln[k]),self.n) for k in range(len(Ln))])
 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
