@@ -181,13 +181,18 @@ class MultHist:
             'hitogram' returns the gives insight in how the constituents are distributed in the super resolved image
             'FWM_i_j' plots the fox wolfram moments for the ith hardest constituent with respect to the 1...j hardest.
             'meanimg' returns the mean of the hr and sr images
-            'nsubj_i' plots the N-subjettiness for N=i
+            'nsubj_i_j' plots ratio of the N-subjettiness for N=i and N'=j
+            
+    additions:
+            'corr_' will plot the correlations between HR and SR in a 2d histogram aswell as in a slice plot
+                '_lr' will additionally plot the LR - HR/SR correlations in a 2d histogram        
+            'ratio_' plots |E_sr-E_gt|/E_gt for the nth hardest constituent
  '''
 
     def __init__(self, num, mode='max', factor=None, **kwargs):
         self.num = num
         self.list = [[] for _ in range(num)]
-        self.mode = mode.replace('corr_', '').replace('_lr', '')
+        self.mode = mode
         self.thres = 0.002
         self.power = 1 
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
@@ -226,9 +231,9 @@ class MultHist:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
         elif 'nsubj' in self.mode:
-            self.n = int(self.mode.split('nsubj_')[1])
-            self.xlabel = r'$\tau_{%i}$' % self.n
-            self.title = 'N-subjettiness for $N=%i$' % self.n
+            self.n, self.m = [int(s) for s in self.mode.split('nsubj_')[1].split('_')]
+            self.xlabel = r'$\tau_{%i}/\tau_{%i}$' % (self.n, self.m)
+            self.title = r'Ratio of N-subjettiness for $N=%i$ and $N^\prime=%i' % (self.n, self.m)
         elif self.mode == 'meannnz':
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':
@@ -278,7 +283,8 @@ class MultHist:
                 elif 'FWM_' in self.mode:
                     self.list[i].extend(FWM(Ln, l=self.l, j=self.j))
                 elif 'nsubj' in self.mode:
-                    self.list[i].extend([nsubjettiness(img2event(Ln[k], thres=self.thres), self.n) for k in range(len(Ln))])
+                    event=img2event(Ln[k], thres=self.thres)
+                    self.list[i].extend([nsubjettiness(event, self.n)/nsubjettiness(event, self.m) for k in range(len(Ln))])
 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
@@ -322,10 +328,13 @@ class MultModeHist:
         self.modes = modes
         self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
-        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[mode.replace('corr_', '').replace('_lr', '')]
-                                                                       if '_' not in mode.replace('corr_', '').replace('_lr', '') else 4 for mode in self.modes]
+        self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[self.rmAdditions(mode)]
+                                                                       if '_' not in self.rmAdditions(mode) else 4 for mode in self.modes]
         for i in range(len(self.modes)):
-            self.hist.append(MultHist(self.nums[i], modes[i], factor, **kwargs))
+            self.hist.append(MultHist(self.nums[i], self.rmAdditions(modes[i]), factor, **kwargs))
+
+    def rmAdditions(self, mode):
+        return mode.replace('corr_', '').replace('_lr', '').replace('ratio_', '')
 
     def append(self, *argv):
         for i in range(len(self.hist)):
@@ -463,7 +472,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
 
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 continue
-
+            p = hhd[m].power
+            unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
+            if p==0.5 and pdf:
+                unit = r'[$\sqrt{\text{GeV}}$]' 
             plt.figure()
             bin_entries = []
             for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
@@ -494,7 +506,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.legend()
             if output_path:
                 if not pdf:
-                    out_path = output_path + ('_' + modes[m].replace('corr_', '').replace('_lr',''))
+                    out_path = output_path + ('_' + hhd.rmAdditions(modes[m]))
                     plt.savefig(out_path.replace('.png', ''))
                 else:
                     plt.savefig(output, format='pdf')
@@ -503,11 +515,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
-                p = hhd[m].power
                 for i in range(1+3*int('_lr' in modes[m])):
-                    unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
-                    if p==0.5 and pdf:
-                        unit = r'[$\sqrt{\text{GeV}}$]' 
                     X,Y=['HR', 'HR', 'LR', 'LR'][i],['SR', 'LR', 'SR', 'LR'][i]
                     kw = {'title': hhd[m].title,
                           'xlabel': 'Ground truth %s' % X,
@@ -535,6 +543,34 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                                 f.savefig(output, format='pdf')
                         if show:
                             f.show()
+            if 'ratio_' in modes[m]:
+                for i in range(len(hhd[m].list)//2):
+                    gt,pr=[0,3][i],[1,2][i]
+                    i=2*i
+                    try:
+                        try:
+                            entries, binedges = hhd[m].histogram((hhd[m].list[gt]-hhd[m].list[pr])/hhd[m].list[gt], bins)
+                        except IndexError:
+                            continue
+                    except ValueError as e:
+                        entries, binedges = hhd[m].histogram((hhd[m].list[gt]-hhd[m].list[pr])/hhd[m].list[gt], bins, auto_range=False)
+                    x, y = to_hist(entries, binedges)
+                    plt.plot(x, y, linestyle=ls, label=['HR','LR'][i])
+                    std = np.sqrt(y)
+                    std[y == 0] = 0
+                    plt.fill_between(x, y+std, y-std, alpha=.2)
+                    plt.title('Ratio: '+hhd[m].title)
+                    plt.ylabel('Entries')
+                    plt.xlabel('Ratio')
+
+                    if output_path:
+                        if not pdf:
+                            out_path = output_path + ('_' + modes[m]+'_ratio')
+                            f.savefig(out_path.replace('.png', ''))
+                        else:
+                            f.savefig(output, format='pdf')
+                    if show:
+                        f.show()
 
         plt.close('all')
     return total_kld
@@ -630,10 +666,14 @@ def evaluate_results(file):
                     iterations.append(p['batch'])
                     y.append(p[key]['mean'])
                     y_err.append(p[key]['std'])
-                _, caps, bars = splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
+                splt.plot(iterations, y, linestyle='-')
+                std = np.sqrt(y_err)
+                std[y == 0] = 0
+                splt.fill_between(iterations, y+std, y-std, alpha=.2)
+                #_, caps, bars = splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
                 # loop through bars and caps and set the alpha value
-                [bar.set_alpha(0.5) for bar in bars]
-                [cap.set_alpha(0.5) for cap in caps]
+                #[bar.set_alpha(0.5) for bar in bars]
+                #[cap.set_alpha(0.5) for cap in caps]
         if not val:
             splt.legend(loc=(1, 0))
     global show
