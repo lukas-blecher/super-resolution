@@ -496,7 +496,7 @@ def train(opt, **kwargs):
                 print('Validation')
                 output_path = opt.output_path if 'output_path' in dir(opt) else None
                 val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size,
-                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N/10, thres=opt.E_thres, N=opt.n_hardest)
+                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N//10, thres=opt.E_thres, N=opt.n_hardest)
                 val_results['epoch'] = epoch
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
