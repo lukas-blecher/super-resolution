@@ -47,9 +47,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', type=str, nargs='+', required=True, help='info file with loss')
     args = parser.parse_args()
-    if len(args.file)==1:
-        args.file = glob.glob(args.file[0])
-    with open(args.file[0]) as f:
+    files=[]
+    for f in args.file:
+        files.extend(glob.glob(f))
+    with open(files[0]) as f:
         info = json.load(f)
     if not 'loss' in info:
         raise KeyError('No Loss in the info file.')
@@ -61,7 +62,7 @@ if __name__ == '__main__':
     ax = ax.flatten()
     for i in range(a*b-1, N-1, -1):
         fig.delaxes(ax[i])
-    for i, f in enumerate(args.file):
+    for i, f in enumerate(files):
         plot_losses(i, f, ax)
 
     plt.tight_layout()

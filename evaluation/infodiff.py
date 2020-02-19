@@ -6,7 +6,7 @@ import glob
 import pandas as pd
 pd.set_option('display.max_rows', 500)
 pd.set_option('display.max_columns', 500)
-pd.set_option('display.width', 1000)
+pd.set_option('display.width', 500)
 
 
 def round_list(it, digits=5):
@@ -20,11 +20,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', type=str, nargs='+', required=True, help='info file with loss')
     args = parser.parse_args()
-    if len(args.file) == 1:
-        args.file = glob.glob(args.file[0])
-    assert len(args.file) >= 2
+    files=[]
+    for f in args.file:
+        files.extend(glob.glob(f))
+    assert len(files) >= 2
     d = None
-    for i, f in enumerate(args.file):
+    for i, f in enumerate(files):
         with open(f) as fs:
             try:
                 info = json.load(fs)
@@ -34,11 +35,18 @@ if __name__ == '__main__':
         if d is None:
             d = {k: [] for k in info['argument'].keys()}
             d['saved_batch'] = []
-        for k in d.keys():
+        other_keys=list(set(list(d.keys())+list(info['argument'].keys())))
+        for k in info['argument'].keys():
+            del other_keys[other_keys.index(k)]
             try:
                 d[k].append(info['argument'][k])
-            except KeyError:
-                pass
+            except KeyError as e:
+                # print(e, f)
+                d[k] = [None]*i + [info['argument'][k]]
+        for k in other_keys:
+            if k in ('saved_batch'):
+                continue
+            d[k].append(None)
         try:
             it=list(info['saved_batch'].values())
         except:
@@ -63,11 +71,18 @@ if __name__ == '__main__':
             v0 = v
         if same:
             delkeys.append(k)
+
+    for k in ['validation_path','testset_path','eval_modes']:
+        if k not in delkeys:
+            delkeys.append(k)
     for k in delkeys:
         del d[k]
     try:
-        df = pd.DataFrame(d)
+        #df = pd.DataFrame(d)
+        df=pd.DataFrame.from_dict(d, orient='index').T
+        df.sort_values('name', inplace=True)    
         print(df)
-    except ValueError:
+    except ValueError as e:
+        print(e)
         print(d)
         
