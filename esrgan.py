@@ -50,7 +50,8 @@ def get_parser():
     parser.add_argument("--checkpoint_interval", type=int, default=default.checkpoint_interval, help="batch interval between model checkpoints")
     parser.add_argument("--validation_interval", type=int, default=default.validation_interval, help="batch interval between validation samples")
     parser.add_argument("--evaluation_interval", type=int, default=default.evaluation_interval, help="batch interval between evaluations (histograms)")
-    parser.add_argument("--upd_diff", type=int, default=default.upd_diff, help="how many times the gen is updated relative to 1 discr update")
+    parser.add_argument("--update_d", type=int, default=default.update_d, help="every nth batch the discriminator will be updated")
+    parser.add_argument("--update_g", type=int, default=default.update_g, help="every nth batch the generator will be updated")
     parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
@@ -352,84 +353,85 @@ def train(opt, **kwargs):
                             histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
                             criterion_hist[k] = KLD_hist(torch.from_numpy(binedges[-1])).to(device)
                 del nnz
+            if i == opt.warmup_batches or (batches_done % opt.update_g == 0):
+                # Main training loop
+                loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [
+                    torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
+                # Generate a high resolution image from low resolution input
+                generated = pointerList(generator(imgs_lr))
+                generated.append(generator.srs)
+                ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
+                gen_lr = pool(generated[0])
+                generated_lr = pointerList(gen_lr, gen_lr**opt.scaling_power)
+                ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
+                # check for nan in the tensors:
+                '''for l,pl in enumerate([generated, ground_truth, generated_lr, ground_truth_lr]):
+                    for k in range(len(pl)):
+                        plksum = pl.get(k).sum()
+                        if plksum != plksum:
+                            print('%f in list %i, index %i of %i. Shape: %s'%(plksum, l, k, len(pl), str(pl.get(k).shape)))'''
 
-            # Main training loop
-            loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [
-                torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
-            # Generate a high resolution image from low resolution input
-            generated = pointerList(generator(imgs_lr))
-            generated.append(generator.srs)
-            ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
-            gen_lr = pool(generated[0])
-            generated_lr = pointerList(gen_lr, gen_lr**opt.scaling_power)
-            ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
-            # check for nan in the tensors:
-            '''for l,pl in enumerate([generated, ground_truth, generated_lr, ground_truth_lr]):
-                for k in range(len(pl)):
-                    plksum = pl.get(k).sum()
-                    if plksum != plksum:
-                        print('%f in list %i, index %i of %i. Shape: %s'%(plksum, l, k, len(pl), str(pl.get(k).shape)))'''
+                tot_loss = pointerList(loss_def, loss_pow)
+                # iterate over both the normal image and the image raised to opt.scaling_power
+                for k in range(2):
+                    if lambdas[k] > 0:
+                        if opt.lambda_hr > 0 and wait('hr'):
+                            # Measure pixel-wise loss against ground truth
+                            loss_pixel = criterion_pixel(generated[k].mean(0)[None, ...], ground_truth[k].mean(0)[None, ...])
+                        if opt.lambda_lr > 0 and wait('lr'):
+                            # Measure pixel-wise loss against ground truth for downsampled images
+                            loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
+                        if opt.lambda_adv > 0 and wait('adv'):
+                            # Extract validity generated[k]s from discriminator
+                            pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
+                            pred_fake = Discriminators[k](generated[k], generated_lr[k])
 
-            tot_loss = pointerList(loss_def, loss_pow)
-            # iterate over both the normal image and the image raised to opt.scaling_power
-            for k in range(2):
-                if lambdas[k] > 0:
-                    if opt.lambda_hr > 0 and wait('hr'):
-                        # Measure pixel-wise loss against ground truth
-                        loss_pixel = criterion_pixel(generated[k].mean(0)[None, ...], ground_truth[k].mean(0)[None, ...])
-                    if opt.lambda_lr > 0 and wait('lr'):
-                        # Measure pixel-wise loss against ground truth for downsampled images
-                        loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
-                    if opt.lambda_adv > 0 and wait('adv'):
-                        # Extract validity generated[k]s from discriminator
-                        pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
-                        pred_fake = Discriminators[k](generated[k], generated_lr[k])
+                            if opt.relativistic:
+                                # Adversarial loss (relativistic average GAN)
+                                loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                                            criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
+                            else:
+                                loss_GAN = criterion_GAN(eps + pred_fake, valid)
+                        if opt.lambda_nnz > 0 and wait('nnz'):
+                            gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
+                            target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
+                            loss_nnz = mse(gen_nnz, target)
+                        if opt.lambda_mask > 0 and wait('mask'):
+                            gen_mask = nnz_mask(generated[k])
+                            real_mask = nnz_mask(ground_truth[k])
+                            loss_mask = criterion_pixel(gen_mask, real_mask)
+                        if opt.lambda_hist > 0 and wait('hist'):
+                            # calculate the energy distribution loss
+                            # first calculate the both histograms
+                            gen_nnz = generated[k][generated[k] > 0]
+                            real_nnz = ground_truth[k][ground_truth[k] > 0]
+                            gen_hist = histograms[k](gen_nnz)
+                            real_hist = histograms[k](real_nnz)
+                            loss_hist = criterion_hist[k](gen_hist, real_hist)
+                            # print(gen_hist,real_hist,loss_hist)
+                        if opt.lambda_wasser > 0 and wait('wasser'):
+                            gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
+                            real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
+                            loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
+                        if opt.lambda_hit > 0 and wait('hit'):
+                            gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)#+eps
+                            target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
+                            #loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
+                            loss_hit = criterion_pixel(gen_hit, target)
 
-                        if opt.relativistic:
-                            # Adversarial loss (relativistic average GAN)
-                            loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
-                                           criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
-                        else:
-                            loss_GAN = criterion_GAN(eps + pred_fake, valid)
-                    if opt.lambda_nnz > 0 and wait('nnz'):
-                        gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
-                        target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
-                        loss_nnz = mse(gen_nnz, target)
-                    if opt.lambda_mask > 0 and wait('mask'):
-                        gen_mask = nnz_mask(generated[k])
-                        real_mask = nnz_mask(ground_truth[k])
-                        loss_mask = criterion_pixel(gen_mask, real_mask)
-                    if opt.lambda_hist > 0 and wait('hist'):
-                        # calculate the energy distribution loss
-                        # first calculate the both histograms
-                        gen_nnz = generated[k][generated[k] > 0]
-                        real_nnz = ground_truth[k][ground_truth[k] > 0]
-                        gen_hist = histograms[k](gen_nnz)
-                        real_hist = histograms[k](real_nnz)
-                        loss_hist = criterion_hist[k](gen_hist, real_hist)
-                        # print(gen_hist,real_hist,loss_hist)
-                    if opt.lambda_wasser > 0 and wait('wasser'):
-                        gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
-                        real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
-                        loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
-                    if opt.lambda_hit > 0 and wait('hit'):
-                        gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)+eps
-                        target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
-                        loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
-
-                    tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                        loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
-                    # Total generator loss
-                    loss_G += lambdas[k] * tot_loss[k]
-            loss_G.backward()
-            # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
-            optimizer_G.step()
+                        tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
+                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
+                        # Total generator loss
+                        loss_G += lambdas[k] * tot_loss[k]
+                loss_G.backward()
+                # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
+                optimizer_G.step()
 
             # ---------------------
             #  Train Discriminator
             # ---------------------
 
-            if i == opt.warmup_batches or (batches_done % opt.upd_diff == 0):
+            if i == opt.warmup_batches or (batches_done % opt.update_d == 0):
                 loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
                 for k in range(2):
                     lam = lambdas[k]

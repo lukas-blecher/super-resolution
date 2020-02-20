@@ -260,7 +260,10 @@ def softgreater(x, val, sigma=5000, delta=0):
 
 
 def get_hitogram(t, factor, threshold=.1, sig=80):
-    return torch.sigmoid(sig*(torch.cat(torch.split(torch.cat(torch.split(t, factor, -2)), factor, -1))-threshold)).mean((0, 1))
+    if sig > 0:
+        return torch.sigmoid(sig*(torch.cat(torch.split(torch.cat(torch.split(t, factor, -2)), factor, -1))-threshold)).mean((0, 1))
+    else:
+        return torch.cat(torch.split(torch.cat(torch.split(t, factor, -2)), factor, -1)).mean((0, 1))
 
 
 def nnz_mask(x, sigma=5e4):
@@ -396,6 +399,7 @@ def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='',
     cbar.ax.set_ylabel('Entries', rotation=270)
     mn, mx = bins.min(), bins.max()
     plt.plot([mn, mx], [mn, mx], c='k', alpha=.6, lw=1)
+    plt.tight_layout()
     if return_matrix:
         return plt.gcf(), (M, x, y)
     else:
