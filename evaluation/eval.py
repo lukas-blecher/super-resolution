@@ -544,6 +544,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         if show:
                             f.show()
             if 'ratio_' in modes[m]:
+                plt.figure()
+                f=plt.gcf()
                 for i in range(len(hhd[m].list)//2):
                     gt,pr=[0,3][i],[1,2][i]
                     try:
@@ -562,14 +564,14 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     plt.ylabel('Entries')
                     plt.xlabel('Ratio')
 
-                    if output_path:
-                        if not pdf:
-                            out_path = output_path + ('_' + modes[m]+'_ratio')
-                            f.savefig(out_path.replace('.png', ''))
-                        else:
-                            f.savefig(output, format='pdf')
-                    if show:
-                        f.show()
+                if output_path:
+                    if not pdf:
+                        out_path = output_path + ('_' + modes[m]+'_ratio')
+                        f.savefig(out_path.replace('.png', ''))
+                    else:
+                        f.savefig(output, format='pdf')
+                if show:
+                    f.show()
 
         plt.close('all')
     return total_kld
