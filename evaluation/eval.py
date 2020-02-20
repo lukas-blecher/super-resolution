@@ -549,11 +549,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     i=2*i
                     try:
                         try:
-                            entries, binedges = hhd[m].histogram((hhd[m].list[gt]-hhd[m].list[pr])/hhd[m].list[gt], bins)
+                            entries, binedges = hhd[m].histogram((np.array(hhd[m].list[gt])-np.array(hhd[m].list[pr]))/np.array(hhd[m].list[gt]), bins)
                         except IndexError:
                             continue
                     except ValueError as e:
-                        entries, binedges = hhd[m].histogram((hhd[m].list[gt]-hhd[m].list[pr])/hhd[m].list[gt], bins, auto_range=False)
+                        entries, binedges = hhd[m].histogram((np.array(hhd[m].list[gt])-np.array(hhd[m].list[pr]))/np.array(hhd[m].list[gt]), bins, auto_range=False)
                     x, y = to_hist(entries, binedges)
                     plt.plot(x, y, linestyle=ls, label=['HR','LR'][i])
                     std = np.sqrt(y)
