@@ -546,7 +546,6 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if 'ratio_' in modes[m]:
                 for i in range(len(hhd[m].list)//2):
                     gt,pr=[0,3][i],[1,2][i]
-                    i=2*i
                     try:
                         try:
                             entries, binedges = hhd[m].histogram((np.array(hhd[m].list[gt])-np.array(hhd[m].list[pr]))/np.array(hhd[m].list[gt]), bins)
