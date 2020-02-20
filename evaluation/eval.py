@@ -546,7 +546,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if 'ratio_' in modes[m]:
                 plt.figure()
                 f=plt.gcf()
-                plt.title('Ratio: '+hhd[m].title)
+                plt.title('Ratio: '+hhd[m].title+ ' $|GT-PR|/GT$')
                 plt.ylabel('Entries')
                 plt.xlabel('Ratio')
                 ratio = MultHist(len(hhd[m].list)//2, mode='')
@@ -566,7 +566,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     std = np.sqrt(np.clip(y,0,None))
                     std[y == 0] = 0
                     plt.fill_between(x, y+std, y-std, alpha=.2)
-                    
+                plt.legend()
 
                 if output_path:
                     if not pdf:
