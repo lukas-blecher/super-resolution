@@ -552,7 +552,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 ratio = MultHist(len(hhd[m].list)//2, mode='')
                 for i in range(ratio.num):
                     gt,pr=[0,3][i],[1,2][i]
-                    ratio.list.append(np.abs(np.array(hhd[m].list[gt])-np.array(hhd[m].list[pr]))/np.array(hhd[m].list[gt]))
+                    ratio.list[i]=(np.abs(np.array(hhd[m].list[gt])-np.array(hhd[m].list[pr]))/np.array(hhd[m].list[gt]))
                 for i in range(len(hhd[m].list)//2):                    
                     try:
                         try:
@@ -562,7 +562,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     except ValueError as e:
                         entries, binedges = ratio.histogram(ratio.list[i], bins, auto_range=False)
                     x, y = to_hist(entries, binedges)
-                    plt.plot(x, y, linestyle=ls, label=['HR','LR'][i])
+                    plt.plot(x, y, linestyle=['-','--'][i], label=['HR','LR'][i])
                     std = np.sqrt(np.clip(y,0,None))
                     std[y == 0] = 0
                     plt.fill_between(x, y+std, y-std, alpha=.2)
@@ -576,6 +576,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         f.savefig(output, format='pdf')
                 if show:
                     f.show()
+                plt.close()
 
         plt.close('all')
     return total_kld
