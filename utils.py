@@ -441,6 +441,7 @@ def slice_plot(M, x, y, slices=5, **kwargs):
     ax[0].set_xlabel('Energy ' + kwargs['unit'])
     if kwargs['show_title']:
         plt.suptitle('Slice plot: '+kwargs['title'])
+    f.tight_layout()
     return f
 
 

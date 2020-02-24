@@ -464,9 +464,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 if modes[m] == 'hitogram':
                     sr, hr = hhd[m].raster.get_hist()
                     f = plot_hist2d(sr, hr)
+                    f.tight_layout()
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
+                    f.tight_layout()
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
                     if not pdf:
@@ -510,6 +512,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.ylabel(hhd[m].ylabel)
             if legend:
                 plt.legend()
+            plt.tight_layout()
             if output_path:
                 if not pdf:
                     out_path = output_path + ('_' + hhd.rmAdditions(modes[m]))
@@ -577,7 +580,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     std[y == 0] = 0
                     plt.fill_between(x, y+std, y-std, alpha=.2)
                 plt.legend()
-
+                plt.tight_layout()
                 if output_path:
                     if not pdf:
                         out_path = output_path + ('_' + modes[m]+'_ratio')
