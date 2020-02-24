@@ -228,7 +228,10 @@ class MultHist:
                     self.preprocess = True
             except NameError:
                 self.preprocess = False
-            self.meanimg = MeanImage(factor, preprocess=self.preprocess, threshold=self.thres-0.002)
+            energy = False
+            if 'meanenergy' in kwargs:
+                energy = kwargs['meanenergy']
+            self.meanimg = MeanImage(factor, preprocess=self.preprocess, threshold=self.thres, energy=energy)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
@@ -739,6 +742,7 @@ if __name__ == "__main__":
     parser.add_argument("--legend", type=str_to_bool, default=True, help="Plot the legend or not")
     parser.add_argument("--title", type=str_to_bool, default=True, help="Plot the title or not")
     parser.add_argument("--thres", type=float, default=0.002, help="Threshold for entry in SR to count as constituent")
+    parser.add_argument("--meanenergy", type=str_to_bool, default=True, help="Plot the average jet image with energy instead of counts")
     parser.add_argument("--gpu", type=int, default=None, help="GPU index")
 
     opt = parser.parse_args()
