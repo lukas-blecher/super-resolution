@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+from matplotlib.ticker import LogFormatter
 import numpy as np
 from PIL import Image
 import os
@@ -368,7 +369,10 @@ def plot_mean(MeanImage, cmap='jet'):
     for i in range(2):
         ax = axes[i]
         image = ims[i]
-        im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm())
+        if log:
+            im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm())
+        else:
+            im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap)
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]
@@ -383,7 +387,10 @@ def plot_mean(MeanImage, cmap='jet'):
         axHisty.invert_xaxis()
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
         axCol = plt.axes(rect_col)
-        f.colorbar(im, cax=axCol, ax=ax)
+        if log:
+            f.colorbar(im, cax=axCol, ax=ax, formatter=LogFormatter(10, labelOnlyBase=False))
+        else:
+            f.colorbar(im, cax=axCol, ax=ax, formatter=LogFormatter(10, labelOnlyBase=False))
         for ax in (ax, axHisty, axHistx):
             for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                         *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
@@ -441,7 +448,7 @@ def slice_plot(M, x, y, slices=5, **kwargs):
     ax[0].set_xlabel('Energy ' + kwargs['unit'])
     if kwargs['show_title']:
         plt.suptitle('Slice plot: '+kwargs['title'])
-    f.tight_layout()
+    f.tight_layout(rect=[0, 0.03, 1, 0.95])
     return f
 
 

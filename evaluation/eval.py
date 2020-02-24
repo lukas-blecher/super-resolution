@@ -194,6 +194,8 @@ class MultHist:
         self.list = [[] for _ in range(num)]
         self.mode = mode
         self.thres = 0.002
+        if 'threshold' in kwargs:
+            self.thres = float(kwargs['threshold'])
         self.power = 1 
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
@@ -226,7 +228,7 @@ class MultHist:
                     self.preprocess = True
             except NameError:
                 self.preprocess = False
-            self.meanimg = MeanImage(factor, preprocess=self.preprocess)
+            self.meanimg = MeanImage(factor, preprocess=self.preprocess, threshold=self.thres-0.002)
         elif 'FWM' in self.mode:
             self.l, self.j = [int(s) for s in self.mode[4:].split('_')]
             self.title = num_to_str(int(self.l), thres=0, latex=latex) + 'Fox Wolfram Moment ('+num_to_str(int(self.j), thres=0, latex=latex)+'constituents)'
@@ -464,11 +466,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 if modes[m] == 'hitogram':
                     sr, hr = hhd[m].raster.get_hist()
                     f = plot_hist2d(sr, hr)
-                    f.tight_layout()
+                    #f.tight_layout()
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
-                    f.tight_layout()
+                    #f.tight_layout()
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
                     if not pdf:
@@ -736,13 +738,14 @@ if __name__ == "__main__":
     parser.add_argument("--slices",type=int, default=5, help='how many slices in slice plot')
     parser.add_argument("--legend", type=str_to_bool, default=True, help="Plot the legend or not")
     parser.add_argument("--title", type=str_to_bool, default=True, help="Plot the title or not")
+    parser.add_argument("--thres", type=float, default=0.002, help="Threshold for entry in SR to count as constituent")
     parser.add_argument("--gpu", type=int, default=None, help="GPU index")
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
-    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'],
+    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'threshold': opt['thres'],
                      'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title']}
     if opt['gpu'] is not None:
         try:
