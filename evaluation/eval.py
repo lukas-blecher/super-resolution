@@ -313,10 +313,10 @@ class MultHist:
             MAX = max([max(self.list[i]) for i in range(self.num)])**power
         return MAX
 
-    def histogram(self, L, bins=10, auto_range=True):
+    def histogram(self, L, bins=10, auto_range=True, threshold=0.98):
         if auto_range:
             if self.power != 1:
-                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0]**self.power, self.max(power=self.power)))
+                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0]**self.power, self.max(power=self.power, threshold=threshold)))
             else:
                 return np.histogram(L, bins, range=self.get_range())
         else:
@@ -422,7 +422,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.rc('font', family='serif', size=(kwargs['fontsize'] if 'fontsize' in kwargs else 12))
             plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
             statement = PdfPages(output_path.replace('.png', '').replace('.pdf', '')+'.pdf')
-
+    title,legend = True,True
+    if 'title' in kwargs:
+        title = kwargs['title']
+    if 'legend' in kwargs:
+        legend = kwargs['legend']
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
     dataloader = DataLoader(
@@ -500,10 +504,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                 KLDiv = KLD_hist(torch.Tensor(binedges))
                 total_kld.append(float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item()))
-            plt.title(hhd[m].title)
+            if title:
+                plt.title(hhd[m].title)
             plt.xlabel(hhd[m].xlabel)
             plt.ylabel(hhd[m].ylabel)
-            plt.legend()
+            if legend:
+                plt.legend()
             if output_path:
                 if not pdf:
                     out_path = output_path + ('_' + hhd.rmAdditions(modes[m]))
@@ -515,13 +521,15 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
-                for i in range(1+3*int('_lr' in modes[m])):
+                for i in range(1+5*int('_lr' in modes[m])):
+                    xi,yi=[0,0,3,3,1,0][i], [1,2,1,2,2,3][i]
+                    lab=['Ground truth','Generated','Generated','Ground truth']
                     X,Y=['HR', 'HR', 'LR', 'LR'][i],['SR', 'LR', 'SR', 'LR'][i]
                     kw = {'title': hhd[m].title,
-                          'xlabel': 'Ground truth %s' % X,
-                          'ylabel': 'Generated %s' % Y,
+                          'xlabel': '%s %s' %(lab[xi], X),
+                          'ylabel': '%s %s' %(lab[yi], Y),
                           'unit' : unit}
-                    f,(M,x,y) = plot_corr(hhd[m].list[[0,0,3,3][i]], hhd[m].list[[1,2,1,2][i]], bins=binedges, power=p, **kw)
+                    f,(M,x,y) = plot_corr(hhd[m].list[xi], hhd[m].list[yi], bins=binedges, power=p, **kw)
                     if output_path:
                         if not pdf:
                             out_path = output_path + ('_' + modes[m]+X+'_'+Y)
@@ -546,7 +554,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if 'ratio_' in modes[m]:
                 plt.figure()
                 f=plt.gcf()
-                plt.title('Ratio: '+hhd[m].title+ ' $|GT-PR|/GT$')
+                if title:
+                    plt.title('Ratio: '+hhd[m].title+ ' $|GT-PR|/GT$')
                 plt.ylabel('Entries')
                 plt.xlabel('Ratio')
                 ratio = MultHist(len(hhd[m].list)//2, mode='')
@@ -556,11 +565,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 for i in range(len(hhd[m].list)//2):                    
                     try:
                         try:
-                            entries, binedges = ratio.histogram(ratio.list[i], bins)
+                            entries, binedges = ratio.histogram(ratio.list[i], bins, threshold=0.85)
                         except IndexError:
                             continue
                     except ValueError as e:
-                        entries, binedges = ratio.histogram(ratio.list[i], bins, auto_range=False)
+                        entries, binedges = ratio.histogram(ratio.list[i], bins, auto_range=False, threshold=0.85)
                     x, y = to_hist(entries, binedges)
                     plt.plot(x, y, linestyle=['-','--'][i], label=['HR','LR'][i])
                     std = np.sqrt(np.clip(y,0,None))
@@ -596,14 +605,20 @@ def clean_labels(label):
     return label
 
 
-def evaluate_results(file):
+def evaluate_results(file, **kwargs):
     '''
     plot results from the hyperparameter search
         `file` should the path to the file containing the results
     '''
     with open(file) as f:
         results = json.load(f)
-
+    def pretty_key(key):
+        if key == 'hr_l1':
+            return 'HR L$_1$'
+        elif key == 'lr_l1':
+            return 'LR L$_1$'
+        elif key == 'emd':
+            return 'EMD'
     def ts(l): return (len(l)-7)//8+2
     tmax = ts(max(results.keys()))
     # print constant arguments
@@ -647,9 +662,10 @@ def evaluate_results(file):
                 continue
             splt = ax[m+N*l]
             if l == 0:
-                splt.set_title(key)
+                if 'title' in kwargs and kwargs['title']:
+                    splt.set_title(pretty_key(key))
             if l == M-1:
-                splt.set_xlabel('iterations')
+                splt.set_xlabel('iterations [1k]')
             # iterate over every set of hyperparameters that was investigated
             for h in range(set_indices[l], set_indices[l+1]):
                 if not 'metrics' in hyper_set[h].keys() and not val:
@@ -672,10 +688,11 @@ def evaluate_results(file):
                     iterations.append(p['batch'])
                     y.append(p[key]['mean'])
                     y_err.append(p[key]['std'])
-                splt.plot(iterations, y, linestyle='-')
-                std = np.sqrt(y_err)
-                std[y == 0] = 0
-                splt.fill_between(iterations, y+std, y-std, alpha=.2)
+                y, y_err = np.array(y), np.array(y_err)
+                
+                iterations=np.array(iterations)*1e-3
+                splt.plot(iterations, y, linestyle='-', lw=1)
+                splt.fill_between(iterations, y+y_err, y-y_err, alpha=.2)
                 #_, caps, bars = splt.errorbar(iterations, y, yerr=y_err, label=label, capsize=1.5)
                 # loop through bars and caps and set the alpha value
                 #[bar.set_alpha(0.5) for bar in bars]
@@ -713,12 +730,15 @@ if __name__ == "__main__":
     parser.add_argument("--pdf", type=str_to_bool, default=True, help="wheter to save the figures as pdf files and tex files")
     parser.add_argument("--fontsize", default=12, type=float)
     parser.add_argument("--slices",type=int, default=5, help='how many slices in slice plot')
+    parser.add_argument("--legend", type=str_to_bool, default=True, help="Plot the legend or not")
+    parser.add_argument("--title", type=str_to_bool, default=True, help="Plot the title or not")
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
-    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'power': opt['power'], 'slices': opt['slices']}
+    opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'],
+                     'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title']}
     try:
         gpu = get_gpu_index()
         num_gpus = torch.cuda.device_count()
@@ -729,7 +749,7 @@ if __name__ == "__main__":
         pass
     show = opt['no_show']
     if opt['hyper_results'] is not None:
-        evaluate_results(opt['hyper_results'])
+        evaluate_results(opt['hyper_results'], **opt['kwargs'])
     else:
         if opt['dataset_path'] is None or (opt['checkpoint_model'] is None and not opt['naive_generator']):
             raise ValueError("For evaluation dataset_path and checkpoint_model are required")

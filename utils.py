@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import numpy as np
 from PIL import Image
 import os
@@ -294,12 +295,13 @@ class SumRaster:
 
 
 class MeanImage:
-    def __init__(self, factor, height=None, threshold=.7, preprocess=False):
+    def __init__(self, factor, height=None, threshold=.7, preprocess=False, energy=False):
         self.height = height
         self.factor = factor
         self.threshold = threshold
         self.ini = False
         self.preprocess = preprocess
+        self.energy = energy or threshold <= 0
 
     def add(self, SR, HR):
         if not self.ini:
@@ -309,8 +311,12 @@ class MeanImage:
         if self.preprocess:
             SR = preprocessing(SR)
             HR = preprocessing(HR)
-        self.sr += (SR > self.threshold).sum((0, 1))
-        self.hr += (HR > self.threshold).sum((0, 1))
+        if self.energy:
+            self.sr += SR.sum((0, 1))
+            self.hr += HR.sum((0, 1))
+        else:
+            self.sr += (SR > self.threshold).sum((0, 1))
+            self.hr += (HR > self.threshold).sum((0, 1))
 
     def get_hist(self):
         return self.sr, self.hr
@@ -358,10 +364,11 @@ def plot_mean(MeanImage, cmap='jet'):
     # f.patch.set_facecolor('w')
     axes = ax.flatten()
     ims = list(MeanImage.get_hist())
+    log = MeanImage.energy
     for i in range(2):
         ax = axes[i]
         image = ims[i]
-        im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap)
+        im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm())
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]
@@ -387,14 +394,15 @@ def plot_mean(MeanImage, cmap='jet'):
     return f
 
 
-def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True):
+def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True, show_title=True):
     mn = min([min(a), min(b)])**power
     mx = max([max(a), max(b)])**power
     plt.figure(figsize=(8, 6))
     M, x, y, _ = plt.hist2d(np.array(a)**power, np.array(b)**power, bins, [[mn, mx], [mn, mx]], cmap=cmap)
     plt.xlabel(xlabel+' '+unit)
     plt.ylabel(ylabel+' '+unit)
-    plt.title('Correlation plot: '+title)
+    if show_title:
+        plt.title('Correlation plot: '+title)
     cbar = plt.colorbar()
     cbar.ax.set_ylabel('Entries', rotation=270)
     mn, mx = bins.min(), bins.max()
@@ -431,8 +439,8 @@ def slice_plot(M, x, y, slices=5, **kwargs):
     ax[1].set_title(kwargs['ylabel'])
     ax[1].set_xlabel('Energy ' + kwargs['unit'])
     ax[0].set_xlabel('Energy ' + kwargs['unit'])
-
-    plt.suptitle('Slice plot: '+kwargs['title'])
+    if kwargs['show_title']:
+        plt.suptitle('Slice plot: '+kwargs['title'])
     return f
 
 
