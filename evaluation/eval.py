@@ -733,6 +733,7 @@ if __name__ == "__main__":
     parser.add_argument("--slices",type=int, default=5, help='how many slices in slice plot')
     parser.add_argument("--legend", type=str_to_bool, default=True, help="Plot the legend or not")
     parser.add_argument("--title", type=str_to_bool, default=True, help="Plot the title or not")
+    parser.add_argument("--gpu", type=int, default=None, help="GPU index")
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
@@ -740,14 +741,17 @@ if __name__ == "__main__":
     opt = vars(opt)
     opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'],
                      'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title']}
-    try:
-        gpu = get_gpu_index()
-        num_gpus = torch.cuda.device_count()
-        if gpu >= num_gpus:
-            gpu = np.random.randint(num_gpus)
-        print('running on gpu index {}'.format(gpu))
-    except Exception:
-        pass
+    if opt['gpu'] is not None:
+        try:
+            gpu = get_gpu_index()
+            num_gpus = torch.cuda.device_count()
+            if gpu >= num_gpus:
+                gpu = np.random.randint(num_gpus)
+            print('running on gpu index {}'.format(gpu))
+        except Exception:
+            pass
+    else:
+        gpu = opt['gpu']
     show = opt['no_show']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'], **opt['kwargs'])
