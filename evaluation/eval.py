@@ -528,7 +528,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     kw = {'title': hhd[m].title,
                           'xlabel': '%s %s' %(lab[xi], X),
                           'ylabel': '%s %s' %(lab[yi], Y),
-                          'unit' : unit}
+                          'unit' : unit, 'show_title': title}
                     f,(M,x,y) = plot_corr(hhd[m].list[xi], hhd[m].list[yi], bins=binedges, power=p, **kw)
                     if output_path:
                         if not pdf:
