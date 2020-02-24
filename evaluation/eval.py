@@ -529,7 +529,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
-                xs,ys = [0,0,3,3,1,0], [1,2,1,2,2,3]
+                xs,ys = [0,0,1,3,1,0], [1,2,3,2,2,3]
                 for i in range(1+5*int('_lr' in modes[m])):
                     xi, yi = xs[i], ys[i]
                     lab = ['Ground truth','Generated','Generated','Ground truth']
