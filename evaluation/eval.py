@@ -533,7 +533,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     short = ['HR','SR','LR','LR']
                     kw = {'title': hhd[m].title,
                           'xlabel': '%s %s' %(lab[xi], short[xi]),
-                          'ylabel': '%s %s' %(lab[yi], short[xi]),
+                          'ylabel': '%s %s' %(lab[yi], short[yi]),
                           'unit' : unit, 'show_title': title}
                     f,(M,x,y) = plot_corr(hhd[m].list[xi], hhd[m].list[yi], bins=binedges, power=p, **kw)
                     if output_path:
