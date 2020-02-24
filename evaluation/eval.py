@@ -747,7 +747,7 @@ if __name__ == "__main__":
     opt = vars(opt)
     opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'threshold': opt['thres'],
                      'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title']}
-    if opt['gpu'] is not None:
+    if opt['gpu'] is None:
         try:
             gpu = get_gpu_index()
             num_gpus = torch.cuda.device_count()
