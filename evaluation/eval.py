@@ -521,13 +521,14 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
+                xs,ys = [0,0,3,3,1,0], [1,2,1,2,2,3]
                 for i in range(1+5*int('_lr' in modes[m])):
-                    xi,yi=[0,0,3,3,1,0][i], [1,2,1,2,2,3][i]
-                    lab=['Ground truth','Generated','Generated','Ground truth']
-                    X,Y=['HR', 'HR', 'LR', 'LR'][i],['SR', 'LR', 'SR', 'LR'][i]
+                    xi, yi = xs[i], ys[i]
+                    lab = ['Ground truth','Generated','Generated','Ground truth']
+                    short = ['HR','SR','LR','LR']
                     kw = {'title': hhd[m].title,
-                          'xlabel': '%s %s' %(lab[xi], X),
-                          'ylabel': '%s %s' %(lab[yi], Y),
+                          'xlabel': '%s %s' %(lab[xi], short[xi]),
+                          'ylabel': '%s %s' %(lab[yi], short[xi]),
                           'unit' : unit, 'show_title': title}
                     f,(M,x,y) = plot_corr(hhd[m].list[xi], hhd[m].list[yi], bins=binedges, power=p, **kw)
                     if output_path:
