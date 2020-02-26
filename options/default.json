@@ -88,5 +88,6 @@
     "emd_save": false,
     "update_d": 1,
     "update_g": 1,
-    "conditional": false
+    "conditional": false,
+    "noise_factor": null
 }
