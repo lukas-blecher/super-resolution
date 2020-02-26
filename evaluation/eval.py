@@ -172,7 +172,7 @@ class MultHist:
     modes:  'max' collects the maximum value for each image, 'min' collects the minimum value, 'mean' collects the mean value, 'nnz' saves the amount of nonzero values,
             'sum' collects the total energy for each image, 'meannnz' saves the mean energy for each image disregarding the empty pixels, 'wmass' extracts a prediction 
                   for the w mass from each image, taken to be the hardest subjet in the clustering history when there have been 2 subjets; unreasonable top and w mass predictions are vetoed,
-            'E' will extract the total energy distribution
+            'E' will extract the total energy nntion
             'E_n' plots the distribution of the n-th hardest constituent NOTE: start from 1 , not 0
                 'corr_' in front will plot the correlation between HR and SR (also a slice plot will be made)
                 '_lr' after will plot the correlation between all combinations of HR, LR and SR
@@ -371,9 +371,9 @@ def call_func(opt):
         return calculate_metrics(*args)
 
 
-def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1, thres=None, N=None):
+def calculate_metrics(dataset_path, dataset_type, generator, device, output_path=None, batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=None, pre=1, thres=None, N=None,noise_factor=None):
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N,noise_factor=noise_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -414,7 +414,7 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
 
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
-                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max', **kwargs):
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max',noise_factor=None, **kwargs):
 
     statement = Wrapper(output_path)
     pdf = False
@@ -433,7 +433,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     if 'legend' in kwargs:
         legend = kwargs['legend']
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N,noise_factor=noise_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
