@@ -304,24 +304,24 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def max(self, threshold=.98, power=1):
+    def max(self, threshold=.98):
         '''Function introduced for total energy distribution'''
         MAX = 0
         if threshold < 1:
             for i in range(self.num):
-                pl = np.array(self.list[i])**power
+                pl = np.array(self.list[i])**self.power
                 c, b = np.histogram(pl, 100)
                 e_max = b[(np.cumsum(c) > len(pl)*threshold).argmax()]
                 if e_max > MAX:
                     MAX = e_max
         else:
-            MAX = max([max(self.list[i]) for i in range(self.num)])**power
+            MAX = max([max(self.list[i]) for i in range(self.num)])**self.power
         return MAX
 
     def histogram(self, L, bins=10, auto_range=True, threshold=0.98):
         if auto_range:
             if self.power != 1:
-                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0]**self.power, self.max(power=self.power, threshold=threshold)))
+                return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0]**self.power, self.max(threshold=threshold)))
             else:
                 return np.histogram(L, bins, range=self.get_range())
         else:
@@ -331,7 +331,7 @@ class MultHist:
 class MultModeHist:
     def __init__(self, modes, num='standard', factor=default.factor, **kwargs):
         self.modes = modes
-        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 3, 'mean': 2, 'meannnz': 2, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 4, 'mean': 2, 'meannnz': 4, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
         self.hist = []
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[self.rmAdditions(mode)]
                                                                        if '_' not in self.rmAdditions(mode) else 4 for mode in self.modes]
@@ -541,7 +541,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     f,(M,x,y) = plot_corr(hhd[m].list[xi], hhd[m].list[yi], bins=binedges, power=p, **kw)
                     if output_path:
                         if not pdf:
-                            out_path = output_path + ('_' + modes[m]+X+'_'+Y)
+                            out_path = output_path + ('_' + modes[m]+short[xi]+'_'+short[yi])
                             f.savefig(out_path.replace('.png', ''))
                         else:
                             f.savefig(output, format='pdf')
@@ -698,7 +698,8 @@ def evaluate_results(file, **kwargs):
                     y.append(p[key]['mean'])
                     y_err.append(p[key]['std'])
                 y, y_err = np.array(y), np.array(y_err)
-                
+                best_iter=y.argmin()
+                print(key,iterations[best_iter], y[best_iter], '+/-', y_err[best_iter])
                 iterations=np.array(iterations)*1e-3
                 splt.plot(iterations, y, linestyle='-', lw=1)
                 splt.fill_between(iterations, y+y_err, y-y_err, alpha=.2)
@@ -750,7 +751,7 @@ if __name__ == "__main__":
         opt.hr_height, opt.hr_width = opt.hw
     opt = vars(opt)
     opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'threshold': opt['thres'],
-                     'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title']}
+                     'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title'], 'meanenergy': opt['meanenergy']}
     if opt['gpu'] is None:
         try:
             gpu = get_gpu_index()
