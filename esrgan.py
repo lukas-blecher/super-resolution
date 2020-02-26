@@ -92,6 +92,7 @@ def get_parser():
     parser.add_argument("--d_channels", type=int, default=default.d_channels, nargs='+', help="how the discriminator is constructed eg --d_channels 16 32 32 64")
     parser.add_argument("--n_hardest", type=int, default=default.n_hardest, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=default.E_thres, help="Energy threshold for the ground truth and the generator")
+    parser.add_argument("--noise_factor", type=float, default=default.noise_factor, help="factor by which random noise is added, relative to 1Gev")
     parser.add_argument("--seed", type=int, default=default.seed, help="if used seed will be set to SEED. Else a random seed will be used")
     parser.add_argument("--eval_modes", nargs='+', type=str, default=default.eval_modes, help="what modes to calculate the distributions for during evaluation")
     parser.add_argument("--drop_rate", type=float, default=default.drop_rate, help="drop rate for the Generator")
@@ -237,7 +238,7 @@ def train(opt, **kwargs):
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, threshold=opt.E_thres, N=opt.n_hardest)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, threshold=opt.E_thres, N=opt.n_hardest,noise_factor=opt.noise_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
