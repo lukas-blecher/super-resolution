@@ -544,16 +544,11 @@ def get_event_array(img, etarange=1, phirange=1, thres=0):
         raise NotImplementedError
 
 
-def get_emd(gen, real, thres=0):
+def get_emd(gen, real, thres=1):
     gen_pyphi = get_event_array(gen, thres=thres)
     real_pyphi = get_event_array(real, thres=thres)
-    emdlist = []
-    for i in range(len(real)):
-        try:
-            emdlist.append(energyflow.emd.emd(gen_pyphi[i], real_pyphi[i]))
-        except ValueError:
-            pass
-    return emdlist
+    return [energyflow.emd.emd(gen_pyphi[i], real_pyphi[i]) for i in range(len(real))]
+
 
 def img2event(img, etarange=1, phirange=1, thres=0):
     dtype = np.dtype([('pT', 'f8'), ('eta', 'f8'), ('phi', 'f8'), ('mass', 'f8')])
