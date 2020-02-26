@@ -499,7 +499,7 @@ def train(opt, **kwargs):
                 print('Validation')
                 output_path = opt.output_path if 'output_path' in dir(opt) else None
                 val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size,
-                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N//10, thres=opt.E_thres, N=opt.n_hardest)
+                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N//10, thres=opt.E_thres, N=opt.n_hardest,noise_factor=opt.noise_factor)
                 val_results['epoch'] = epoch
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
@@ -533,7 +533,7 @@ def train(opt, **kwargs):
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 eval_result = distribution(opt.validation_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
-                                           mode=opt.eval_modes)
+                                           mode=opt.eval_modes,noise_factor=opt.noise_factor)
 
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(eval_result))
