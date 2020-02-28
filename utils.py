@@ -313,8 +313,8 @@ class MeanImage:
             SR = preprocessing(SR)
             HR = preprocessing(HR)
         if self.energy:
-            self.sr += SR.sum((0, 1))
-            self.hr += HR.sum((0, 1))
+            self.sr += np.clip(SR, self.threshold, None).sum((0, 1))*(SR > self.threshold).sum((0, 1))
+            self.hr += np.clip(HR, self.threshold, None).sum((0, 1))*(HR > self.threshold).sum((0, 1))
         else:
             self.sr += (SR > self.threshold).sum((0, 1))
             self.hr += (HR > self.threshold).sum((0, 1))
@@ -361,18 +361,20 @@ def plot_hist2d(sr, hr, cmap='jet'):
 
 def plot_mean(MeanImage, cmap='jet'):
     f, ax = plt.subplots(1, 2)
-    plt.subplots_adjust(wspace=.7)
+    plt.subplots_adjust(wspace=.4)
     # f.patch.set_facecolor('w')
     axes = ax.flatten()
     ims = list(MeanImage.get_hist())
+    vmax = max([i.max() for i in ims])
+    vmin = MeanImage.threshold if MeanImage.energy else 0
     log = MeanImage.energy
     for i in range(2):
         ax = axes[i]
         image = ims[i]
         if log:
-            im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm())
+            im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
         else:
-            im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap)
+            im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]
@@ -386,11 +388,12 @@ def plot_mean(MeanImage, cmap='jet'):
         axHisty.invert_yaxis()
         axHisty.invert_xaxis()
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
-        axCol = plt.axes(rect_col)
-        if log:
-            f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
-        else:
-            f.colorbar(im, cax=axCol, ax=ax)
+        if i > 0:
+            axCol = plt.axes(rect_col)
+            if log:
+                f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
+            else:
+                f.colorbar(im, cax=axCol, ax=ax)
         for ax in (ax, axHisty, axHistx):
             for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                         *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:

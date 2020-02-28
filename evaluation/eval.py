@@ -194,11 +194,13 @@ class MultHist:
         self.list = [[] for _ in range(num)]
         self.mode = mode
         self.thres = 0.002
+        self.display_ratio = 1
         if 'threshold' in kwargs:
             self.thres = float(kwargs['threshold'])
         self.power = 1 
         if self.mode == 'E' or ('R' in self.mode and 'deltaR' not in self.mode) or 'E_' == self.mode[:2]:
             self.power = .5
+            self.display_ratio=0.98
         if 'power' in kwargs:
             if kwargs['power'] is not None:
                 self.power = kwargs['power']
@@ -238,7 +240,8 @@ class MultHist:
         elif 'nsubj' in self.mode:
             self.n, self.m = [int(s) for s in self.mode.split('nsubj_')[1].split('_')]
             self.xlabel = r'$\tau_{%i}/\tau_{%i}$' % (self.n, self.m)
-            self.title = "Ratio of N-subjettiness for $N=%i$ and $N'=%i$" % (self.n, self.m)
+            self.title = "Ratio of N-subjettiness for "+"\n"+"$N=%i$ and $N'=%i$" % (self.n, self.m)
+            self.display_ratio=0.85
         elif self.mode == 'meannnz':
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':
@@ -304,9 +307,11 @@ class MultHist:
         maxs = [max(self.list[i]) for i in range(self.num)]
         return min(mins), max(maxs)
 
-    def max(self, threshold=.98):
+    def max(self, threshold=None):
         '''Function introduced for total energy distribution'''
         MAX = 0
+        if threshold is None:
+            threshold=self.display_ratio
         if threshold < 1:
             for i in range(self.num):
                 pl = np.array(self.list[i])**self.power
@@ -318,7 +323,7 @@ class MultHist:
             MAX = max([max(self.list[i]) for i in range(self.num)])**self.power
         return MAX
 
-    def histogram(self, L, bins=10, auto_range=True, threshold=0.98):
+    def histogram(self, L, bins=10, auto_range=True, threshold=None):
         if auto_range:
             if self.power != 1:
                 return np.histogram(np.array(L)**self.power, bins, range=(self.get_range()[0]**self.power, self.max(threshold=threshold)))
@@ -470,10 +475,14 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].raster.get_hist()
                     f = plot_hist2d(sr, hr)
                     #f.tight_layout()
+                    if show:
+                        plt.show()
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
-                    #f.tight_layout()
+                    #f.tight_layout()                    
+                    if show:
+                        plt.show()
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
                     if not pdf:
@@ -743,7 +752,7 @@ if __name__ == "__main__":
     parser.add_argument("--legend", type=str_to_bool, default=True, help="Plot the legend or not")
     parser.add_argument("--title", type=str_to_bool, default=True, help="Plot the title or not")
     parser.add_argument("--thres", type=float, default=0.002, help="Threshold for entry in SR to count as constituent")
-    parser.add_argument("--meanenergy", type=str_to_bool, default=True, help="Plot the average jet image with energy instead of counts")
+    parser.add_argument("--meanenergy", type=str_to_bool, default=False, help="Plot the average jet image with energy instead of counts")
     parser.add_argument("--gpu", type=int, default=None, help="GPU index")
 
     opt = parser.parse_args()
