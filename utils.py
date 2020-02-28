@@ -296,7 +296,7 @@ class SumRaster:
 
 
 class MeanImage:
-    def __init__(self, factor, height=None, threshold=.7, preprocess=False, energy=False):
+    def __init__(self, factor, height=None, threshold=1., preprocess=False, energy=False):
         self.height = height
         self.factor = factor
         self.threshold = threshold
