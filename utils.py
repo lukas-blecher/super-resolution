@@ -419,7 +419,7 @@ def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='',
     plt.xlabel(xlabel+' '+unit)
     plt.ylabel(ylabel+' '+unit)
     if show_title:
-        plt.title('Correlation plot: '+title)
+        plt.title('Correlation plot \n'+title)
     cbar = plt.colorbar()
     #cbar.ax.set_ylabel('Entries', rotation=270)
     mn, mx = bins.min(), bins.max()

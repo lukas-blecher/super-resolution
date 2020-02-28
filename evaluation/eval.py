@@ -574,7 +574,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 plt.figure()
                 f=plt.gcf()
                 if title:
-                    plt.title('Ratio: '+hhd[m].title+ ' $|GT-PR|/GT$')
+                    plt.title('Ratio: '+hhd[m].title+ '\n' + '$|GT-PR|/GT$')
                 plt.ylabel('Entries')
                 plt.xlabel('Ratio')
                 ratio = MultHist(len(hhd[m].list)//2, mode='')
@@ -591,6 +591,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         entries, binedges = ratio.histogram(ratio.list[i], bins, auto_range=False, threshold=0.85)
                     x, y = to_hist(entries, binedges)
                     plt.plot(x, y, linestyle=['-','--'][i], label=['HR','LR'][i])
+                    plt.xscale('log')
+                    plt.yscale('log')
                     std = np.sqrt(np.clip(y,0,None))
                     std[y == 0] = 0
                     plt.fill_between(x, y+std, y-std, alpha=.2)
