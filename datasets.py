@@ -238,6 +238,9 @@ class SparseJetDataset(JetDataset):
         if self.noise_factor is not None:
             self.noise = torch.abs(torch.randn(img.shape))
             self.noise = self.noise / (self.noise_factor*torch.max(self.noise).item())
+            indices = np.random.choice(np.arange(self.noise.numpy().flatten().size), replace=False,
+                           size=int(self.noise.numpy().flatten().size * 0.6)) #choose 60 percent of indices randomly
+            self.noise[np.unravel_index(indices, self.noise.shape)] = 0 #and set them to zero
             img = img + self.noise
         if self.pre_factor > 1:
             img = self.pre_pool(img)
