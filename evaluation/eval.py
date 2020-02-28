@@ -242,6 +242,7 @@ class MultHist:
             self.xlabel = r'$\tau_{%i}/\tau_{%i}$' % (self.n, self.m)
             self.title = "Ratio of N-subjettiness for "+"\n"+"$N=%i$ and $N'=%i$" % (self.n, self.m)
             self.display_ratio=0.85
+            self.power=0.999
         elif self.mode == 'meannnz':
             self.title = 'Mean energy per constituent'
         elif self.mode == 'nnz':
