@@ -348,6 +348,7 @@ def plot_hist2d(sr, hr, cmap='jet'):
     vmin = min([hr.min().item(), sr.min().item()])
     vmax = max([hr.max().item(), sr.max().item()])
     f, ax = plt.subplots(1, 2)
+    plt.subplots_adjust(right=.82)
     ax = ax.flatten()
     ax[0].imshow(sr, cmap=cmap, vmin=vmin, vmax=vmax)
     ax[0].set_title('prediction')

@@ -584,11 +584,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 for i in range(len(hhd[m].list)//2):                    
                     try:
                         try:
-                            entries, binedges = ratio.histogram(ratio.list[i], bins, threshold=0.85)
+                            entries, binedges = ratio.histogram(ratio.list[i], np.logspace(-4,np.log10(2), bins), threshold=0.85)
                         except IndexError:
                             continue
                     except ValueError as e:
-                        entries, binedges = ratio.histogram(ratio.list[i], bins, auto_range=False, threshold=0.85)
+                        entries, binedges = ratio.histogram(ratio.list[i], np.logspace(-4,np.log10(2), bins), auto_range=False, threshold=0.85)
                     x, y = to_hist(entries, binedges)
                     plt.plot(x, y, linestyle=['-','--'][i], label=['HR','LR'][i])
                     plt.xscale('log')
