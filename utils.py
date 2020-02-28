@@ -322,7 +322,10 @@ class MeanImage:
             self.hr += (HR > self.threshold).sum((0, 1))
 
     def get_hist(self):
-        return self.sr/self.N, self.hr/self.N
+        if self.energy:
+            return self.sr/self.N, self.hr/self.N
+        else:
+            return self.sr, self.hr
 
 
 def to_hist(data, bins):
