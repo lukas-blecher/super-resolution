@@ -303,12 +303,14 @@ class MeanImage:
         self.ini = False
         self.preprocess = preprocess
         self.energy = energy or threshold <= 0
+        self.N=0
 
     def add(self, SR, HR):
         if not self.ini:
             self.ini = True
             self.height = HR.shape[-2]
             self.sr, self.hr = [np.zeros((self.height, self.height)) for _ in range(2)]
+        self.N+=len(SR)
         if self.preprocess:
             SR = preprocessing(SR)
             HR = preprocessing(HR)
@@ -320,7 +322,7 @@ class MeanImage:
             self.hr += (HR > self.threshold).sum((0, 1))
 
     def get_hist(self):
-        return self.sr, self.hr
+        return self.sr/self.N, self.hr/self.N
 
 
 def to_hist(data, bins):
@@ -362,12 +364,13 @@ def plot_hist2d(sr, hr, cmap='jet'):
 def plot_mean(MeanImage, cmap='jet'):
     f, ax = plt.subplots(1, 2)
     plt.subplots_adjust(wspace=.4)
+    plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
     axes = ax.flatten()
     ims = list(MeanImage.get_hist())
     vmax = max([i.max() for i in ims])
-    vmin = MeanImage.threshold if MeanImage.energy else 0
     log = MeanImage.energy
+    vmin = MeanImage.threshold if log else 0
     for i in range(2):
         ax = axes[i]
         image = ims[i]
@@ -383,11 +386,15 @@ def plot_mean(MeanImage, cmap='jet'):
 
         axHistx = plt.axes(rect_histx)
         axHistx.plot(image.sum(0))
+        if log:
+            axHistx.set_yscale('log')
         axHistx.set_title(['prediction', 'ground truth'][i])
         axHisty = plt.axes(rect_histy)
         axHisty.invert_yaxis()
         axHisty.invert_xaxis()
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
+        if log:
+            axHisty.set_xscale('log')
         if i > 0:
             axCol = plt.axes(rect_col)
             if log:
@@ -414,7 +421,7 @@ def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='',
     if show_title:
         plt.title('Correlation plot: '+title)
     cbar = plt.colorbar()
-    cbar.ax.set_ylabel('Entries', rotation=270)
+    #cbar.ax.set_ylabel('Entries', rotation=270)
     mn, mx = bins.min(), bins.max()
     plt.plot([mn, mx], [mn, mx], c='k', alpha=.6, lw=1)
     plt.tight_layout()
