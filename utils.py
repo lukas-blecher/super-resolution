@@ -351,7 +351,7 @@ def plot_hist2d(sr, hr, cmap='jet'):
     vmin = min([hr.min().item(), sr.min().item()])
     vmax = max([hr.max().item(), sr.max().item()])
     f, ax = plt.subplots(1, 2)
-    plt.subplots_adjust(right=.75)
+    plt.subplots_adjust(right=.7)
     ax = ax.flatten()
     ax[0].imshow(sr, cmap=cmap, vmin=vmin, vmax=vmax)
     ax[0].set_title('prediction')
@@ -360,7 +360,7 @@ def plot_hist2d(sr, hr, cmap='jet'):
     ax[1].set_title('ground truth')
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
-    cbar_ax = f.add_axes([0.75, 0.25, 0.05, 0.5])
+    cbar_ax = f.add_axes([0.8, 0.25, 0.05, 0.5])
     f.colorbar(gt, cax=cbar_ax)
     return f
 
