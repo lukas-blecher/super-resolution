@@ -8,7 +8,7 @@ import glob
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
 
-def plot_losses(j, file, ax):
+def plot_losses(j, file, ax, alpha=1):
     with open(file) as f:
         info = json.load(f)
     if not 'loss' in info:
@@ -32,10 +32,10 @@ def plot_losses(j, file, ax):
         ax[i].set_title(k)
         try:
             start = 0 if len(loss[k]) == len(batches) else warmup
-            ax[i].plot(batches[start:], np.array(loss[k]), color=colors[j % len(colors)], label=name)
+            ax[i].plot(batches[start:], np.array(loss[k]), color=colors[j % len(colors)], label=name, alpha=alpha)
         except ValueError:
             start = 0 if len(loss[k]) == len(batches) else warmup//info['argument']['report_freq']
-            ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name)
+            ax[i].plot(batches[start:], loss[k], color=colors[j % len(colors)], label=name, alpha=alpha)
 
         if i in range(N-a, N):
             ax[i].set_xlabel('iterations')
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     for i in range(a*b-1, N-1, -1):
         fig.delaxes(ax[i])
     for i, f in enumerate(files):
-        plot_losses(i, f, ax)
+        plot_losses(i, f, ax, 1/np.sqrt(len(files)))
 
     plt.tight_layout()
     plt.show()

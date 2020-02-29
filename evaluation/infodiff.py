@@ -5,8 +5,8 @@ import os
 import glob
 import pandas as pd
 pd.set_option('display.max_rows', 500)
-pd.set_option('display.max_columns', 500)
-pd.set_option('display.width', 500)
+pd.set_option('display.max_columns', 1000)
+pd.set_option('display.width', 1000)
 
 
 def round_list(it, digits=5):
@@ -19,10 +19,12 @@ def round_list(it, digits=5):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', type=str, nargs='+', required=True, help='info file with loss')
+    parser.add_argument('-d', '--delkeys', type=str, nargs='+', default=[], help='which keys not to show')
     args = parser.parse_args()
     files=[]
     for f in args.file:
         files.extend(glob.glob(f))
+    files = list(set(files))
     assert len(files) >= 2
     d = None
     for i, f in enumerate(files):
@@ -57,8 +59,8 @@ if __name__ == '__main__':
         else:
             print(f,it)
             continue
-        d['saved_batch'].append(round_list(it))
-    delkeys = []
+        d['saved_batch'].append([list(info['saved_batch'].keys())[-1],*round_list(it)])
+    delkeys = args.delkeys.copy()
     for k in d.keys():
         same = True
         v0 = None
@@ -72,7 +74,7 @@ if __name__ == '__main__':
         if same:
             delkeys.append(k)
 
-    for k in ['validation_path','testset_path','eval_modes']:
+    for k in ['validation_path','testset_path','eval_modes','dataset_path']:
         if k not in delkeys:
             delkeys.append(k)
     for k in delkeys:
