@@ -535,6 +535,9 @@ def train(opt, **kwargs):
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
                                            mode=opt.eval_modes,noise_factor=opt.noise_factor)
 
+                mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
+                save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
+
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(eval_result))
                     if 'eval_results' in info:
