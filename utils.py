@@ -360,7 +360,7 @@ def plot_hist2d(sr, hr, cmap='jet'):
     ax[1].set_title('ground truth')
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
-    cbar_ax = f.add_axes([0.85, 0.25, 0.05, 0.5])
+    cbar_ax = f.add_axes([0.75, 0.25, 0.05, 0.5])
     f.colorbar(gt, cax=cbar_ax)
     return f
 
