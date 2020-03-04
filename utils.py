@@ -367,7 +367,7 @@ def plot_hist2d(sr, hr, cmap='jet'):
 
 def plot_mean(MeanImage, cmap='jet'):
     f, ax = plt.subplots(1, 2)
-    plt.subplots_adjust(wspace=.4)
+    plt.subplots_adjust(wspace=.7)
     plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
     axes = ax.flatten()
@@ -399,12 +399,11 @@ def plot_mean(MeanImage, cmap='jet'):
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
         if log:
             axHisty.set_xscale('log')
-        if i > 0:
-            axCol = plt.axes(rect_col)
-            if log:
-                f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
-            else:
-                f.colorbar(im, cax=axCol, ax=ax)
+        axCol = plt.axes(rect_col)
+        if log:
+            f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
+        else:
+            f.colorbar(im, cax=axCol, ax=ax)
         for ax in (ax, axHisty, axHistx):
             for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                         *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
