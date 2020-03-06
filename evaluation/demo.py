@@ -91,6 +91,28 @@ def subplot(N, M, num, img, title=''):
         plt.imshow(img, cmap='gray', vmax=vmax)
 
 
+def upsample_empty(args):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale).to(device).eval()
+    generator.thres = args.threshold
+    generator.load_state_dict(torch.load(args.model, map_location=device))
+    sumpool = SumPool2d(args.factor)
+
+    empty_hr = torch.zeros([1,1,*args.hw])
+    empty_lr = sumpool(empty_hr)
+    empty_sr = generator(empty_lr).detach()
+    nnz = len([val for val in empty_sr.numpy().squeeze().flatten() if val > args.threshold])
+    print(nnz)
+    global colors, vmax
+    plt.figure()
+    plt.title("upsampled empty image")
+    if colors:
+        plt.imshow(toArray(empty_sr).squeeze(), cmap='jet', norm=col.LogNorm(), vmax=vmax)
+    else:
+        plt.imshow(toArray(empty_sr).squeeze(), cmap='gray', vmax=vmax)
+    plt.show()
+    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", type=str, required=True, help="Path to the input file")
@@ -110,9 +132,13 @@ if __name__ == "__main__":
     parser.add_argument("--n_hardest", type=int, default=None, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=None, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--res_scale", type=float, default=default_dict['res_scale'], help="residual scaling factor for the generator")
+    parser.add_argument("--empty", action="store_true", help="upsample an empty image")
 
     args = parser.parse_args()
     global colors, vmax
     vmax = args.vmax
     colors = args.no_colors
-    main(args)
+    if not args.empty:
+        main(args)
+    else:
+        upsample_empty(args)
