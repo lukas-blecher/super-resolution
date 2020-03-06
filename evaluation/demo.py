@@ -100,16 +100,36 @@ def upsample_empty(args):
 
     empty_hr = torch.zeros([1,1,*args.hw])
     empty_lr = sumpool(empty_hr)
+    noise = torch.abs(torch.randn(empty_hr.shape))
+    noise = noise / (torch.max(noise).item())
+    indices = np.random.choice(np.arange(noise.numpy().flatten().size), replace=False, size=int(noise.numpy().flatten().size)-150) #choose indices randomly
+    noise[np.unravel_index(indices, noise.shape)] = 0 #and set them to zero
+    noise_hr=empty_hr+noise
+    noise_lr = sumpool(noise_hr) 
+
     empty_sr = generator(empty_lr).detach()
+    noise_sr = generator(noise_lr).detach()
+    print(empty_hr.shape,empty_lr.shape,empty_sr.shape) #delete
     nnz = len([val for val in empty_sr.numpy().squeeze().flatten() if val > args.threshold])
-    print(nnz)
+    noisennz = len([val for val in noise_sr.numpy().squeeze().flatten() if val > args.threshold])
+    hrnoisennz = len([val for val in noise_hr.numpy().squeeze().flatten() if val > args.threshold])
+    print("upsampled empty picture nnz: {}".format(nnz))
+    print("upsampled soft noise picture nnz: {}".format(noisennz))
+    print("hr soft noise picture nnz: {}".format(hrnoisennz))
     global colors, vmax
     plt.figure()
-    plt.title("upsampled empty image")
-    if colors:
-        plt.imshow(toArray(empty_sr).squeeze(), cmap='jet', norm=col.LogNorm(), vmax=vmax)
-    else:
-        plt.imshow(toArray(empty_sr).squeeze(), cmap='gray', vmax=vmax)
+    plt.subplot(221)
+    plt.title("empty hr image")
+    plt.imshow(toArray(empty_hr).squeeze(), cmap='gray', vmax=vmax)
+    plt.subplot(222)
+    plt.title("empty sr image")
+    plt.imshow(toArray(empty_sr).squeeze(), cmap='gray', vmax=vmax)
+    plt.subplot(223)
+    plt.title("soft noise hr image")
+    plt.imshow(toArray(noise_hr).squeeze(), cmap='gray', vmax=vmax)
+    plt.subplot(224)
+    plt.title("soft noise sr image")
+    plt.imshow(toArray(noise_sr).squeeze(), cmap='gray', vmax=vmax)
     plt.show()
     
 
