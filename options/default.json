@@ -34,6 +34,7 @@
     "lambda_mask": 0,
     "lambda_pow": 1,
     "lambda_hit": 0,
+    "lambda_prob": 0,
     "hit_threshold": 0.5,
     "batchwise_hist": false,
     "learn_warmup": true,

@@ -54,7 +54,7 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 
 class GeneratorRRDB(nn.Module):
-    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.2):
+    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.1):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
@@ -72,12 +72,14 @@ class GeneratorRRDB(nn.Module):
                 nn.PixelShuffle(upscale_factor=2),
             ]
         self.upsampling = nn.Sequential(*upsample_layers)
+        self.factor = 2**num_upsample
         # Final output block
         self.conv3 = nn.Sequential(
             nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(filters, channels+self.factor*self.factor, kernel_size=3, stride=1, padding=1),
         )
+        self.channels = channels
         self.thres = 0
         self.power = nn.Parameter(torch.Tensor([power]), False)
         self.multiplier = nn.Parameter(torch.Tensor([multiplier]), False)

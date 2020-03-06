@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.nn.functional import _Reduction
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.ticker import LogFormatter
@@ -85,6 +86,67 @@ class pointerList:
                 getattr(self[i], foo)()
             else:
                 getattr(self[i], foo)(arg)
+
+
+class _Loss(nn.modules.Module):
+    def __init__(self, size_average=None, reduce=None, reduction='mean'):
+        super(_Loss, self).__init__()
+        if size_average is not None or reduce is not None:
+            self.reduction = _Reduction.legacy_get_string(size_average, reduce)
+        else:
+            self.reduction = reduction
+
+
+def SoftCrossEntropy(input, target, size_average=None, reduce=None, reduction='mean'):
+    if size_average is not None or reduce is not None:
+        reduction_enum = _Reduction.legacy_get_enum(size_average, reduce)
+    else:
+        reduction_enum = _Reduction.get_enum(reduction)
+    '''if target.size() != input.size():
+        warnings.warn("Using a target size ({}) that is different to the input size ({}) is deprecated. "
+                      "Please ensure they have the same size.".format(target.size(), input.size()),
+                      stacklevel=2)
+    if input.numel() != target.numel():
+        raise ValueError("Target and input must have the same number of elements. target nelement ({}) "
+                         "!= input nelement ({})".format(target.numel(), input.numel()))'''
+    if reduction_enum not in [0, 1]:
+        raise ValueError('Reduction has to be mean or sum')
+    # reduction: mean:0, sum:1
+    out_func = torch.mean if reduction_enum == 0 else torch.sum
+    exsum = (1e-9+torch.exp(input).sum(1)).log()
+    l = (target*(exsum[:, None]-input)).sum(1)
+
+    return out_func(l)
+
+
+class softCrossEntropyLoss(_Loss):
+    __constants__ = ['reduction']
+
+    def __init__(self, size_average=None, reduce=None, reduction='mean'):
+        super(softCrossEntropyLoss, self).__init__(size_average, reduce, reduction)
+
+    def forward(self, input, target):
+        return SoftCrossEntropy(input, target, reduction=self.reduction)
+
+
+def label_maker(ground_truth, eye):
+    inds = torch.argsort(ground_truth, -1, descending=True)
+    zeros = torch.nonzero(ground_truth == 0, as_tuple=True)
+    onehots = eye[inds]
+    onezero = onehots[zeros]
+    num_zeros = (ground_truth == 0).sum(-1).view(-1)
+    ind = 0
+    softzeros = []
+    for i in range(len(num_zeros)):
+        zi = num_zeros[i].item()
+        if zi == 0:
+            continue
+        soft = (onezero[ind:zi+ind].sum(0))
+        softzeros.append(soft.repeat(zi, 1)/soft.sum())
+        ind += zi
+    softzeros = torch.cat(softzeros)
+    onehots[zeros] = softzeros
+    return onehots
 
 
 class KLD_hist(nn.Module):
@@ -268,6 +330,10 @@ def get_hitogram(t, factor, threshold=.1, sig=80):
         return torch.cat(torch.split(torch.cat(torch.split(t, factor, -2)), factor, -1)).mean((0, 1))
 
 
+def flat_patch(t, factor):
+    return torch.cat(torch.split(torch.cat(torch.split(t[None, :], factor, -2)), factor, -1)).transpose(0, 1).transpose(1, 2).reshape(*t.shape[:-2], -1, factor**2)
+
+
 def nnz_mask(x, sigma=5e4):
     return torch.sigmoid(sigma*x)
 
@@ -303,14 +369,14 @@ class MeanImage:
         self.ini = False
         self.preprocess = preprocess
         self.energy = energy or threshold <= 0
-        self.N=0
+        self.N = 0
 
     def add(self, SR, HR):
         if not self.ini:
             self.ini = True
             self.height = HR.shape[-2]
             self.sr, self.hr = [np.zeros((self.height, self.height)) for _ in range(2)]
-        self.N+=len(SR)
+        self.N += len(SR)
         if self.preprocess:
             SR = preprocessing(SR)
             HR = preprocessing(HR)
@@ -359,7 +425,7 @@ def plot_hist2d(sr, hr, cmap='jet'):
     gt = ax[1].imshow(hr, cmap=cmap, vmin=vmin, vmax=vmax)
     ax[1].set_title('ground truth')
     ax[1].axis('off')
-    #f.subplots_adjust(right=0.8)
+    # f.subplots_adjust(right=0.8)
     cbar_ax = f.add_axes([0.8, 0.25, 0.05, 0.5])
     f.colorbar(gt, cax=cbar_ax)
     return f

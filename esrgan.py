@@ -66,6 +66,7 @@ def get_parser():
     parser.add_argument("--lambda_mask", type=float, default=default.lambda_mask, help="loss weight for hr mask")
     parser.add_argument("--lambda_pow", type=float, default=default.lambda_pow, help="loss weight for multiple hr L1 pixel loss")
     parser.add_argument("--lambda_hit", type=float, default=default.lambda_hit, help="loss weight for mean image loss")
+    parser.add_argument("--lambda_prob", type=float, default=default.lambda_prob, help="loss weight for probability maps")
     parser.add_argument("--scaling_power", type=float, default=default.scaling_power, help="to what power to raise the input image")
     parser.add_argument("--batchwise_hist", type=str_to_bool, default=default.batchwise_hist, help="whether to use all images in a batch to calculate the energy distribution")
     parser.add_argument("--sigma", type=float, default=default.sigma, help="Sigma parameter for the differentiable histogram")
@@ -149,7 +150,7 @@ def train(opt, **kwargs):
 
     os.makedirs(os.path.join(opt.root, opt.model_path), exist_ok=True)
     device = torch.device("cuda:%i" % gpu if torch.cuda.is_available() else "cpu")
-
+    device = torch.device('cpu')
     hr_shape = (opt.hr_height, opt.hr_width)
     # set seed
     '''if opt.seed:
@@ -185,6 +186,9 @@ def train(opt, **kwargs):
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
     criterion_hit = nn.KLDivLoss(reduction='batchmean')
+    criterion_prob = softCrossEntropyLoss()
+    if opt.lambda_prob > 0:
+        eye = torch.eye(opt.factor**2).to(device)
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -238,7 +242,7 @@ def train(opt, **kwargs):
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
-    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, threshold=opt.E_thres, N=opt.n_hardest,noise_factor=opt.noise_factor)
+    dataset = get_dataset(opt.dataset_type, opt.dataset_path, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, threshold=opt.E_thres, N=opt.n_hardest, noise_factor=opt.noise_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=opt.batch_size,
@@ -259,7 +263,7 @@ def train(opt, **kwargs):
     #  Training
     # ----------
     loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
-                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
+                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss', 'prob_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -356,13 +360,15 @@ def train(opt, **kwargs):
                 del nnz
             if i == opt.warmup_batches or (batches_done % opt.update_g == 0):
                 # Main training loop
-                loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [
-                    torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
+                loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit, loss_prob = [
+                    torch.zeros(1, device=device, dtype=torch.float32) for _ in range(12)]
                 # Generate a high resolution image from low resolution input
-                generated = pointerList(generator(imgs_lr))
-                generated.append(generator.srs)
+                SR = generator(imgs_lr)
+                generated = pointerList(SR[:, :opt.channels])
+                probabilities = pointerList(SR[:, opt.channels:], SR[:, opt.channels:]**opt.scaling_power)
+                generated.append(generator.srs[:, :opt.channels])
                 ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
-                gen_lr = pool(generated[0])
+                gen_lr = pool(SR[:, :opt.channels])
                 generated_lr = pointerList(gen_lr, gen_lr**opt.scaling_power)
                 ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
                 # check for nan in the tensors:
@@ -390,7 +396,7 @@ def train(opt, **kwargs):
                             if opt.relativistic:
                                 # Adversarial loss (relativistic average GAN)
                                 loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
-                                            criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
+                                               criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
                             else:
                                 loss_GAN = criterion_GAN(eps + pred_fake, valid)
                         if opt.lambda_nnz > 0 and wait('nnz'):
@@ -415,13 +421,18 @@ def train(opt, **kwargs):
                             real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                             loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                         if opt.lambda_hit > 0 and wait('hit'):
-                            gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)#+eps
+                            gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)  # +eps
                             target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
                             #loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
                             loss_hit = criterion_pixel(gen_hit, target)
+                        if opt.lambda_prob > 0 and wait('prob'):
+                            gt_prob = label_maker(flat_patch(ground_truth[k], opt.factor), eye)
+                            pred_prob = flat_patch(probabilities[k], opt.factor)[:, None].transpose(-2,-3)
+                            #print(gt_prob.shape, pred_prob.shape)
+                            loss_prob = criterion_prob(pred_prob, gt_prob)
 
                         tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
+                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit + opt.lambda_prob * loss_prob
                         # Total generator loss
                         loss_G += lambdas[k] * tot_loss[k]
                 loss_G.backward()
@@ -475,16 +486,16 @@ def train(opt, **kwargs):
             # save loss to dict
 
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
+                for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item(), loss_prob.item()]):
                     v.append(l)
-                print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
+                print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f, prob: %f]"
                       % (batches_done, *[l[-1] for l in loss_dict.values()],))
 
             # check if loss is NaN
             if any(l != l for l in [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item()]):
                 save_info()
-                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f]' % (
-                    i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item()))
+                raise ValueError('loss is NaN\n[Batch %d] [D loss: %e] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, prob: %f]' % (
+                    i, loss_D_tot.item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_prob.item()))
             if batches_done % opt.sample_interval == 0 and not opt.sample_interval == -1:
                 # Save image grid with upsampled inputs and ESRGAN outputs
                 imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=opt.factor)
@@ -499,7 +510,7 @@ def train(opt, **kwargs):
                 print('Validation')
                 output_path = opt.output_path if 'output_path' in dir(opt) else None
                 val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, output_path, opt.batch_size,
-                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N//10, thres=opt.E_thres, N=opt.n_hardest,noise_factor=opt.noise_factor)
+                                                opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N//10, thres=opt.E_thres, N=opt.n_hardest, noise_factor=opt.noise_factor)
                 val_results['epoch'] = epoch
                 val_results['batch'] = batches_done
                 # If necessary lower the learning rate
@@ -533,7 +544,7 @@ def train(opt, **kwargs):
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 eval_result = distribution(opt.validation_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
-                                           mode=opt.eval_modes,noise_factor=opt.noise_factor)
+                                           mode=opt.eval_modes, noise_factor=opt.noise_factor)
 
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
