@@ -186,7 +186,7 @@ def train(opt, **kwargs):
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
     criterion_hit = nn.KLDivLoss(reduction='batchmean')
-    criterion_prob = softCrossEntropyLoss()
+    criterion_prob = SoftCrossEntropy
     if opt.lambda_prob > 0:
         eye = torch.eye(opt.factor**2).to(device)
 
@@ -258,6 +258,7 @@ def train(opt, **kwargs):
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
+    fsquared = opt.factor*opt.factor
 
     # ----------
     #  Training
@@ -365,7 +366,7 @@ def train(opt, **kwargs):
                 # Generate a high resolution image from low resolution input
                 SR = generator(imgs_lr)
                 generated = pointerList(SR[:, :opt.channels])
-                probabilities = pointerList(SR[:, opt.channels:], SR[:, opt.channels:]**opt.scaling_power)
+                probabilities = SR[:, opt.channels:]
                 generated.append(generator.srs[:, :opt.channels])
                 ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
                 gen_lr = pool(SR[:, :opt.channels])
@@ -425,16 +426,18 @@ def train(opt, **kwargs):
                             target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
                             #loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
                             loss_hit = criterion_pixel(gen_hit, target)
-                        if opt.lambda_prob > 0 and wait('prob'):
-                            gt_prob = label_maker(flat_patch(ground_truth[k], opt.factor), eye)
-                            pred_prob = flat_patch(probabilities[k], opt.factor)[:, None].transpose(-2,-3)
-                            #print(gt_prob.shape, pred_prob.shape)
-                            loss_prob = criterion_prob(pred_prob, gt_prob)
 
                         tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit + opt.lambda_prob * loss_prob
+                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
                         # Total generator loss
                         loss_G += lambdas[k] * tot_loss[k]
+
+                if opt.lambda_prob > 0 and wait('prob'):
+                    gt_prob = label_maker(flat_patch(ground_truth.get(0), opt.factor), eye).reshape(-1, fsquared)
+                    pred_prob = flat_patch(probabilities, opt.factor).transpose(1, 2).reshape(-1, fsquared)
+                    loss_prob = criterion_prob(pred_prob, gt_prob)
+                    loss_prob.backward(retain_graph=True)
+
                 loss_G.backward()
                 # torch.nn.utils.clip_grad_value_(generator.parameters(), 1)
                 optimizer_G.step()

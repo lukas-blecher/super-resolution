@@ -96,7 +96,9 @@ class GeneratorRRDB(nn.Module):
         if self.training:
             return F.hardshrink(x, lambd=self.thres**pow.item())
         else:
-            return F.hardshrink(F.relu(x), lambd=self.thres**pow.item())
+            x[:, :self.channels] = F.hardshrink(F.relu(x[:, :self.channels]), lambd=self.thres**pow.item())
+            x[:, self.channels:] = F.softmax(x[:, self.channels:], -1)
+            return x
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
@@ -212,7 +214,7 @@ class SumPool2d(torch.nn.Module):
 
 class DiffableHistogram(nn.Module):
     '''Modified version of https://discuss.pytorch.org/t/differentiable-torch-histc/25865/2 by Tony-Y
-    If `bins` is a sequence the histogram will be defined by the edges specified in `bins`. If it is an integer 
+    If `bins` is a sequence the histogram will be defined by the edges specified in `bins`. If it is an integer
     the histogram will consist of equally sized bins.
     `sigma` is a parameter of how strickly the differentiable histogram will approach the discrete histogram. For big values the gradients may explode.
     `batchwise` is a boolean that indicates whether the histogram will be taken over the whole data or batchwise.

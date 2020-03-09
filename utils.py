@@ -88,45 +88,11 @@ class pointerList:
                 getattr(self[i], foo)(arg)
 
 
-class _Loss(nn.modules.Module):
-    def __init__(self, size_average=None, reduce=None, reduction='mean'):
-        super(_Loss, self).__init__()
-        if size_average is not None or reduce is not None:
-            self.reduction = _Reduction.legacy_get_string(size_average, reduce)
-        else:
-            self.reduction = reduction
 
-
-def SoftCrossEntropy(input, target, size_average=None, reduce=None, reduction='mean'):
-    if size_average is not None or reduce is not None:
-        reduction_enum = _Reduction.legacy_get_enum(size_average, reduce)
-    else:
-        reduction_enum = _Reduction.get_enum(reduction)
-    '''if target.size() != input.size():
-        warnings.warn("Using a target size ({}) that is different to the input size ({}) is deprecated. "
-                      "Please ensure they have the same size.".format(target.size(), input.size()),
-                      stacklevel=2)
-    if input.numel() != target.numel():
-        raise ValueError("Target and input must have the same number of elements. target nelement ({}) "
-                         "!= input nelement ({})".format(target.numel(), input.numel()))'''
-    if reduction_enum not in [0, 1]:
-        raise ValueError('Reduction has to be mean or sum')
-    # reduction: mean:0, sum:1
-    out_func = torch.mean if reduction_enum == 0 else torch.sum
+def SoftCrossEntropy(input, target):
     exsum = (1e-9+torch.exp(input).sum(1)).log()
     l = (target*(exsum[:, None]-input)).sum(1)
-
-    return out_func(l)
-
-
-class softCrossEntropyLoss(_Loss):
-    __constants__ = ['reduction']
-
-    def __init__(self, size_average=None, reduce=None, reduction='mean'):
-        super(softCrossEntropyLoss, self).__init__(size_average, reduce, reduction)
-
-    def forward(self, input, target):
-        return SoftCrossEntropy(input, target, reduction=self.reduction)
+    return torch.mean(l)
 
 
 def label_maker(ground_truth, eye):
@@ -331,7 +297,7 @@ def get_hitogram(t, factor, threshold=.1, sig=80):
 
 
 def flat_patch(t, factor):
-    return torch.cat(torch.split(torch.cat(torch.split(t[None, :], factor, -2)), factor, -1)).transpose(0, 1).transpose(1, 2).reshape(*t.shape[:-2], -1, factor**2)
+    return torch.cat(torch.split(torch.cat(torch.split(t[None, :], factor, -2)), factor, -1)).reshape(*t.shape[:-2], -1, factor**2)
 
 
 def nnz_mask(x, sigma=5e4):
