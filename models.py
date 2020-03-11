@@ -6,6 +6,7 @@ import numpy as np
 from itertools import product
 from utils import flat_patch, sample_patches
 
+
 class DenseResidualBlock(nn.Module):
     """
     The core module of paper: (Residual Dense Network for Image Super-Resolution, CVPR 18)
@@ -86,13 +87,13 @@ class GeneratorRRDB(nn.Module):
 
     def sample(self, pt, prob):
         '''samples from the probability distribution and permutes the first channel accordingly'''
-        hw = pt.shape[-1]        
+        hw = pt.shape[-1]
         pt = torch.sort(flat_patch(pt, self.factor), -1, True)[0]
         bs, ch, Np, _ = pt.shape
         prob = F.softmax(flat_patch(prob, self.factor).transpose(1, 2), -1)
         idx = torch.cat([sample_patches(prob[i])[None, :] for i in range(bs)])[:, None]
         perm = pt[..., idx][:, :, range(Np), :, :, range(Np), ...][:, :, range(ch), :, range(ch), ...][:, :, range(bs), range(bs), ...].permute(2, 0, 1, 3)
-        p = torch.cat((torch.arange(hw//2)*2, torch.arange(hw//2)*2+1))
+        p = torch.cat(torch.arange(hw)[None, :].chunk(2, 1), 0).t().contiguous().view(-1)
         perm = torch.cat(tuple(torch.cat(perm.view(*perm.shape[:-1], self.factor, self.factor).chunk(self.factor, -2), -3)), 0).view(bs, ch, hw, hw)[..., p, :]
         return perm
 

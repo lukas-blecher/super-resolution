@@ -421,7 +421,8 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
 
 
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
-                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max',noise_factor=None, **kwargs):
+                 batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2,
+                 amount=5000, pre=1, thres=None, N=None, mode='max',noise_factor=None, **kwargs):
 
     statement = Wrapper(output_path)
     pdf = False
@@ -440,7 +441,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     if 'legend' in kwargs:
         legend = kwargs['legend']
     generator.eval()
-    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N,noise_factor=noise_factor)
+    dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N, noise_factor=noise_factor)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -459,13 +460,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             # Generate a high resolution image from low resolution input
             gen_hr = generator(imgs_lr).detach()
             hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
-    if 'wmass' in modes:
-        print('total entries: ', total_entries)
-        print('top veto real / gen:', top_veto_real, top_veto_gen)
-        print('w veto real / gen: ', w_veto_real, w_veto_gen)
-        entries_gen = len(hhd[0].list[0])
-        entries_real = len(hhd[0].list[1])
-        print('hist entries real / gen: ', entries_real, entries_gen)
+
     global show
     total_kld = []
     kldiv = nn.KLDivLoss(reduction='sum')
