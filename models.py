@@ -4,7 +4,7 @@ import torch
 import math
 import numpy as np
 from itertools import product
-
+from utils import flat_patch, sample_patches
 
 class DenseResidualBlock(nn.Module):
     """
@@ -84,21 +84,23 @@ class GeneratorRRDB(nn.Module):
         self.power = nn.Parameter(torch.Tensor([power]), False)
         self.multiplier = nn.Parameter(torch.Tensor([multiplier]), False)
 
-    '''def load_state_dict(self, state_dict):
-        own_state = self.state_dict()
-        for name, param in state_dict.items():
-            if isinstance(param, nn.Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
-            own_state[name].copy_(param)'''
+    def sample(self, pt, prob):
+        '''samples from the probability distribution and permutes the first channel accordingly'''
+        hw = pt.shape[-1]        
+        pt = torch.sort(flat_patch(pt, self.factor), -1, True)[0]
+        bs, ch, Np, _ = pt.shape
+        prob = F.softmax(flat_patch(prob, self.factor).transpose(1, 2), -1)
+        idx = torch.cat([sample_patches(prob[i])[None, :] for i in range(bs)])[:, None]
+        perm = pt[..., idx][:, :, range(Np), :, :, range(Np), ...][:, :, range(ch), :, range(ch), ...][:, :, range(bs), range(bs), ...].permute(2, 0, 1, 3)
+        p = torch.cat((torch.arange(hw//2)*2, torch.arange(hw//2)*2+1))
+        perm = torch.cat(tuple(torch.cat(perm.view(*perm.shape[:-1], self.factor, self.factor).chunk(self.factor, -2), -3)), 0).view(bs, ch, hw, hw)[..., p, :]
+        return perm
 
     def out(self, x, pow=torch.ones(1)):
         if self.training:
             return F.hardshrink(x, lambd=self.thres**pow.item())
         else:
-            x[:, :self.channels] = F.hardshrink(F.relu(x[:, :self.channels]), lambd=self.thres**pow.item())
-            x[:, self.channels:] = F.softmax(x[:, self.channels:], -1)
-            return x
+            return self.sample(F.hardshrink(F.relu(x[:, :self.channels]), lambd=self.thres**pow.item()), x[:, self.channels:])[:, :self.channels]
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding

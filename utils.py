@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.nn.functional import _Reduction
+from torch.distributions.categorical import Categorical
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.ticker import LogFormatter
@@ -297,8 +297,21 @@ def get_hitogram(t, factor, threshold=.1, sig=80):
 
 
 def flat_patch(t, factor):
-    return torch.cat(torch.split(torch.cat(torch.split(t[None, :], factor, -2)), factor, -1)).reshape(*t.shape[:-2], -1, factor**2)
+    hdf=t.shape[-1]//factor
+    return torch.cat(torch.cat(t[:,:,None,None].chunk(hdf,-2),2).chunk(hdf,-1),3).view(*t.shape[:-2],hdf**2,factor**2)
 
+def sample_patches(px):
+    # px: [N_p, f^2, f^2]
+    sampled = torch.LongTensor([])
+    r = list(range(len(px)))
+    for i in range(px.shape[-2]):
+        p = px[:, i].clone()+1e-5
+        if i > 0:
+            p[[r]*i, sampled] = 0
+            sampled = torch.cat((sampled, torch.LongTensor(Categorical(p).sample()[None, :])), 0)
+        else:
+            sampled = torch.LongTensor(Categorical(p).sample())[None, :]
+    return sampled.t()
 
 def nnz_mask(x, sigma=5e4):
     return torch.sigmoid(sigma*x)
