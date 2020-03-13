@@ -93,7 +93,7 @@ class GeneratorRRDB(nn.Module):
         prob = F.softmax(flat_patch(prob, self.factor).transpose(1, 2), -1)
         idx = torch.cat([sample_patches(prob[i])[None, :] for i in range(bs)])[:, None]
         perm = pt[..., idx][:, :, range(Np), :, :, range(Np), ...][:, :, range(ch), :, range(ch), ...][:, :, range(bs), range(bs), ...].permute(2, 0, 1, 3)
-        p = torch.cat(torch.arange(hw)[None, :].chunk(hw//self.factor, 1), 0).t().contiguous().view(-1)
+        p = torch.cat(torch.arange(hw)[None, :].chunk(self.factor, 1), 0).t().contiguous().view(-1)
         perm = torch.cat(tuple(torch.cat(perm.view(*perm.shape[:-1], self.factor, self.factor).chunk(self.factor, -2), -3)), 0).view(bs, ch, hw, hw)[..., p, :]
         return perm
 
