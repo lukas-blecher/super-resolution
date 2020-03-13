@@ -53,6 +53,8 @@ def get_parser():
     parser.add_argument("--update_d", type=int, default=default.update_d, help="every nth batch the discriminator will be updated")
     parser.add_argument("--update_g", type=int, default=default.update_g, help="every nth batch the generator will be updated")
     parser.add_argument("--residual_blocks", type=int, default=default.residual_blocks, help="number of residual blocks in the generator")
+    parser.add_argument("--prob_lr", type=int, default=default.prob_lr, help="number of residual blocks in the LR probability map computation")
+    parser.add_argument("--prob_hr", type=int, default=default.prob_hr, help="number of residual blocks in the HR probability map computation")
     parser.add_argument("--warmup_batches", type=int, default=default.warmup_batches, help="number of batches with pixel-wise loss only")
     parser.add_argument("--learn_warmup", type=str_to_bool, default=default.learn_warmup, help="whether to learn during warmup phase or not")
     parser.add_argument("--pixel_multiplier", type=float, default=default.pixel_multiplier, help="multiply the image by this factors")
@@ -164,7 +166,8 @@ def train(opt, **kwargs):
     info['seed'] = seed'''
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
-        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale).to(device)
+        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate,
+        res_scale=opt.res_scale, Pl=opt.prob_lr, Ph=opt.prob_hr).to(device)
     if opt.E_thres:
         generator.thres = opt.E_thres
     Discriminators = pointerList()
@@ -365,11 +368,11 @@ def train(opt, **kwargs):
                     torch.zeros(1, device=device, dtype=torch.float32) for _ in range(12)]
                 # Generate a high resolution image from low resolution input
                 SR = generator(imgs_lr)
-                generated = pointerList(SR[:, :opt.channels])
-                probabilities = SR[:, opt.channels:]
-                generated.append(generator.srs[:, :opt.channels])
+                generated = pointerList(SR)
+                probabilities = generator.prob_map
+                generated.append(generator.srs)
                 ground_truth = pointerList(imgs_hr, imgs_hr**opt.scaling_power)
-                gen_lr = pool(SR[:, :opt.channels])
+                gen_lr = pool(SR)
                 generated_lr = pointerList(gen_lr, gen_lr**opt.scaling_power)
                 ground_truth_lr = pointerList(imgs_lr, imgs_lr**opt.scaling_power)
                 # check for nan in the tensors:

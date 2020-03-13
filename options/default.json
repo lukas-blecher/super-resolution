@@ -90,5 +90,7 @@
     "update_d": 1,
     "update_g": 1,
     "conditional": false,
-    "noise_factor": null
+    "noise_factor": null,
+    "prob_lr":2,
+    "prob_hr":2
 }

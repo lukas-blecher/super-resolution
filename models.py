@@ -55,11 +55,12 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 
 class GeneratorRRDB(nn.Module):
-    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.1):
+    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.1, Pl=2, Ph=2):
         super(GeneratorRRDB, self).__init__()
 
         # First layer
         self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=1)
+        # pT model:
         # Residual blocks
         self.res_blocks = nn.Sequential(*[ResidualInResidualDenseBlock(filters, res_scale=res_scale, drop_rate=drop_rate) for _ in range(num_res_blocks)])
         # Second conv layer post residual blocks
@@ -78,8 +79,27 @@ class GeneratorRRDB(nn.Module):
         self.conv3 = nn.Sequential(
             nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Conv2d(filters, channels+self.factor*self.factor, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(filters, channels, kernel_size=3, stride=1, padding=1),
         )
+        # prob model:
+        self.prob_lr = nn.Sequential(*[ResidualInResidualDenseBlock(filters, res_scale=res_scale, drop_rate=drop_rate) for _ in range(Pl)])
+        self.prob_lr_conv = nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1)
+        # Upsampling layers
+        upsample_layers = []
+        for _ in range(num_upsample):
+            upsample_layers += [
+                nn.Conv2d(filters, filters * 4, kernel_size=3, stride=1, padding=1),
+                nn.LeakyReLU(),
+                nn.PixelShuffle(upscale_factor=2),
+            ]
+        self.prob_upsample = nn.Sequential(*upsample_layers)
+        self.prob_hr = nn.Sequential(*[ResidualInResidualDenseBlock(filters, res_scale=res_scale, drop_rate=drop_rate) for _ in range(Ph)])
+        self.prob_out = nn.Sequential(
+            nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(),
+            nn.Conv2d(filters, self.factor**2, kernel_size=3, stride=1, padding=1),
+        )
+
         self.channels = channels
         self.thres = 0
         self.power = nn.Parameter(torch.Tensor([power]), False)
@@ -97,11 +117,12 @@ class GeneratorRRDB(nn.Module):
         perm = torch.cat(tuple(torch.cat(perm.view(*perm.shape[:-1], self.factor, self.factor).chunk(self.factor, -2), -3)), 0).view(bs, ch, hw, hw)[..., p, :]
         return perm
 
-    def out(self, x, pow=torch.ones(1)):
-        if self.training:
-            return F.hardshrink(x, lambd=self.thres**pow.item())
+    def out(self, x, pow=torch.ones(1), sample=False):
+        x = F.hardshrink(x, lambd=self.thres**pow.item())
+        if self.training or not sample:
+            return x
         else:
-            return self.sample(F.hardshrink(F.relu(x[:, :self.channels]), lambd=self.thres**pow.item()), x[:, self.channels:])[:, :self.channels]
+            return self.sample(x, self.prob_map)
 
     def forward(self, x):
         # x = F.pad(x, (1, 1, 0, 0), mode='circular')  # phi padding
@@ -111,11 +132,16 @@ class GeneratorRRDB(nn.Module):
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
         out = self.upsampling(out)
-        out = self.conv3(out)/self.multiplier
+        out = F.relu(self.conv3(out)/self.multiplier)
         self.srs = self.out(out, self.power)
         if self.power != 1:
             out = F.relu(out)**(1/self.power)
-        return self.out(out)
+        # prob
+        self.prob_map = self.prob_lr_conv(self.prob_lr(out1))
+        self.prob_map = self.prob_upsample(torch.add(self.prob_map, out1))
+        self.prob_map = self.prob_out(self.prob_map+self.prob_hr(self.prob_map))
+
+        return self.out(out, sample=True)
 
 
 def discriminator_block(in_filters, out_filters, stride=(1, 2)):
