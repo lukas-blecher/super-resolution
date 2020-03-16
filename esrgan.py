@@ -184,7 +184,8 @@ def train(opt, **kwargs):
     criterion_pixel = nn.L1Loss().to(device)
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
-    criterion_hit = nn.KLDivLoss(reduction='batchmean')
+   #criterion_hit = nn.KLDivLoss(reduction='batchmean')
+   
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -418,7 +419,7 @@ def train(opt, **kwargs):
                             gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)#+eps
                             target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
                             #loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
-                            loss_hit = criterion_pixel(gen_hit, target)
+                            loss_hit = mse(gen_hit, target)
 
                         tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
                             loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
