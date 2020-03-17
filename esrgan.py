@@ -539,6 +539,9 @@ def train(opt, **kwargs):
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
 
+                hit_f = plot_hist2d(gen_hit, target)
+                hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
+
                 if eval_result is not None:
                     eval_result_mean = float(np.mean(np.abs(eval_result)))
                     if 'eval_results' in info:
