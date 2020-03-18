@@ -347,9 +347,11 @@ def make_hist(raster, threshold=.1):
     return sr, hr
 
 
-def plot_hist2d(sr, hr, cmap='jet'):
-    vmin = min([hr.min().item(), sr.min().item()])
-    vmax = max([hr.max().item(), sr.max().item()])
+def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
+    if vmin == None:
+        vmin = min([hr.min().item(), sr.min().item()])
+    if vmax == None:
+        vmax = max([hr.max().item(), sr.max().item()])
     f, ax = plt.subplots(1, 2)
     plt.subplots_adjust(right=.75)
     ax = ax.flatten()
