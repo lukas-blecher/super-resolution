@@ -256,6 +256,13 @@ def train(opt, **kwargs):
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
 
+    if opt.lambda_hit > 0:
+        genhit_ls = [] # list for generated hitograms
+        gthit_ls = []  # list for ground truth hitograms
+        batch_ls = []  # list for batches done info
+        vmin = None
+        vmax = None
+
     # ----------
     #  Training
     # ----------
@@ -538,8 +545,16 @@ def train(opt, **kwargs):
 
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
-                if (wait('hit') and opt.lambda_hit > 0):
-                    hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach())
+
+                if  (wait('hit') and batches_done > 20000 and batches_done < 50000 and opt.lambda_hit > 0):
+                    #hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach())
+                    #hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
+                    genhit_ls.append(gen_hit.cpu().detach().numpy())  # save hitogram arrays and corresponding batch nr in list, plot them later
+                    gthit_ls.append(target.cpu().detach().numpy())
+                    batch_ls.append(batches_done)
+
+                if (wait('hit') and batches_done > 50000 and opt.lambda_hit > 0):
+                    hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach(), vmin=vmin, vmax=vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
 
                 if eval_result is not None:
@@ -583,6 +598,13 @@ def train(opt, **kwargs):
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
                 if not opt.smart_save:
                     save_weights(epoch)
+
+            if ((batches_done+1) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
+                vmin = (min(np.concatenate(gthit_ls, axis=None)) + min(np.concatenate(genhit_ls, axis=None))) / 2
+                vmax = (max(np.concatenate(gthit_ls, axis=None)) + max(np.concatenate(genhit_ls, axis=None))) / 2
+                for sr,gt,batch in zip(genhit_ls, gthit_ls, batch_ls):
+                    hit_f = plot_hist2d(sr, gt, vmin= vmin, vmax= vmax)
+                    hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batch))                   
 
             if batches_done == total_batches:
                 save_info()
