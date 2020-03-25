@@ -545,6 +545,7 @@ def train(opt, **kwargs):
 
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
+
                 if  (wait('hit') and batches_done > 20000 and batches_done < 50000 and opt.lambda_hit > 0):
                     #hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach())
                     #hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
