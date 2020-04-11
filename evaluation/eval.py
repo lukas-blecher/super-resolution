@@ -730,6 +730,7 @@ def evaluate_results(file, **kwargs):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--dataset_path", type=str, default=None, help="Path to image")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet', 'spjet', 'hrlrjet'], default=default.dataset_type, help="how is the dataset saved")
     parser.add_argument("-o", "--output_path", type=str, default='images/outputs', help="Path where output will be saved")
     parser.add_argument("-m", "--checkpoint_model", type=str, default=None, help="Path to checkpoint model")
     parser.add_argument("--residual_blocks", type=int, default=10, help="Number of residual blocks in G")
@@ -785,6 +786,7 @@ if __name__ == "__main__":
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
         # print(opt)
+        print(opt.dataset_type)
 
         out = call_func(opt)
         if out is not None:
