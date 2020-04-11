@@ -786,7 +786,6 @@ if __name__ == "__main__":
         arguments = {**opt, **{key: default_dict[key] for key in default_dict if key not in opt}}
         opt = namedtuple("Namespace", arguments.keys())(*arguments.values())
         # print(opt)
-        print(opt.dataset_type)
 
         out = call_func(opt)
         if out is not None:
