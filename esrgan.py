@@ -33,7 +33,7 @@ def get_parser():
     parser.add_argument("--pre_factor", type=int, default=default.pre_factor, help="factor to donwsample the input image before training")
     parser.add_argument("--n_epochs", type=int, default=default.n_epochs, help="number of epochs of training")
     parser.add_argument("--dataset_path", type=str, default=default.dataset_path, help="path to the dataset")
-    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet', 'spjet'], default=default.dataset_type, help="how is the dataset saved")
+    parser.add_argument("--dataset_type", choices=['h5', 'txt', 'jet', 'spjet', 'hrlrjet'], default=default.dataset_type, help="how is the dataset saved")
     parser.add_argument("--batch_size", type=int, default=default.batch_size, help="size of the batches")
     parser.add_argument("--lr", type=float, default=default.lr, help="adam: learning rate")
     parser.add_argument("--lr_g", type=float, default=default.lr_g, help="adam: learning rate for generator")
