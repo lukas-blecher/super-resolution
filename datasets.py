@@ -271,7 +271,9 @@ class HRLRJetDataset(Dataset):
         if self.pre_factor > 1:
             imghr = self.pre_pool(imghr)
             imglr = self.pre_factor(imglr)
-        return {"lr": imglr, "hr": imghr}
+        img_hr = imghr[0]
+        img_lr = imglr[0]
+        return {"lr": img_lr, "hr": img_hr}
 
 def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, threshold=None, N=None,noise_factor=None):
     if dataset_type == 'h5':
