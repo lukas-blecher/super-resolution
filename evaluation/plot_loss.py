@@ -26,6 +26,7 @@ def plot_eval_mean(file):
     plt.ylabel('mean')
     plt.title('mean eval results for '+name)
     plt.legend()
+    print(eval_modes)
     
 
 def plot_losses(j, file, ax, alpha=1):
