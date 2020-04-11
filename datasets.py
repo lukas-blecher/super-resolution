@@ -267,7 +267,7 @@ class HRLRJetDataset(Dataset):
         return len(self.dfhr)
     def __getitem__(self, item):
         imghr = extract(torch.Tensor(self.dfhr.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]
-        imglr = extract(torch.Tensor(self.dflr.iloc[item][:-1]).view(-1, 2).t(), self.etaBins/self.factor*self.pre_factor, self.phiBins/self.factor*self.pre_factor)[None, ...]
+        imglr = extract(torch.Tensor(self.dflr.iloc[item][:-1]).view(-1, 2).t(), int(self.etaBins/self.factor*self.pre_factor), int(self.phiBins/self.factor*self.pre_factor))[None, ...]
         if self.pre_factor > 1:
             imghr = self.pre_pool(imghr)
             imglr = self.pre_factor(imglr)
