@@ -248,6 +248,30 @@ class SparseJetDataset(JetDataset):
         img_hr = img[0].clone()
         return {"lr": img_lr, "hr": img_hr}
 
+class HRLRJetDataset(Dataset):
+    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=1, threshold=None, N=None):
+        super(HRLRJetDataset, self).__init__()
+        self.phiBins = phiBins
+        self.etaBins = etaBins
+        self.pre_factor = pre_factor
+        self.factor = factor
+        if pre_factor > 1:
+            self.pre_pool = SumPool2d(self.pre_factor)
+        self.dfhr = pd.read_hdf(path, 'table')
+        self.dflr = pd.read_hdf(path.replace('HR', 'LR'), 'table')
+        if amount is not None:
+            self.dfhr = self.dfhr.iloc[:amount]
+            self.dflr = self.dflr.iloc[:amount]
+        #self.cutter = Cutter(threshold, N)
+    def __len__(self):
+        return len(self.dfhr)
+    def __getitem__(self, item):
+        imghr = extract(torch.Tensor(self.dfhr.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]
+        imglr = extract(torch.Tensor(self.dflr.iloc[item][:-1]).view(-1, 2).t(), self.etaBins/self.factor*self.pre_factor, self.phiBins/self.factor*self.pre_factor)[None, ...]
+        if self.pre_factor > 1:
+            imghr = self.pre_pool(imghr)
+            imglr = self.pre_factor(imglr)
+        return {"lr": imglr, "hr": imghr}
 
 def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, threshold=None, N=None,noise_factor=None):
     if dataset_type == 'h5':
@@ -258,3 +282,5 @@ def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amoun
         return JetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N)
     elif dataset_type == 'spjet':
         return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N,noise_factor=noise_factor)
+    elif dataset_type == 'hrlrjet':
+        return HRLRJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N)
