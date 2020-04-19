@@ -107,7 +107,7 @@ class GeneratorRRDB(nn.Module):
         out = self.conv3(out)/self.multiplier
 
         with torch.no_grad():
-            ind_max = np.unravel_index(torch.argmax(out), out.shape)
+            ind_max = np.unravel_index(torch.argmax(out.cpu()), out.shape)
             out[ind_max] = torch.mean(out)
 
         self.srs = self.out(out, self.power)
