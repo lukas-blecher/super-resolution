@@ -478,9 +478,9 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 if modes[m] == 'hitogram':
                     sr, hr = hhd[m].raster.get_hist()
                     if normh:
-                        gtmax = np.max(hr)
-                        print(gtmax)
-                        f = plot_hist2d(sr/gtmax, hr/gtmax, vmax=1.)
+                        gtmax = float(np.max(hr))
+                        gtmin = float(np.min(hr))
+                        f = plot_hist2d(sr/gtmax, hr/gtmax, vmax=1., vmin=gtmin/gtmax)
                     else:
                         f = plot_hist2d(sr, hr)
                     #f.tight_layout()
