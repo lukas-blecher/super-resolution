@@ -480,7 +480,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if normh:
                         gtmax = float(np.max(hr))
                         gtmin = float(np.min(hr))
-                        f = plot_hist2d(sr/gtmax, hr/gtmax, vmax=1.*2, vmin=gtmin/gtmax*2)
+                        f = plot_hist2d(sr/gtmax, hr/gtmax, vmax=1.*2, vmin=gtmin/gtmax*0.5)
                     else:
                         f = plot_hist2d(sr, hr)
                     #f.tight_layout()
