@@ -24,6 +24,7 @@ import scipy.ndimage as ndimage
 
 show = False
 normh = False
+savehito = False
 
 total_entries = 0
 top_veto_real = 0
@@ -469,6 +470,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         print('hist entries real / gen: ', entries_real, entries_gen)
     global show
     global normh
+    global savehito
     total_kld = []
     kldiv = nn.KLDivLoss(reduction='sum')
     with statement as output:
@@ -477,6 +479,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if modes[m] in ('hitogram', 'meanimg'):
                 if modes[m] == 'hitogram':
                     sr, hr = hhd[m].raster.get_hist()
+                    if savehito:
+                        np.save((output_path+modes[m]+'_sr').replace(".npy", ""), sr)
+                        np.save((output_path+modes[m]+'_hr').replace(".npy", ""), hr)
+                        exit()
                     if normh:
                         gtmax = float(np.max(hr))
                         gtmin = float(np.min(hr))
@@ -767,6 +773,7 @@ if __name__ == "__main__":
     parser.add_argument("--meanenergy", type=str_to_bool, default=False, help="Plot the average jet image with energy instead of counts")
     parser.add_argument("--gpu", type=int, default=None, help="GPU index")
     parser.add_argument("--normhito", action="store_true", help="divide all hitogram entries by hardest gt pixel")
+    parser.add_argument("--savehito", action="store_true", help="save hito as np array")
 
 
     opt = parser.parse_args()
@@ -788,6 +795,7 @@ if __name__ == "__main__":
         gpu = opt['gpu']
     show = opt['no_show']
     normh = opt['normhito']
+    savehito = opt['savehito']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'], **opt['kwargs'])
     else:
