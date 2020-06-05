@@ -108,7 +108,9 @@ def get_parser():
     parser.add_argument("--n_validations", type=int, default=default.n_validations, help="number of validation points during training (if used dominates validation_interval)")
     parser.add_argument("--n_evaluation", type=int, default=default.n_evaluation, help="number of histograms to compute during trianing")
     parser.add_argument("--default", type=str, default=default.default, help="Path to a json file. When this option is provided, all unspecified arguments will be taken from the json file")
-
+    # modify generator
+    parser.add_argument("--use_transposed_conv", type=str_to_bool, default=False, help="Whether to use transposed convolutions in upsampling")
+    parser.add_argument("--use_final_res_blocks", type=str_to_bool, default=False, help="Whether to add res blocks AFTER upsampling")
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -163,7 +165,7 @@ def train(opt, **kwargs):
     info['seed'] = seed'''
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
-        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale).to(device)
+        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, use_final_layer_res=opt.use_final_layer_res).to(device)
     if opt.E_thres:
         generator.thres = opt.E_thres
     Discriminators = pointerList()
