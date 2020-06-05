@@ -365,7 +365,7 @@ def call_func(opt):
     output_path = opt.output_path if 'output_path' in dopt else None
     bins = opt.bins if 'bins' in dopt else default.bins
 
-    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, use_final_layer_res=opt.use_final_layer_res).to(device)
+    generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(np.log2(opt.factor)), res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, use_final_layer_res=opt.use_final_res_blocks).to(device)
     generator.load_state_dict(torch.load(opt.checkpoint_model, map_location=device))
     if opt.E_thres:
         generator.thres = opt.E_thres

@@ -34,7 +34,7 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, use_final_layer_res=args.use_final_layer_res).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, use_final_layer_res=args.use_final_res_blocks).to(device).eval()
     generator.thres = args.threshold
     generator.load_state_dict(torch.load(args.model, map_location=device))
     criterion = torch.nn.L1Loss()
@@ -93,7 +93,7 @@ def subplot(N, M, num, img, title=''):
 
 def upsample_empty(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, use_final_layer_res=args.use_final_layer_res).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, use_final_layer_res=args.use_final_res_blocks).to(device).eval()
     generator.thres = args.threshold
     generator.load_state_dict(torch.load(args.model, map_location=device))
     sumpool = SumPool2d(args.factor)

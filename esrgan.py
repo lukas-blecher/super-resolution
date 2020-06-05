@@ -165,7 +165,7 @@ def train(opt, **kwargs):
     info['seed'] = seed'''
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
-        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, use_final_layer_res=opt.use_final_layer_res).to(device)
+        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, use_final_layer_res=opt.use_final_res_blocks).to(device)
     if opt.E_thres:
         generator.thres = opt.E_thres
     Discriminators = pointerList()
