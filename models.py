@@ -78,8 +78,8 @@ class GeneratorRRDB(nn.Module):
                 else:
                     upsample_layers += [nn.ConvTranspose2d(filters, filters, kernel_size = 2, stride = 2, padding = 0), nn.LeakyReLU()]
         
-       elif fully_tconv_upsample:
-           for _ in range(num_upsample): 
+        elif fully_tconv_upsample:
+            for _ in range(num_upsample): 
                 upsample_layers += [nn.ConvTranspose2d(filters, filters, kernel_size = 2, stride = 2, padding = 0), nn.LeakyReLU()]
         else:
             for _ in range(num_upsample):
