@@ -55,9 +55,9 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 class GeneratorRRDB(nn.Module):
     '''attempts: 1) add transposed convolutions 2) add some res blocks after upsampling'''
-    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.2, use_transposed_conv=False, use_final_layer_res=False):
+    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.2, use_transposed_conv=False, fully_tconv_upsample=False, num_final_layer_res=0):
         super(GeneratorRRDB, self).__init__()
-        self.use_final_layer_res = use_final_layer_res
+        self.num_final_layer_res = num_final_layer_res
 
         # First layer
         self.conv1 = nn.Conv2d(channels, filters, kernel_size=3, stride=1, padding=1)
@@ -77,6 +77,10 @@ class GeneratorRRDB(nn.Module):
                     ]
                 else:
                     upsample_layers += [nn.ConvTranspose2d(filters, filters, kernel_size = 2, stride = 2, padding = 0), nn.LeakyReLU()]
+        
+       elif fully_tconv_upsample:
+           for _ in range(num_upsample): 
+                upsample_layers += [nn.ConvTranspose2d(filters, filters, kernel_size = 2, stride = 2, padding = 0), nn.LeakyReLU()]
         else:
             for _ in range(num_upsample):
                 upsample_layers += [
@@ -86,9 +90,8 @@ class GeneratorRRDB(nn.Module):
                 ]
         self.upsampling = nn.Sequential(*upsample_layers)
         # Final output block
-        if use_final_layer_res:
-            num_res_blocks_final = int(num_res_blocks/3)
-            self.res_blocks_final = nn.Sequential(*[ResidualInResidualDenseBlock(filters, res_scale=res_scale, drop_rate=drop_rate) for _ in range(num_res_blocks_final)])
+        if num_final_layer_res > 0:
+            self.res_blocks_final = nn.Sequential(*[ResidualInResidualDenseBlock(filters, res_scale=res_scale, drop_rate=drop_rate) for _ in range(num_final_layer_res)])
 
         self.conv3 = nn.Sequential(
             nn.Conv2d(filters, filters, kernel_size=3, stride=1, padding=1),
@@ -113,7 +116,7 @@ class GeneratorRRDB(nn.Module):
         out2 = self.conv2(out)
         out = torch.add(out1, out2)
         out = self.upsampling(out)
-        if self.use_final_layer_res:
+        if self.num_final_layer_res > 0:
             out3 = self.res_blocks_final(out)
             out = torch.add(out3, out)
         out = self.conv3(out)/self.multiplier

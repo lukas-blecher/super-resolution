@@ -34,7 +34,7 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, use_final_layer_res=args.use_final_res_blocks).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, fully_tconv_upsample=args.fully_transposed_conv,,num_final_layer_res=args.num_final_res_blocks).to(device).eval()
     generator.thres = args.threshold
     generator.load_state_dict(torch.load(args.model, map_location=device))
     criterion = torch.nn.L1Loss()
@@ -93,7 +93,7 @@ def subplot(N, M, num, img, title=''):
 
 def upsample_empty(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, use_final_layer_res=args.use_final_res_blocks).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, fully_tconv_upsample=args.fully_transposed_conv, num_final_layer_res=args.num_final_res_blocks).to(device).eval()
     generator.thres = args.threshold
     generator.load_state_dict(torch.load(args.model, map_location=device))
     sumpool = SumPool2d(args.factor)
@@ -154,7 +154,8 @@ if __name__ == "__main__":
     parser.add_argument("--res_scale", type=float, default=default_dict['res_scale'], help="residual scaling factor for the generator")
     parser.add_argument("--empty", action="store_true", help="upsample an empty image")
     parser.add_argument("--use_transposed_conv", type=str_to_bool, default=False, help="Whether to use transposed convolutions in upsampling")
-    parser.add_argument("--use_final_res_blocks", type=str_to_bool, default=False, help="Whether to add res blocks AFTER upsampling")
+    parser.add_argument("--fully_transposed_conv", type=str_to_bool, default=False, help="Whether to ONLY use transposed convolutions in upsampling")
+    parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
 
     args = parser.parse_args()
     global colors, vmax
