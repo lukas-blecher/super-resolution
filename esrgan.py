@@ -530,8 +530,8 @@ def train(opt, **kwargs):
             #  Log Progress
             # --------------
             # save loss to dict
-            if opt.second_discr_reset_interval > 0:
-                if batches_done % opt.report_freq == 0:
+            if batches_done % opt.report_freq == 0:
+                if opt.second_discr_reset_interval > 0:
                     for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_secondD_tot[0].item(), loss_secondD_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
                         v.append(l)
                     print("[Batch %d] [D def: %f, pow: %f] [2ndD def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
