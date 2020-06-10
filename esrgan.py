@@ -277,8 +277,9 @@ def train(opt, **kwargs):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
-                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
+    if opt.second_discr_reset_interval > 0:
+        loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'd2_loss_def', 'd2_loss_pow', 'g_loss', 'def_loss',
+                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
