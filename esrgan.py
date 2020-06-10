@@ -246,7 +246,7 @@ def train(opt, **kwargs):
         if lambdas[k] > 0:
             optimizer_D[k] = torch.optim.Adam(Discriminators[k].parameters(), lr=opt.lr_d if opt.lr_d > 0 else opt.lr, betas=(opt.b1, opt.b2))
             if opt.second_discr_reset_interval > 0:
-                optimizer_secondD[k] = torch.optim.Adam(SecondDiscriminators.parameters(), lr=opt.lr_d if opt.lr_d > 0 else opt.lr, betas=(opt.b1, opt.b2))
+                optimizer_secondD[k] = torch.optim.Adam(SecondDiscriminators[k].parameters(), lr=opt.lr_d if opt.lr_d > 0 else opt.lr, betas=(opt.b1, opt.b2))
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
