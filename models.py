@@ -291,3 +291,8 @@ class NaiveGenerator(nn.Module):
         for _ in range(self.num_upsample):
             x = naive_upsample(x)
         return x
+
+def weight_reset(m):
+    """reset the weights of a model"""
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        m.reset_parameters()
