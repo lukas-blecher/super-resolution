@@ -182,7 +182,15 @@ def train(opt, **kwargs):
             elif opt.discriminator == 'conditional':
                 discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
             Discriminators[k] = discriminator
-            if opt.second_discr_reset_interval > 0:
+    if opt.second_discr_reset_interval > 0:
+        for k in range(2):
+            if lambdas[k] > 0:
+                if opt.discriminator == 'patch':
+                    discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+                elif opt.discriminator == 'standard':
+                    discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+                elif opt.discriminator == 'conditional':
+                    discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
                 SecondDiscriminators[k] = discriminator
 
     discriminator_outshape = Discriminators.get(0).output_shape
