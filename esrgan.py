@@ -114,6 +114,7 @@ def get_parser():
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
     parser.add_argument("--second_discr_reset_interval", type=int, default=default.second_discr_reset_interval, help="Interval in batches done after which 2nd discr weights are reseted")
     parser.add_argument("--uniform_init", type=str_to_bool, default=default.uniform_init, help="use xavier uniform init for generator")
+    parser.add_argument("--uniform_reset", type=str_to_bool, default=default.uniform_reset, help="use xavier uniform init for discriminator reset")
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -665,7 +666,10 @@ def train(opt, **kwargs):
             # Reset second generator
             if (opt.second_discr_reset_interval > 0 and (batches_done+1) % opt.second_discr_reset_interval == 0):
                 for k in range(2):
-                    SecondDiscriminators[k].apply(weight_reset)
+                    if opt.uniform_reset:
+                        SecondDiscriminators[k].apply(uniform_reset)
+                    else:
+                        SecondDiscriminators[k].apply(weight_reset)
 
             if ((batches_done+1) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
                 vmin = (min(np.concatenate(gthit_ls, axis=None)) + min(np.concatenate(genhit_ls, axis=None))) / 2

@@ -305,3 +305,9 @@ def weight_reset(m):
     """reset the weights of a model"""
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
         m.reset_parameters()
+
+def uniform_reset(m):
+    """resets by initializing uniformly"""
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier_uniform_(m.weight)
+        nn.init.constant_(m.bias, 0.)
