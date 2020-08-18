@@ -90,5 +90,6 @@
     "update_g": 1,
     "conditional": false,
     "noise_factor": null,
-    "second_discr_reset_interval": 0
+    "second_discr_reset_interval": 0,
+    "uniform_init": false
 }
