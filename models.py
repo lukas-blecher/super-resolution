@@ -106,7 +106,7 @@ class GeneratorRRDB(nn.Module):
             self.init_conv2d()
 
     def init_conv2d(self):
-        for c in self.children:
+        for c in self.children():
             if isinstance(c, nn.Conv2d):
                 nn.init.xavier_uniform_(c.weight)
                 nn.init.constant_(c.bias, 0.)
