@@ -17,6 +17,9 @@ from options.default import default_dict
 from models import GeneratorRRDB
 from torch.utils.data import DataLoader
 from datasets import *
+from utils import *
+
+manual_image = []
 
 def toArray(x):
     if len(x.shape) == 4:
@@ -34,12 +37,31 @@ def main(args):
         shuffle=not args.no_shuffle,
         num_workers=0
     )
-    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, fully_tconv_upsample=args.fully_transposed_conv,,num_final_layer_res=args.num_final_res_blocks).to(device).eval()
+    generator = GeneratorRRDB(1, filters=64, num_res_blocks=args.residual_blocks, num_upsample=int(np.log2(args.factor)), power=args.scaling_power, res_scale=args.res_scale, use_transposed_conv=args.use_transposed_conv, fully_tconv_upsample=args.fully_transposed_conv, num_final_layer_res=args.num_final_res_blocks).to(device).eval()
     generator.thres = args.threshold
     generator.load_state_dict(torch.load(args.model, map_location=device))
     criterion = torch.nn.L1Loss()
     mse = torch.nn.MSELoss()
     sumpool = SumPool2d(args.factor)
+
+    if args.manual_image is not None:
+        global manual_image
+        for ii in manual_image:
+            print("Proccessing image at location: " + str(ii))
+            truth_imgs = dataset.__getitem__(ii)
+            truth_hr = truth_imgs["hr"].numpy()
+            truth_lr = truth_imgs["lr"].unsqueeze(0)
+            gen_hr = generator(truth_lr).detach()
+            gen_lr = sumpool(gen_hr).squeeze(0).numpy()
+            gen_hr = gen_hr.squeeze(0).numpy()
+            truth_lr = truth_lr.squeeze(0).numpy()
+            print(truth_hr.shape, truth_lr.shape, gen_hr.shape, gen_lr.shape)
+            np.save(args.output+"image_"+str(ii)+"_truth_hr.npy", truth_hr)
+            np.save(args.output+"image_"+str(ii)+"_truth_lr.npy", truth_lr)
+            np.save(args.output+"image_"+str(ii)+"_gen_hr.npy", gen_hr)
+            np.save(args.output+"image_"+str(ii)+"_gen_lr.npy", gen_lr)
+        return
+
     for i, imgs in enumerate(dataloader):
         # Configure model input
         imgs_lr = imgs["lr"].to(device)
@@ -143,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--factor", type=int, default=2, help="factor to super resolve (multiple of 2)")
     parser.add_argument("-p", "--pre_factor", type=int, default=1, help="factor to downsample before giving data to the model")
     parser.add_argument("--scaling_power", type=float, default=1, help="input data is raised to this power")
-    parser.add_argument("-t", "--dataset_type", choices=["txt", "h5", "jet", "spjet"], default="spjet", help="what kind of dataset")
+    parser.add_argument("-t", "--dataset_type", choices=["txt", "h5", "jet", "spjet","hrlrjet"], default="hrlrjet", help="what kind of dataset")
     parser.add_argument("--hw", type=int, nargs='+', default=[80, 80], help="height and width of the image")
     parser.add_argument("--no_shuffle", action="store_false", help="Don't shuffle the images")
     parser.add_argument("--no_colors", action="store_false", help="Don't use colors in the plot")
@@ -156,11 +178,15 @@ if __name__ == "__main__":
     parser.add_argument("--use_transposed_conv", type=str_to_bool, default=False, help="Whether to use transposed convolutions in upsampling")
     parser.add_argument("--fully_transposed_conv", type=str_to_bool, default=False, help="Whether to ONLY use transposed convolutions in upsampling")
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
+    parser.add_argument("--manual_image", type=int, nargs="+", help="which images to manually save as np arrays")
+
 
     args = parser.parse_args()
     global colors, vmax
-    vmax = args.vmax
     colors = args.no_colors
+    if args.manual_image is not None:
+        manual_image = args.manual_image
+        print(manual_image)
     if not args.empty:
         main(args)
     else:

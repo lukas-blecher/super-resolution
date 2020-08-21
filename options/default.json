@@ -89,5 +89,8 @@
     "update_d": 1,
     "update_g": 1,
     "conditional": false,
-    "noise_factor": null
+    "noise_factor": null,
+    "second_discr_reset_interval": 0,
+    "uniform_init": false,
+    "uniform_reset": false
 }

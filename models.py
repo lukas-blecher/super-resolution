@@ -55,7 +55,7 @@ class ResidualInResidualDenseBlock(nn.Module):
 
 class GeneratorRRDB(nn.Module):
     '''attempts: 1) add transposed convolutions 2) add some res blocks after upsampling'''
-    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.2, use_transposed_conv=False, fully_tconv_upsample=False, num_final_layer_res=0):
+    def __init__(self, channels=1, filters=64, num_res_blocks=10, num_upsample=1, power=1, multiplier=1, drop_rate=0, res_scale=0.2, use_transposed_conv=False, fully_tconv_upsample=False, num_final_layer_res=0, uniform_init=False):
         super(GeneratorRRDB, self).__init__()
         self.num_final_layer_res = num_final_layer_res
 
@@ -101,6 +101,15 @@ class GeneratorRRDB(nn.Module):
         self.thres = 0
         self.power = nn.Parameter(torch.Tensor([power]), False)
         self.multiplier = nn.Parameter(torch.Tensor([multiplier]), False)
+
+        if uniform_init:
+            self.init_conv2d()
+
+    def init_conv2d(self):
+        for c in self.children():
+            if isinstance(c, nn.Conv2d):
+                nn.init.xavier_uniform_(c.weight)
+                nn.init.constant_(c.bias, 0.)
 
     def out(self, x, pow=torch.ones(1)):
         if self.training:
@@ -291,3 +300,14 @@ class NaiveGenerator(nn.Module):
         for _ in range(self.num_upsample):
             x = naive_upsample(x)
         return x
+
+def weight_reset(m):
+    """reset the weights of a model"""
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        m.reset_parameters()
+
+def uniform_reset(m):
+    """resets by initializing uniformly"""
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier_uniform_(m.weight)
+        nn.init.constant_(m.bias, 0.)

@@ -112,6 +112,9 @@ def get_parser():
     parser.add_argument("--use_transposed_conv", type=str_to_bool, default=False, help="Whether to use transposed convolutions in upsampling")
     parser.add_argument("--fully_transposed_conv", type=str_to_bool, default=False, help="Whether to ONLY use transposed convolutions in upsampling")
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
+    parser.add_argument("--second_discr_reset_interval", type=int, default=default.second_discr_reset_interval, help="Interval in batches done after which 2nd discr weights are reseted")
+    parser.add_argument("--uniform_init", type=str_to_bool, default=default.uniform_init, help="use xavier uniform init for generator")
+    parser.add_argument("--uniform_reset", type=str_to_bool, default=default.uniform_reset, help="use xavier uniform init for discriminator reset")
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -166,10 +169,12 @@ def train(opt, **kwargs):
     info['seed'] = seed'''
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
-        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, fully_tconv_upsample=opt.fully_transposed_conv, num_final_layer_res=opt.num_final_res_blocks).to(device)
+        np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, fully_tconv_upsample=opt.fully_transposed_conv, num_final_layer_res=opt.num_final_res_blocks, uniform_init=opt.uniform_init).to(device)
     if opt.E_thres:
         generator.thres = opt.E_thres
     Discriminators = pointerList()
+    if opt.second_discr_reset_interval > 0:
+        SecondDiscriminators = pointerList()
     for k in range(2):
         if lambdas[k] > 0:
             if opt.discriminator == 'patch':
@@ -179,6 +184,16 @@ def train(opt, **kwargs):
             elif opt.discriminator == 'conditional':
                 discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
             Discriminators[k] = discriminator
+    if opt.second_discr_reset_interval > 0:
+        for k in range(2):
+            if lambdas[k] > 0:
+                if opt.discriminator == 'patch':
+                    discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+                elif opt.discriminator == 'standard':
+                    discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+                elif opt.discriminator == 'conditional':
+                    discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
+                SecondDiscriminators[k] = discriminator
 
     discriminator_outshape = Discriminators.get(0).output_shape
 
@@ -235,10 +250,13 @@ def train(opt, **kwargs):
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr_g if opt.lr_g > 0 else opt.lr, betas=(opt.b1, opt.b2), weight_decay=opt.l2decay)
     optimizer_D = pointerList()
+    optimizer_secondD = pointerList()
     scheduler_D = pointerList()
     for k in range(2):
         if lambdas[k] > 0:
             optimizer_D[k] = torch.optim.Adam(Discriminators[k].parameters(), lr=opt.lr_d if opt.lr_d > 0 else opt.lr, betas=(opt.b1, opt.b2))
+            if opt.second_discr_reset_interval > 0:
+                optimizer_secondD[k] = torch.optim.Adam(SecondDiscriminators[k].parameters(), lr=opt.lr_d if opt.lr_d > 0 else opt.lr, betas=(opt.b1, opt.b2))
             scheduler_D[k] = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D[k], verbose=False, patience=5)
     # LR Scheduler
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, verbose=True, patience=5)
@@ -269,8 +287,12 @@ def train(opt, **kwargs):
     # ----------
     #  Training
     # ----------
-    loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
-                                                                           'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
+    if opt.second_discr_reset_interval > 0:
+        loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'd2_loss_def', 'd2_loss_pow', 'g_loss', 'def_loss',
+                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
+    else:
+        loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
+                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}                                                                        
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -397,10 +419,19 @@ def train(opt, **kwargs):
                             # Extract validity generated[k]s from discriminator
                             pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
                             pred_fake = Discriminators[k](generated[k], generated_lr[k])
-
+                            if opt.second_discr_reset_interval > 0:
+                                pred_real2 = SecondDiscriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
+                                pred_fake2 = SecondDiscriminators[k](generated[k], generated_lr[k])
                             if opt.relativistic:
                                 # Adversarial loss (relativistic average GAN)
-                                loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                                if opt.second_discr_reset_interval > 0:
+                                    loss_GAN = .5*(.5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                                            criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake)) +
+                                            .5*(criterion_GAN(eps + pred_fake2 - pred_real2.mean(0, keepdim=True), valid) +
+                                            criterion_GAN(eps + pred_real2 - pred_fake2.mean(0, keepdim=True), fake))
+                                            )
+                                else:
+                                    loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
                                             criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
                             else:
                                 loss_GAN = criterion_GAN(eps + pred_fake, valid)
@@ -445,22 +476,34 @@ def train(opt, **kwargs):
 
             if i == opt.warmup_batches or (batches_done % opt.update_d == 0):
                 loss_D_tot = [torch.zeros(1, device=device) for _ in range(2)]
+                if opt.second_discr_reset_interval > 0:
+                    loss_secondD_tot = [torch.zeros(1, device=device) for _ in range(2)]
                 for k in range(2):
                     lam = lambdas[k]
                     if lam > 0:
                         optimizer_D[k].zero_grad()
                         pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k])
                         pred_fake = Discriminators[k](generated[k].detach(), ground_truth_lr[k])
+                        if opt.second_discr_reset_interval > 0:
+                            optimizer_secondD[k].zero_grad()
+                            pred_real2 = SecondDiscriminators[k](ground_truth[k], ground_truth_lr[k])
+                            pred_fake2 = SecondDiscriminators[k](generated[k].detach(), ground_truth_lr[k])                          
                         if opt.relativistic:
                             # Adversarial loss for real and fake images (relativistic average GAN)
                             loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
                             loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
+                            if opt.second_discr_reset_interval > 0:   
+                                loss_real2 = criterion_GAN(eps + pred_real2 - pred_fake2.mean(0, keepdim=True), valid)
+                                loss_fake2 = criterion_GAN(eps + pred_fake2 - pred_real2.mean(0, keepdim=True), fake)
                         else:
                             loss_real = criterion_GAN(eps + pred_real, valid)
                             loss_fake = criterion_GAN(eps + pred_fake, fake)
                         # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
                         # Total loss
                         loss_D = (loss_real + loss_fake) / 2
+                        if opt.second_discr_reset_interval > 0:
+                            loss_secondD = (loss_real2 + loss_fake2) / 2
+
                         if opt.lambda_reg > 0:
                             # generate interpolation between real and fake data
                             epsilon = torch.rand(batch_size, 1, 1, 1).to(device)
@@ -473,23 +516,41 @@ def train(opt, **kwargs):
                             gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * opt.lambda_reg/2
                             loss_D += gradient_penalty
 
+                            if opt.second_discr_reset_interval > 0:
+                                pred_interpolation2 = SecondDiscriminators[k](interpolation, ground_truth_lr[k])
+                                gradients2 = torch.autograd.grad(outputs=pred_interpolation2, inputs=interpolation, grad_outputs=valid,
+                                                                create_graph=True, retain_graph=True, only_inputs=True)[0]
+                                gradients2 = gradients2.view(batch_size, -1)
+                                gradient_penalty2 = ((gradients2.norm(2, dim=1) - 1) ** 2).mean() * opt.lambda_reg/2
+                                loss_secondD += gradient_penalty2                               
+
                         loss_D.backward()
+                        if opt.second_discr_reset_interval > 0:
+                            loss_secondD.backward()
+                            loss_secondD_tot[k] = loss_secondD
                         # torch.nn.utils.clip_grad_value_(Discriminators[k].parameters(), 1)
                         loss_D_tot[k] = loss_D
                         # only train discriminator if it is not already too good
                         if (loss_D.item() > opt.d_threshold):
                             optimizer_D[k].step()
+                            if opt.second_discr_reset_interval > 0:
+                                optimizer_secondD[k].step()
 
             # --------------
             #  Log Progress
             # --------------
             # save loss to dict
-
             if batches_done % opt.report_freq == 0:
-                for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
-                    v.append(l)
-                print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
-                      % (batches_done, *[l[-1] for l in loss_dict.values()],))
+                if opt.second_discr_reset_interval > 0:
+                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_secondD_tot[0].item(), loss_secondD_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
+                        v.append(l)
+                    print("[Batch %d] [D def: %f, pow: %f] [2ndD def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
+                        % (batches_done, *[l[-1] for l in loss_dict.values()],))
+                else:
+                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
+                        v.append(l)
+                    print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
+                        % (batches_done, *[l[-1] for l in loss_dict.values()],))                    
 
             # check if loss is NaN
             if any(l != l for l in [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item()]):
@@ -601,6 +662,14 @@ def train(opt, **kwargs):
                     checkpoint_interval == np.inf and (batches_done+1) % (total_batches//opt.n_checkpoints) == 0):
                 if not opt.smart_save:
                     save_weights(epoch)
+
+            # Reset second generator
+            if (opt.second_discr_reset_interval > 0 and (batches_done+1) % opt.second_discr_reset_interval == 0):
+                for k in range(2):
+                    if opt.uniform_reset:
+                        SecondDiscriminators[k].apply(uniform_reset)
+                    else:
+                        SecondDiscriminators[k].apply(weight_reset)
 
             if ((batches_done+1) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
                 vmin = (min(np.concatenate(gthit_ls, axis=None)) + min(np.concatenate(genhit_ls, axis=None))) / 2
