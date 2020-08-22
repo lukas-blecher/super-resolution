@@ -208,6 +208,8 @@ def train(opt, **kwargs):
                 SecondDiscriminators[k] = discriminator
 
     discriminator_outshape = Discriminators.get(0).output_shape
+    if opt.wasserstein > 0:
+        discriminator_outshape = (opt.batch_size, 1)
 
     # Losses
     criterion_GAN = nn.BCEWithLogitsLoss().to(device)
