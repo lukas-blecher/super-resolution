@@ -180,13 +180,13 @@ def train(opt, **kwargs):
     for k in range(2):
         if lambdas[k] > 0:
             if (opt.discriminator == 'patch' and not opt.conditional):
-                print(patch)
+                print("patch")
                 discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
             elif (opt.discriminator == 'standard' and not opt.conditional):
-                print(std)
+                print("std")
                 discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
             elif opt.conditional:
-                print(conditional)
+                print("conditional")
                 discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
             Discriminators[k] = discriminator
     if opt.second_discr_reset_interval > 0:
