@@ -115,6 +115,8 @@ def get_parser():
     parser.add_argument("--second_discr_reset_interval", type=int, default=default.second_discr_reset_interval, help="Interval in batches done after which 2nd discr weights are reseted")
     parser.add_argument("--uniform_init", type=str_to_bool, default=default.uniform_init, help="use xavier uniform init for generator")
     parser.add_argument("--uniform_reset", type=str_to_bool, default=default.uniform_reset, help="use xavier uniform init for discriminator reset")
+    #Wasserstein GAN
+    parser.add_argument("--wasserstein", type=str_to_bool, default=False, help="whether to use wasserstein conditional critic")
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -177,21 +179,24 @@ def train(opt, **kwargs):
         SecondDiscriminators = pointerList()
     for k in range(2):
         if lambdas[k] > 0:
-            if opt.discriminator == 'patch':
+            if (opt.discriminator == 'patch' and not opt.conditional):
+                print(patch)
                 discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-            elif opt.discriminator == 'standard':
+            elif (opt.discriminator == 'standard' and not opt.conditional):
+                print(std)
                 discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-            elif opt.discriminator == 'conditional':
+            elif opt.conditional:
+                print(conditional)
                 discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
             Discriminators[k] = discriminator
     if opt.second_discr_reset_interval > 0:
         for k in range(2):
             if lambdas[k] > 0:
-                if opt.discriminator == 'patch':
+                if (opt.discriminator == 'patch' and not opt.conditional):
                     discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-                elif opt.discriminator == 'standard':
+                elif (opt.discriminator == 'standard' and not opt.conditional):
                     discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-                elif opt.discriminator == 'conditional':
+                elif opt.conditional:
                     discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
                 SecondDiscriminators[k] = discriminator
 
