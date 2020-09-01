@@ -180,16 +180,21 @@ def train(opt, **kwargs):
         SecondDiscriminators = pointerList()
     for k in range(2):
         if lambdas[k] > 0:
-            if (opt.discriminator == 'patch' and not opt.conditional):
+            if (opt.discriminator == 'patch' and not opt.conditional and opt.wasserstein < 0):
                 print("patch")
                 discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-            elif (opt.discriminator == 'standard' and not opt.conditional):
+            elif (opt.discriminator == 'standard' and not opt.conditional and opt.wasserstein < 0):
                 print("std")
                 discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+            
+            elif (opt.discriminator == 'patch' and not opt.conditional and opt.wasserstein > 0):
+                print('patch wasserstein')
+                discriminator = Wasserstein_PatchDiscriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+            
             elif opt.conditional:
                 print("conditional")
                 if opt.wasserstein > 0:
-                    print("wasserstein")
+                    print("conditional wasserstein")
                     discriminator = Wasserstein_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
                 else:
                     discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
@@ -197,10 +202,14 @@ def train(opt, **kwargs):
     if opt.second_discr_reset_interval > 0:
         for k in range(2):
             if lambdas[k] > 0:
-                if (opt.discriminator == 'patch' and not opt.conditional):
+                if (opt.discriminator == 'patch' and not opt.conditional and opt.wasserstein < 0):
                     discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-                elif (opt.discriminator == 'standard' and not opt.conditional):
+                elif (opt.discriminator == 'standard' and not opt.conditional and opt.wasserstein < 0):
                     discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+                
+                elif (opt.discriminator == 'patch' and not opt.conditional and opt.wasserstein > 0):
+                    discriminator = Wasserstein_PatchDiscriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
+
                 elif opt.conditional:
                     if opt.wasserstein > 0:
                         discriminator = Wasserstein_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
