@@ -115,6 +115,9 @@ def get_parser():
     parser.add_argument("--second_discr_reset_interval", type=int, default=default.second_discr_reset_interval, help="Interval in batches done after which 2nd discr weights are reseted")
     parser.add_argument("--uniform_init", type=str_to_bool, default=default.uniform_init, help="use xavier uniform init for generator")
     parser.add_argument("--uniform_reset", type=str_to_bool, default=default.uniform_reset, help="use xavier uniform init for discriminator reset")
+    #Wasserstein GAN
+    parser.add_argument("--wasserstein", type=float, default=-1, help="whether to use wasserstein conditional criticand corresponding lambda")
+    parser.add_argument('--save_late', type=int, default=default.save_late, help='saves the weights after nth batch, regardles of performance' )
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -177,25 +180,37 @@ def train(opt, **kwargs):
         SecondDiscriminators = pointerList()
     for k in range(2):
         if lambdas[k] > 0:
-            if opt.discriminator == 'patch':
+            if (opt.discriminator == 'patch' and not opt.conditional):
+                print("patch")
                 discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-            elif opt.discriminator == 'standard':
+            elif (opt.discriminator == 'standard' and not opt.conditional):
+                print("std")
                 discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-            elif opt.discriminator == 'conditional':
-                discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
+            elif opt.conditional:
+                print("conditional")
+                if opt.wasserstein > 0:
+                    print("wasserstein")
+                    discriminator = Wasserstein_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
+                else:
+                    discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
             Discriminators[k] = discriminator
     if opt.second_discr_reset_interval > 0:
         for k in range(2):
             if lambdas[k] > 0:
-                if opt.discriminator == 'patch':
+                if (opt.discriminator == 'patch' and not opt.conditional):
                     discriminator = Markovian_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-                elif opt.discriminator == 'standard':
+                elif (opt.discriminator == 'standard' and not opt.conditional):
                     discriminator = Standard_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels).to(device)
-                elif opt.discriminator == 'conditional':
-                    discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
+                elif opt.conditional:
+                    if opt.wasserstein > 0:
+                        discriminator = Wasserstein_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
+                    else:
+                        discriminator = Conditional_Discriminator(input_shape=(opt.channels, *hr_shape), channels=opt.d_channels, num_upsample=int(np.log2(opt.factor))).to(device)
                 SecondDiscriminators[k] = discriminator
 
     discriminator_outshape = Discriminators.get(0).output_shape
+    if opt.wasserstein > 0:
+        discriminator_outshape = (opt.batch_size, 1)
 
     # Losses
     criterion_GAN = nn.BCEWithLogitsLoss().to(device)
@@ -203,7 +218,6 @@ def train(opt, **kwargs):
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
    #criterion_hit = nn.KLDivLoss(reduction='batchmean')
-   
 
     if opt.load_checkpoint:
         # Load pretrained models
@@ -289,10 +303,10 @@ def train(opt, **kwargs):
     # ----------
     if opt.second_discr_reset_interval > 0:
         loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'd2_loss_def', 'd2_loss_pow', 'g_loss', 'def_loss',
-                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}
+                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss', 'wasser_dist']}
     else:
         loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
-                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']}                                                                        
+                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss', 'wasser_dist']}                                                                        
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -389,8 +403,8 @@ def train(opt, **kwargs):
                 del nnz
             if i == opt.warmup_batches or (batches_done % opt.update_g == 0):
                 # Main training loop
-                loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit = [
-                    torch.zeros(1, device=device, dtype=torch.float32) for _ in range(11)]
+                loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit, w_loss = [
+                    torch.zeros(1, device=device, dtype=torch.float32) for _ in range(12)]
                 # Generate a high resolution image from low resolution input
                 generated = pointerList(generator(imgs_lr))
                 generated.append(generator.srs)
@@ -435,6 +449,17 @@ def train(opt, **kwargs):
                                             criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
                             else:
                                 loss_GAN = criterion_GAN(eps + pred_fake, valid)
+
+                        if opt.wasserstein > 0:
+                            w_fake = Discriminators[k](generated[k], generated_lr[k])
+                            w_loss = -torch.mean(w_fake)
+                            if opt.second_discr_reset_interval > 0:
+                                w_fake2 = SecondDiscriminators[k](generated[k], generated_lr[k])
+                                w_loss2 = -torch.mean(w_fake2)
+                                w_loss = .5*(w_loss + w_loss2)
+                            
+
+
                         if opt.lambda_nnz > 0 and wait('nnz'):
                             gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                             target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
@@ -463,7 +488,7 @@ def train(opt, **kwargs):
                             loss_hit = mse(gen_hit, target)
 
                         tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit
+                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit + opt.wasserstein * w_loss
                         # Total generator loss
                         loss_G += lambdas[k] * tot_loss[k]
                 loss_G.backward()
@@ -487,22 +512,27 @@ def train(opt, **kwargs):
                         if opt.second_discr_reset_interval > 0:
                             optimizer_secondD[k].zero_grad()
                             pred_real2 = SecondDiscriminators[k](ground_truth[k], ground_truth_lr[k])
-                            pred_fake2 = SecondDiscriminators[k](generated[k].detach(), ground_truth_lr[k])                          
-                        if opt.relativistic:
-                            # Adversarial loss for real and fake images (relativistic average GAN)
-                            loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
-                            loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
-                            if opt.second_discr_reset_interval > 0:   
-                                loss_real2 = criterion_GAN(eps + pred_real2 - pred_fake2.mean(0, keepdim=True), valid)
-                                loss_fake2 = criterion_GAN(eps + pred_fake2 - pred_real2.mean(0, keepdim=True), fake)
+                            pred_fake2 = SecondDiscriminators[k](generated[k].detach(), ground_truth_lr[k]) 
+                        if opt.wasserstein < 0: # use minmax if not wasserstein gan                         
+                            if opt.relativistic:
+                                # Adversarial loss for real and fake images (relativistic average GAN)
+                                loss_real = criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), valid)
+                                loss_fake = criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), fake)
+                                if opt.second_discr_reset_interval > 0:   
+                                    loss_real2 = criterion_GAN(eps + pred_real2 - pred_fake2.mean(0, keepdim=True), valid)
+                                    loss_fake2 = criterion_GAN(eps + pred_fake2 - pred_real2.mean(0, keepdim=True), fake)
+                            else:
+                                loss_real = criterion_GAN(eps + pred_real, valid)
+                                loss_fake = criterion_GAN(eps + pred_fake, fake)
+                            # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
+                            # Total loss
+                            loss_D = (loss_real + loss_fake) / 2
+                            if opt.second_discr_reset_interval > 0:
+                                loss_secondD = (loss_real2 + loss_fake2) / 2
                         else:
-                            loss_real = criterion_GAN(eps + pred_real, valid)
-                            loss_fake = criterion_GAN(eps + pred_fake, fake)
-                        # print(pred_fake[0].item(),pred_fake.mean(0, keepdim=True)[0].item(),loss_fake.item(),pred_real[0].item(),loss_real.item(),pred_real.mean(0, keepdim=True)[0].item())
-                        # Total loss
-                        loss_D = (loss_real + loss_fake) / 2
-                        if opt.second_discr_reset_interval > 0:
-                            loss_secondD = (loss_real2 + loss_fake2) / 2
+                            loss_D = -torch.mean(pred_real) + torch.mean(pred_fake) # wasserstein formula: max over params, so minimize -1* that 
+                            if opt.second_discr_reset_interval > 0:
+                                loss_secondD = -torch.mean(pred_real2) + torch.mean(pred_fake2)
 
                         if opt.lambda_reg > 0:
                             # generate interpolation between real and fake data
@@ -542,14 +572,14 @@ def train(opt, **kwargs):
             # save loss to dict
             if batches_done % opt.report_freq == 0:
                 if opt.second_discr_reset_interval > 0:
-                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_secondD_tot[0].item(), loss_secondD_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
+                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_secondD_tot[0].item(), loss_secondD_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item(), w_loss.item()]):
                         v.append(l)
-                    print("[Batch %d] [D def: %f, pow: %f] [2ndD def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
+                    print("[Batch %d] [D def: %f, pow: %f] [2ndD def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f, wasserdist: %f]"
                         % (batches_done, *[l[-1] for l in loss_dict.values()],))
                 else:
-                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item()]):
+                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item(), w_loss.item()]):
                         v.append(l)
-                    print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f]"
+                    print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f, wasserdist: %f]"
                         % (batches_done, *[l[-1] for l in loss_dict.values()],))                    
 
             # check if loss is NaN
@@ -677,6 +707,13 @@ def train(opt, **kwargs):
                 for sr,gt,batch in zip(genhit_ls, gthit_ls, batch_ls):
                     hit_f = plot_hist2d(sr, gt, vmin= vmin, vmax= vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batch))                   
+
+            if (opt.save_late > 0 and (batches_done+1) == opt.save_late):
+                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%s.pth" % (model_name, 'late_save')))
+                for k in range(2):
+                    if lambdas[k] > 0:
+                        torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%s.pth" % (model_name, ['', '_pow'][k], 'late_save')))
+
 
             if batches_done == total_batches:
                 save_info()

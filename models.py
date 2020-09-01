@@ -222,6 +222,46 @@ class Conditional_Discriminator(nn.Module):
         cond = self.model_c(cond)
         return self.endmodel(torch.cat([img, cond], 1))
 
+class Wasserstein_Discriminator(nn.Module):
+    def __init__(self, input_shape, channels=[32, 64, 128, 256], num_upsample=3):
+        super(Wasserstein_Discriminator, self).__init__()
+        self.channels = channels
+        self.input_shape = input_shape
+        in_channels, in_height, in_width = self.input_shape
+
+        def stride2(x):
+            return int(np.ceil(x/2))
+        patch_h, patch_w = in_height, in_width
+
+        hrlayers, clayers, endlayers = [], [], []
+        in_filters = in_channels
+        for i, out_filters in enumerate(self.channels):
+            if i < num_upsample:
+                hrlayers.extend(discriminator_block(in_filters, out_filters))
+                clayers.extend(discriminator_block(in_filters, out_filters, stride=(1, 1)))
+            elif i == num_upsample:
+                endlayers.extend(discriminator_block(in_filters*2, out_filters))
+            else:
+                endlayers.extend(discriminator_block(in_filters, out_filters))
+            in_filters = out_filters
+            patch_h = stride2(patch_h)
+            patch_w = stride2(patch_w)
+
+        endlayers.append(nn.Conv2d(out_filters, 1, kernel_size=3, stride=1, padding=1))
+        self.output_shape = (1, patch_h, patch_w)
+        self.out_channels, self.out_height, self.out_width = self.output_shape
+        self.model_hr = nn.Sequential(*hrlayers)
+        self.model_c = nn.Sequential(*clayers)
+        self.endmodel = nn.Sequential(*endlayers)
+        self.fc = nn.Linear(self.out_channels*self.out_height*self.out_width, 1)
+
+    def forward(self, img, cond):
+        img = self.model_hr(img)
+        cond = self.model_c(cond)
+        combine = self.endmodel(torch.cat([img, cond], 1))
+        out = self.fc(combine.view(-1, self.out_channels*self.out_height*self.out_width))
+        return out
+
 
 class SumPool2d(torch.nn.Module):
     def __init__(self, k=4, stride=None):
