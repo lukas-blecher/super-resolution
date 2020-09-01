@@ -92,5 +92,6 @@
     "noise_factor": null,
     "second_discr_reset_interval": 0,
     "uniform_init": false,
-    "uniform_reset": false
+    "uniform_reset": false,
+    "save_late": -1
 }

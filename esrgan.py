@@ -117,6 +117,7 @@ def get_parser():
     parser.add_argument("--uniform_reset", type=str_to_bool, default=default.uniform_reset, help="use xavier uniform init for discriminator reset")
     #Wasserstein GAN
     parser.add_argument("--wasserstein", type=float, default=-1, help="whether to use wasserstein conditional criticand corresponding lambda")
+    parser.add_argument('--save_late', type=int, default=default.save_late, help='saves the weights after nth batch, regardles of performance' )
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -706,6 +707,13 @@ def train(opt, **kwargs):
                 for sr,gt,batch in zip(genhit_ls, gthit_ls, batch_ls):
                     hit_f = plot_hist2d(sr, gt, vmin= vmin, vmax= vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batch))                   
+
+            if (opt.save_late > 0 and (batches_done+1) == opt.save_late):
+                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%s.pth" % (model_name, 'late_save')))
+                for k in range(2):
+                    if lambdas[k] > 0:
+                        torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%s.pth" % (model_name, ['', '_pow'][k], 'late_save')))
+
 
             if batches_done == total_batches:
                 save_info()
