@@ -312,10 +312,10 @@ def train(opt, **kwargs):
     # ----------
     if opt.second_discr_reset_interval > 0:
         loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'd2_loss_def', 'd2_loss_pow', 'g_loss', 'def_loss',
-                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss', 'wasser_dist']}
+                                                                            'pow_loss', 'adv_loss','adv_loss_pow', 'pixel_loss','pixel_loss_pow', 'lr_loss','lr_loss_pow', 'hist_loss','hist_loss_pow', 'nnz_loss','nnz_loss_pow', 'mask_loss','mask_loss_pow', 'wasser_loss','wasser_loss_pow', 'hit_loss','hit_loss_pow', 'wasser_dist','wasser_dist_pow']}
     else:
         loss_dict = info['loss'] if 'loss' in info else {loss: [] for loss in ['d_loss_def', 'd_loss_pow', 'g_loss', 'def_loss',
-                                                                            'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss', 'wasser_dist']}                                                                        
+                                                                            'pow_loss', 'adv_loss','adv_loss_pow', 'pixel_loss','pixel_loss_pow', 'lr_loss','lr_loss_pow', 'hist_loss','hist_loss_pow', 'nnz_loss','nnz_loss_pow', 'mask_loss','mask_loss_pow', 'wasser_loss','wasser_loss_pow', 'hit_loss','hit_loss_pow', 'wasser_dist','wasser_dist_pow']}                                                                        
     # if trainig is continued the batch number needs to be increased by the number of batches already trained on
     try:
         batches_trained = int(info['batches_done'])
@@ -412,8 +412,14 @@ def train(opt, **kwargs):
                 del nnz
             if i == opt.warmup_batches or (batches_done % opt.update_g == 0):
                 # Main training loop
-                loss_G, loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_pow, loss_def, loss_wasser, loss_hit, w_loss = [
-                    torch.zeros(1, device=device, dtype=torch.float32) for _ in range(12)]
+                loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_wasser, loss_hit, w_loss = [
+                    pointerList() for _ in range(9)]
+                
+                for k in range(2):
+                    loss_pixel[k], loss_lr_pixel[k], loss_GAN[k], loss_hist[k], loss_nnz[k], loss_mask[k], loss_wasser[k], loss_hit[k], w_loss[k] = [
+                        torch.zeros(1, device=device, dtype=torch.float32) for _ in range(9)]
+
+                loss_G, loss_def, loss_pow = [torch.zeros(1, device=device, dtype=torch.float32) for _ in range(3)]
                 # Generate a high resolution image from low resolution input
                 generated = pointerList(generator(imgs_lr))
                 generated.append(generator.srs)
@@ -434,10 +440,10 @@ def train(opt, **kwargs):
                     if lambdas[k] > 0:
                         if opt.lambda_hr > 0 and wait('hr'):
                             # Measure pixel-wise loss against ground truth
-                            loss_pixel = criterion_pixel(generated[k].mean(0)[None, ...], ground_truth[k].mean(0)[None, ...])
+                            loss_pixel[k] = criterion_pixel(generated[k].mean(0)[None, ...], ground_truth[k].mean(0)[None, ...])
                         if opt.lambda_lr > 0 and wait('lr'):
                             # Measure pixel-wise loss against ground truth for downsampled images
-                            loss_lr_pixel = criterion_pixel(generated_lr[k], ground_truth_lr[k])
+                            loss_lr_pixel[k] = criterion_pixel(generated_lr[k], ground_truth_lr[k])
                         if opt.lambda_adv > 0 and wait('adv'):
                             # Extract validity generated[k]s from discriminator
                             pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
@@ -448,35 +454,35 @@ def train(opt, **kwargs):
                             if opt.relativistic:
                                 # Adversarial loss (relativistic average GAN)
                                 if opt.second_discr_reset_interval > 0:
-                                    loss_GAN = .5*(.5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                                    loss_GAN[k] = .5*(.5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
                                             criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake)) +
                                             .5*(criterion_GAN(eps + pred_fake2 - pred_real2.mean(0, keepdim=True), valid) +
                                             criterion_GAN(eps + pred_real2 - pred_fake2.mean(0, keepdim=True), fake))
                                             )
                                 else:
-                                    loss_GAN = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
+                                    loss_GAN[k] = .5*(criterion_GAN(eps + pred_fake - pred_real.mean(0, keepdim=True), valid) +
                                             criterion_GAN(eps + pred_real - pred_fake.mean(0, keepdim=True), fake))
                             else:
-                                loss_GAN = criterion_GAN(eps + pred_fake, valid)
+                                loss_GAN[k] = criterion_GAN(eps + pred_fake, valid)
 
                         if opt.wasserstein > 0:
                             w_fake = Discriminators[k](generated[k], generated_lr[k])
-                            w_loss = -torch.mean(w_fake)
+                            w_loss[k] = -torch.mean(w_fake)
                             if opt.second_discr_reset_interval > 0:
                                 w_fake2 = SecondDiscriminators[k](generated[k], generated_lr[k])
                                 w_loss2 = -torch.mean(w_fake2)
-                                w_loss = .5*(w_loss + w_loss2)
+                                w_loss[k] = .5*(w_loss + w_loss2)
                             
 
 
                         if opt.lambda_nnz > 0 and wait('nnz'):
                             gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                             target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
-                            loss_nnz = mse(gen_nnz, target)
+                            loss_nnz[k] = mse(gen_nnz, target)
                         if opt.lambda_mask > 0 and wait('mask'):
                             gen_mask = nnz_mask(generated[k])
                             real_mask = nnz_mask(ground_truth[k])
-                            loss_mask = criterion_pixel(gen_mask, real_mask)
+                            loss_mask[k] = criterion_pixel(gen_mask, real_mask)
                         if opt.lambda_hist > 0 and wait('hist'):
                             # calculate the energy distribution loss
                             # first calculate the both histograms
@@ -484,20 +490,20 @@ def train(opt, **kwargs):
                             real_nnz = ground_truth[k][ground_truth[k] > 0]
                             gen_hist = histograms[k](gen_nnz)
                             real_hist = histograms[k](real_nnz)
-                            loss_hist = criterion_hist[k](gen_hist, real_hist)
+                            loss_hist[k] = criterion_hist[k](gen_hist, real_hist)
                             # print(gen_hist,real_hist,loss_hist)
                         if opt.lambda_wasser > 0 and wait('wasser'):
                             gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
                             real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
-                            loss_wasser, _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
+                            loss_wasser[k], _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
                         if opt.lambda_hit > 0 and wait('hit'):
                             gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)#+eps
                             target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
                             #loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
-                            loss_hit = mse(gen_hit, target)
+                            loss_hit[k] = mse(gen_hit, target)
 
-                        tot_loss[k] = opt.lambda_hr * loss_pixel + opt.lambda_adv * loss_GAN + opt.lambda_lr * loss_lr_pixel + opt.lambda_nnz * \
-                            loss_nnz + opt.lambda_mask * loss_mask + opt.lambda_hist * loss_hist + opt.lambda_wasser * loss_wasser + opt.lambda_hit * loss_hit + opt.wasserstein * w_loss
+                        tot_loss[k] = opt.lambda_hr * loss_pixel[k] + opt.lambda_adv * loss_GAN[k] + opt.lambda_lr * loss_lr_pixel[k] + opt.lambda_nnz * \
+                            loss_nnz[k] + opt.lambda_mask * loss_mask[k] + opt.lambda_hist * loss_hist[k] + opt.lambda_wasser * loss_wasser[k] + opt.lambda_hit * loss_hit[k] + opt.wasserstein * w_loss[k]
                         # Total generator loss
                         loss_G += lambdas[k] * tot_loss[k]
                 loss_G.backward()
@@ -581,14 +587,14 @@ def train(opt, **kwargs):
             # save loss to dict
             if batches_done % opt.report_freq == 0:
                 if opt.second_discr_reset_interval > 0:
-                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_secondD_tot[0].item(), loss_secondD_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item(), w_loss.item()]):
+                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_secondD_tot[0].item(), loss_secondD_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN[0].item(),loss_GAN[1].item(), loss_pixel[0].item(),loss_pixel[1].item(), loss_lr_pixel[0].item(),loss_lr_pixel[1].item(), loss_hist[0].item(),loss_hist[1].item(), loss_nnz[0].item(),loss_nnz[1].item(), loss_mask[0].item(),loss_mask[1].item(), loss_wasser[0].item(),loss_wasser[1].item(), loss_hit[0].item(),loss_hit[1].item(), w_loss[0].item(),w_loss[1].item()]):
                         v.append(l)
-                    print("[Batch %d] [D def: %f, pow: %f] [2ndD def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f, wasserdist: %f]"
+                    print("[Batch %d] [D def: %f, pow: %f] [2ndD def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, adv pow: %f, pixel: %f, pixel pow: %f, lr pixel: %f, lr pixel pow: %f, hist: %f, hist pow: %f, nnz: %f, nnz pow: %f, mask: %f, mask pow: %f, wasser: %f, wasser pow: %f, hit: %f, hit pow: %f, wasserdist: %f, wasserdist pow: %f]"
                         % (batches_done, *[l[-1] for l in loss_dict.values()],))
                 else:
-                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN.item(), loss_pixel.item(), loss_lr_pixel.item(), loss_hist.item(), loss_nnz.item(), loss_mask.item(), loss_wasser.item(), loss_hit.item(), w_loss.item()]):
+                    for v, l in zip(loss_dict.values(), [loss_D_tot[0].item(), loss_D_tot[1].item(), loss_G.item(), tot_loss[0].item(), tot_loss[1].item(), loss_GAN[0].item(),loss_GAN[1].item(), loss_pixel[0].item(),loss_pixel[1].item(), loss_lr_pixel[0].item(),loss_lr_pixel[1].item(), loss_hist[0].item(),loss_hist[1].item(), loss_nnz[0].item(),loss_nnz[1].item(), loss_mask[0].item(),loss_mask[1].item(), loss_wasser[0].item(),loss_wasser[1].item(), loss_hit[0].item(),loss_hit[1].item(), w_loss[0].item(),w_loss[1].item()]):
                         v.append(l)
-                    print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, pixel: %f, lr pixel: %f, hist: %f, nnz: %f, mask: %f, wasser: %f, hit: %f, wasserdist: %f]"
+                    print("[Batch %d] [D def: %f, pow: %f] [G loss: %f [def: %f, pow: %f], adv: %f, adv pow: %f, pixel: %f, pixel pow: %f, lr pixel: %f, lr pixel pow: %f, hist: %f, hist pow: %f, nnz: %f, nnz pow: %f, mask: %f, mask pow: %f, wasser: %f, wasser pow: %f, hit: %f, hit pow: %f, wasserdist: %f, wasserdist pow: %f]"
                         % (batches_done, *[l[-1] for l in loss_dict.values()],))                    
 
             # check if loss is NaN
