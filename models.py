@@ -262,6 +262,37 @@ class Wasserstein_Discriminator(nn.Module):
         out = self.fc(combine.view(-1, self.out_channels*self.out_height*self.out_width))
         return out
 
+class Wasserstein_PatchDiscriminator(nn.Module):
+    def __init__(self, input_shape, channels=[16, 32, 32, 64]):
+        super(Wasserstein_PatchDiscriminator, self).__init__()
+        self.channels = channels
+        self.input_shape = input_shape
+        in_channels, in_height, in_width = self.input_shape
+
+        def stride2(x):
+            return int(np.ceil(x/2))
+        patch_h, patch_w = in_height, in_width
+
+        layers = []
+        in_filters = in_channels
+        for i, out_filters in enumerate(self.channels):
+            layers.extend(discriminator_block(in_filters, out_filters))
+            in_filters = out_filters
+            patch_h = stride2(patch_h)
+            patch_w = stride2(patch_w)
+
+        layers.append(nn.Conv2d(out_filters, 1, kernel_size=3, stride=1, padding=1))
+
+        self.output_shape = (1, patch_h, patch_w)
+        self.out_channels, self.out_height, self.out_width = self.output_shape
+        self.model = nn.Sequential(*layers)
+
+        self.fc = nn.Linear(self.out_channels*self.out_height*self.out_width, 1)
+
+    def forward(self, img, *args):
+        out = self.model(img)
+        out = self.fc(out.view(-1, self.out_channels*self.out_height*self.out_width))
+        return out
 
 class SumPool2d(torch.nn.Module):
     def __init__(self, k=4, stride=None):
