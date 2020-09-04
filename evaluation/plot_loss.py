@@ -7,8 +7,8 @@ import glob
 
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
-keys=['d_loss_def', 'd_loss_pow', 'd2_loss_def', 'd2_loss_pow', 'g_loss', 'def_loss', 'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss']
-lambdas=[None,None,None,None,None,'lambda_pix','lambda_pow','lambda_adv','lambda_hr','lambda_lr','lambda_hist','lambda_nnz','lambda_mask','lambda_wasser','lambda_hit']
+keys=['d_loss_def', 'd_loss_pow', 'd2_loss_def', 'd2_loss_pow', 'g_loss', 'def_loss', 'pow_loss', 'adv_loss', 'pixel_loss', 'lr_loss', 'hist_loss', 'nnz_loss', 'mask_loss', 'wasser_loss', 'hit_loss', 'pixel_loss_pow', 'lr_loss_pow', 'adv_loss_pow', 'mask_loss_pow', 'hist_loss_pow', 'wasser_loss_pow', 'hit_loss_pow', 'nnz_loss_pow', 'wasser_dist', 'wasser_dist_pow']
+lambdas=[None,None,None,None,None,'lambda_pix','lambda_pow','lambda_adv','lambda_hr','lambda_lr','lambda_hist','lambda_nnz','lambda_mask','lambda_wasser','lambda_hit', 'lambda_hr', 'lambda_lr', 'lambda_adv', 'lambda_mask', 'lambda_hist', 'lambda_wasser', 'lambda_hit', 'lambda_nnz', 'wasserstein', 'wasserstein']
 loss_to_lambda = {}
 for i, key in enumerate(keys):
     loss_to_lambda[key] = lambdas[i]
@@ -22,7 +22,10 @@ def compare_loss(ax, info_files, loss_name, include_lambda, min_batch, max_batch
         with open(info_files[i]) as f:
             infos.append(json.load(f))
         report_frequency.append(infos[i]['argument']['report_freq'])
-        losses.append(infos[i]['loss'][loss_name])
+        try:
+            losses.append(infos[i]['loss'][loss_name])
+        except KeyError:
+            return
         if include_lambda:
             if loss_to_lambda[loss_name] is not None:
                 for jj in range(len(losses[i])):
