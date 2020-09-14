@@ -119,6 +119,8 @@ def get_parser():
     #Wasserstein GAN
     parser.add_argument("--wasserstein", type=float, default=-1, help="whether to use wasserstein conditional criticand corresponding lambda")
     parser.add_argument('--save_late', type=int, default=default.save_late, help='saves the weights after nth batch, regardles of performance' )
+    parser.add_argument('--set_zero_def', nargs='+', default=[], help='sets the losses in the list to zero when processing the default picture')
+    parser.add_argument('--set_zero_pow', nargs='+', default=[], help='sets the losses in the list to zero when processing the power picture')
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -171,6 +173,12 @@ def train(opt, **kwargs):
         torch.manual_seed(seed)
         np.random.seed(seed)
         info['seed'] = seed
+
+    # combine def and pow zero lists:
+    set_zero_list = []
+    set_zero_list.append(opt.set_zero_def)
+    set_zero_list.append(opt.set_zero_pow) 
+
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
         np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, fully_tconv_upsample=opt.fully_transposed_conv, num_final_layer_res=opt.num_final_res_blocks, uniform_init=opt.uniform_init).to(device)
@@ -439,13 +447,13 @@ def train(opt, **kwargs):
                 # iterate over both the normal image and the image raised to opt.scaling_power
                 for k in range(2):
                     if lambdas[k] > 0:
-                        if opt.lambda_hr > 0 and wait('hr'):
+                        if opt.lambda_hr > 0 and wait('hr') and not 'lambda_hr' in set_zero_list[k]:
                             # Measure pixel-wise loss against ground truth
                             loss_pixel[k] = criterion_pixel(generated[k].mean(0)[None, ...], ground_truth[k].mean(0)[None, ...])
-                        if opt.lambda_lr > 0 and wait('lr'):
+                        if opt.lambda_lr > 0 and wait('lr') and not 'lambda_lr' in set_zero_list[k]:
                             # Measure pixel-wise loss against ground truth for downsampled images
                             loss_lr_pixel[k] = criterion_pixel(generated_lr[k], ground_truth_lr[k])
-                        if opt.lambda_adv > 0 and wait('adv'):
+                        if opt.lambda_adv > 0 and wait('adv') and not 'lambda_adv' in set_zero_list[k]:
                             # Extract validity generated[k]s from discriminator
                             pred_real = Discriminators[k](ground_truth[k], ground_truth_lr[k]).detach()
                             pred_fake = Discriminators[k](generated[k], generated_lr[k])
@@ -476,15 +484,15 @@ def train(opt, **kwargs):
                             
 
 
-                        if opt.lambda_nnz > 0 and wait('nnz'):
+                        if opt.lambda_nnz > 0 and wait('nnz') and not 'lambda_nnz' in set_zero_list[k]:
                             gen_nnz = softgreater(generated[k], 0, 50000).sum(1).sum(1).sum(1)
                             target = (ground_truth[k] > 0).sum(1).sum(1).sum(1).float().to(device)
                             loss_nnz[k] = mse(gen_nnz, target)
-                        if opt.lambda_mask > 0 and wait('mask'):
+                        if opt.lambda_mask > 0 and wait('mask') and not 'lambda_mask' in set_zero_list[k]:
                             gen_mask = nnz_mask(generated[k])
                             real_mask = nnz_mask(ground_truth[k])
                             loss_mask[k] = criterion_pixel(gen_mask, real_mask)
-                        if opt.lambda_hist > 0 and wait('hist'):
+                        if opt.lambda_hist > 0 and wait('hist') and not 'lambda_hist' in set_zero_list[k]:
                             # calculate the energy distribution loss
                             # first calculate the both histograms
                             gen_nnz = generated[k][generated[k] > 0]
@@ -493,11 +501,11 @@ def train(opt, **kwargs):
                             real_hist = histograms[k](real_nnz)
                             loss_hist[k] = criterion_hist[k](gen_hist, real_hist)
                             # print(gen_hist,real_hist,loss_hist)
-                        if opt.lambda_wasser > 0 and wait('wasser'):
+                        if opt.lambda_wasser > 0 and wait('wasser') and not 'lambda_wasser' in set_zero_list[k]:
                             gen_sort, _ = torch.sort(generated[k].view(batch_size, -1), 1)
                             real_sort, _ = torch.sort(ground_truth[k].view(batch_size, -1), 1)
                             loss_wasser[k], _, _ = WasserDist(cut_smaller(gen_sort)[..., None], cut_smaller(real_sort)[..., None])
-                        if opt.lambda_hit > 0 and wait('hit'):
+                        if opt.lambda_hit > 0 and wait('hit') and not 'lambda_hit' in set_zero_list[k]:
                             gen_hit = get_hitogram(generated[k], opt.factor, opt.hit_threshold, opt.sigma)#+eps
                             target = get_hitogram(ground_truth[k], opt.factor, opt.hit_threshold, opt.sigma)
                             #loss_hit = criterion_hit((gen_hit/gen_hit.sum()).log(), target/(target.sum()))
