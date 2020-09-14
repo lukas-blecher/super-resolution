@@ -70,7 +70,8 @@
     ],
     "n_hardest": null,
     "E_thres": null,
-    "seed": null,
+    "set_seed": -1,
+    "deterministic": false,
     "eval_modes": [
         "E_1",
         "E_2",

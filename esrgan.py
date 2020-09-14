@@ -93,7 +93,8 @@ def get_parser():
     parser.add_argument("--n_hardest", type=int, default=default.n_hardest, help="how many of the hardest constituents should be in the ground truth")
     parser.add_argument("--E_thres", type=float, default=default.E_thres, help="Energy threshold for the ground truth and the generator")
     parser.add_argument("--noise_factor", type=float, default=default.noise_factor, help="factor by which random noise is added, relative to 1Gev")
-    parser.add_argument("--seed", type=int, default=default.seed, help="if used seed will be set to SEED. Else a random seed will be used")
+    parser.add_argument("--set_seed", type=int, default=default.set_seed, help="if used seed will be set to SEED. Else a random seed will be used")
+    parser.add_argument('--deterministic', type=bool, default=default.deterministic, help='set numpy and cuda to run deterministically')
     parser.add_argument("--eval_modes", nargs='+', type=str, default=default.eval_modes, help="what modes to calculate the distributions for during evaluation")
     parser.add_argument("--drop_rate", type=float, default=default.drop_rate, help="drop rate for the Generator")
     parser.add_argument("--res_scale", type=float, default=default.res_scale, help="residual weighting factor")
@@ -161,15 +162,15 @@ def train(opt, **kwargs):
 
     hr_shape = (opt.hr_height, opt.hr_width)
     # set seed
-    '''if opt.seed:
-        seed = opt.seed
-    else:
-        seed = np.random.randint(2**31-1)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    info['seed'] = seed'''
+    if opt.set_seed > 0:
+        seed = opt.set_seed
+    #else:
+        #seed = np.random.randint(2**31-1)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        info['seed'] = seed
     # Initialize generator and discriminator
     generator = GeneratorRRDB(opt.channels, filters=64, num_res_blocks=opt.residual_blocks, num_upsample=int(
         np.log2(opt.factor)), multiplier=opt.pixel_multiplier, power=opt.scaling_power, drop_rate=opt.drop_rate, res_scale=opt.res_scale, use_transposed_conv=opt.use_transposed_conv, fully_tconv_upsample=opt.fully_transposed_conv, num_final_layer_res=opt.num_final_res_blocks, uniform_init=opt.uniform_init).to(device)
