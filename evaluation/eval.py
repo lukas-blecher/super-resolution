@@ -525,6 +525,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 try:
                     try:
                         entries, binedges = hhd[m].histogram(hhd[m].list[i], bins)
+                        print('binedges: ', binedges)
                     except IndexError:
                         continue
                     if nth_jet_eval_mode == 'hr':
@@ -539,6 +540,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     print('auto range failed for %s' % modes[m])
                     print(e)
                     entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
+                    print('binedges: ', binedges)
                 x, y = to_hist(entries, binedges)
                 plt.plot(x, y, linestyle=ls, label=lab)
                 std = np.sqrt(y)
