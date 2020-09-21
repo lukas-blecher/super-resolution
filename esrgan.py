@@ -119,8 +119,11 @@ def get_parser():
     #Wasserstein GAN
     parser.add_argument("--wasserstein", type=float, default=-1, help="whether to use wasserstein conditional criticand corresponding lambda")
     parser.add_argument('--save_late', type=int, default=default.save_late, help='saves the weights after nth batch, regardles of performance' )
+    #set zero lists
     parser.add_argument('--set_zero_def', nargs='+', default=[], choices=['hr', 'lr', 'adv', 'nnz', 'mask', 'hist', 'wasser', 'hito'], help='sets the losses in the list to zero when processing the default picture')
     parser.add_argument('--set_zero_pow', nargs='+', default=[], choices=['hr', 'lr', 'adv', 'nnz', 'mask', 'hist', 'wasser', 'hito'], help='sets the losses in the list to zero when processing the power picture')
+    #nth constituent eval mode
+    parser.add_argument('--nth_jet_eval_mode', choices=['hr', 'lr', 'all'], default='hr', help='what histograms contribute to the eval results for the nth hardest jets')
     opt = parser.parse_args()
     if opt.default:
         given = vars(opt)
@@ -659,7 +662,7 @@ def train(opt, **kwargs):
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 eval_result = distribution(opt.validation_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
-                                           mode=opt.eval_modes,noise_factor=opt.noise_factor)
+                                           mode=opt.eval_modes, noise_factor=opt.noise_factor, nth_jet_eval_mode=opt.nth_jet_eval_mode)
 
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
