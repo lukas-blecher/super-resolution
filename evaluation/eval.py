@@ -472,6 +472,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     global normh
     global savehito
     total_kld = []
+    kld_dict = {}
+    return_kld_dict = False
+    if 'split_eval' in kwargs:
+        if kwargs['split_eval']:
+            return_kld_dict = True
+
     kldiv = nn.KLDivLoss(reduction='sum')
 
     if 'nth_jet_eval_mode' in kwargs:
@@ -512,6 +518,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         plt.savefig(output, format='pdf')
 
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
+                kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
                 continue
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
@@ -548,12 +555,14 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                     KLDiv = KLD_hist(torch.Tensor(binedges))
                     total_kld.append(float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item()))
+                    kld_dict[modes[m]]= float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item())
             else:
                 if hhd.nums[m] >= 2 and len(bin_entries) == 4:
                     KLDiv = KLD_hist(torch.Tensor(binedges))
                     curr_kl = float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item())
                     curr_kl += float(KLDiv(torch.Tensor(bin_entries[2]), torch.Tensor(bin_entries[3])).item())
                     total_kld.append(curr_kl)
+                    kld_dict[modes[m]] = curr_kl
             if title:
                 plt.title(hhd[m].title)
             plt.xlabel(hhd[m].xlabel)
@@ -642,6 +651,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 plt.close()
 
         plt.close('all')
+    if return_kld_dict:
+        return kld_dict
     return total_kld
 
 
