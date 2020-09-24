@@ -555,7 +555,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                     KLDiv = KLD_hist(torch.Tensor(binedges))
                     total_kld.append(float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item()))
-                    kld_dict[modes[m]]= float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item())
+                    kld_dict[modes[m]] = float(KLDiv(torch.Tensor(bin_entries[0]), torch.Tensor(bin_entries[1])).item())
             else:
                 if hhd.nums[m] >= 2 and len(bin_entries) == 4:
                     KLDiv = KLD_hist(torch.Tensor(binedges))

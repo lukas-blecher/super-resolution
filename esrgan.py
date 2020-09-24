@@ -319,7 +319,7 @@ def train(opt, **kwargs):
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
     if opt.split_eval:
-        best_eval_split = [float('inf'), float('inf')]
+        best_eval_split = [float(10e20), float(10e20)]
 
     if opt.lambda_hit > 0:
         genhit_ls = [] # list for generated hitograms
@@ -675,14 +675,16 @@ def train(opt, **kwargs):
 
                 if opt.split_eval:
                     eval_split_raw = []
-                    eval_split_raw.append(eval_result['hitogram'])
+                    eval_split_raw.append(float(np.abs(eval_result['hitogram'])))
                     tmp = []
                     for key in eval_result:
                         if key == 'hitogram':
                             continue
                         tmp.append(eval_result[key])
                     eval_split_raw.append(float(np.mean(np.abs(tmp))))
-
+                    if ((eval_split_raw[0] - best_eval_split[0])/best_eval_split[0] + (eval_split_raw[1] - best_eval_split[1])/best_eval_split[1]) < 0:
+                        best_eval_split = eval_split_raw
+                        eval_result = eval_split_raw
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
 
