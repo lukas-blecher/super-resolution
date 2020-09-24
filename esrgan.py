@@ -686,9 +686,20 @@ def train(opt, **kwargs):
                         info['eval_split'].append(eval_split_raw)
                     else:
                         info['eval_split'] = [eval_split_raw]
-                    eval_result = eval_split_raw
+      
                     if ((eval_split_raw[0] - best_eval_split[0])/best_eval_split[0] + (eval_split_raw[1] - best_eval_split[1])/best_eval_split[1]) < 0:
                         best_eval_split = eval_split_raw
+                        if opt.smart_save:
+                            if not opt.emd_save:
+                                try:
+                                    info['saved_split'][epoch] = [batches_done, best_eval_split]
+                                except KeyError:
+                                    info['saved_split'] = {epoch: [batches_done, best_eval_split]}
+                                try:
+                                    info['saved_batch'][epoch] = [batches_done, float(np.mean(np.abs(best_eval_split)))]
+                                except KeyError:
+                                    info['saved_batch'] = {epoch: [batches_done, float(np.mean(np.abs(best_eval_split)))]}
+                                save_weights(epoch)
                         
 
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
@@ -704,22 +715,22 @@ def train(opt, **kwargs):
                 if (wait('hit') and batches_done > 50000 and opt.lambda_hit > 0):
                     hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach(), vmin=vmin, vmax=vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
-
-                if eval_result is not None:
-                    eval_result_mean = float(np.mean(np.abs(eval_result)))
-                    if 'eval_results' in info:
-                        info['eval_results'].append(eval_result)
-                    else:
-                        info['eval_results'] = [eval_result]
-                    if eval_result_mean < best_eval_result:
-                        best_eval_result = eval_result_mean
-                        if opt.smart_save:
-                            if not opt.emd_save:
-                                try:
-                                    info['saved_batch'][epoch] = [batches_done, best_eval_result]
-                                except KeyError:
-                                    info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
-                                save_weights(epoch)
+                if not opt.split_eval:
+                    if eval_result is not None:
+                        eval_result_mean = float(np.mean(np.abs(eval_result)))
+                        if 'eval_results' in info:
+                            info['eval_results'].append(eval_result)
+                        else:
+                            info['eval_results'] = [eval_result]
+                        if eval_result_mean < best_eval_result:
+                            best_eval_result = eval_result_mean
+                            if opt.smart_save:
+                                if not opt.emd_save:
+                                    try:
+                                        info['saved_batch'][epoch] = [batches_done, best_eval_result]
+                                    except KeyError:
+                                        info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
+                                    save_weights(epoch)
                 if opt.emd_save and opt.smart_save:
                     val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, None, opt.batch_size,
                                                     opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N, thres=opt.E_thres, N=opt.n_hardest)
