@@ -686,9 +686,11 @@ def train(opt, **kwargs):
                         info['eval_split'].append(eval_split_raw)
                     else:
                         info['eval_split'] = [eval_split_raw]
+                    eval_result = eval_split_raw
                     if ((eval_split_raw[0] - best_eval_split[0])/best_eval_split[0] + (eval_split_raw[1] - best_eval_split[1])/best_eval_split[1]) < 0:
                         best_eval_split = eval_split_raw
-                        eval_result = eval_split_raw
+                        
+
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
 
