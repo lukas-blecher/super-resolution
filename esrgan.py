@@ -682,6 +682,10 @@ def train(opt, **kwargs):
                             continue
                         tmp.append(eval_result[key])
                     eval_split_raw.append(float(np.mean(np.abs(tmp))))
+                    if 'eval_split' in info:
+                        info['eval_split'].append(eval_split_raw)
+                    else:
+                        info['eval_split'] = [eval_split_raw]
                     if ((eval_split_raw[0] - best_eval_split[0])/best_eval_split[0] + (eval_split_raw[1] - best_eval_split[1])/best_eval_split[1]) < 0:
                         best_eval_split = eval_split_raw
                         eval_result = eval_split_raw
