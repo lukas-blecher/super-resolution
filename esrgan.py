@@ -119,9 +119,19 @@ def get_parser():
     #Wasserstein GAN
     parser.add_argument("--wasserstein", type=float, default=-1, help="whether to use wasserstein conditional criticand corresponding lambda")
     parser.add_argument('--save_late', type=int, default=default.save_late, help='saves the weights after nth batch, regardles of performance' )
+    #set zero lists
     parser.add_argument('--set_zero_def', nargs='+', default=[], choices=['hr', 'lr', 'adv', 'nnz', 'mask', 'hist', 'wasser', 'hito'], help='sets the losses in the list to zero when processing the default picture')
     parser.add_argument('--set_zero_pow', nargs='+', default=[], choices=['hr', 'lr', 'adv', 'nnz', 'mask', 'hist', 'wasser', 'hito'], help='sets the losses in the list to zero when processing the power picture')
+    #nth constituent eval mode
+    parser.add_argument('--nth_jet_eval_mode', choices=['hr', 'lr', 'all'], default='hr', help='what histograms contribute to the eval results for the nth hardest jets')
+    parser.add_argument('--split_eval', type=bool, default=False, help='compares the eval results seperately when determining the best savepoint')
     opt = parser.parse_args()
+
+    if opt.split_eval:
+        assert 'hitogram' in opt.eval_modes, 'need hitogram in modes to split eval'
+        if not any('E_' in mode for mode in opt.eval_modes):
+            assert False, 'need at least one jet in eval modes for eval splitting'
+
     if opt.default:
         given = vars(opt)
         with open(opt.default, 'r') as f:
@@ -308,6 +318,8 @@ def train(opt, **kwargs):
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
+    if opt.split_eval:
+        best_eval_split = [float(10e20), float(10e20)]
 
     if opt.lambda_hit > 0:
         genhit_ls = [] # list for generated hitograms
@@ -659,7 +671,36 @@ def train(opt, **kwargs):
                     evaluation_interval == np.inf and (batches_done+1) % (total_batches//opt.n_evaluation) == 0):
                 eval_result = distribution(opt.validation_path, opt.dataset_type, generator, device, os.path.join(image_dir, '%d_hist.png' % batches_done),
                                            30, 0, 30, opt.hr_height, opt.hr_width, opt.factor, opt.N, pre=opt.pre_factor, thres=opt.E_thres, N=opt.n_hardest,
-                                           mode=opt.eval_modes,noise_factor=opt.noise_factor)
+                                           mode=opt.eval_modes, noise_factor=opt.noise_factor, nth_jet_eval_mode=opt.nth_jet_eval_mode, split_eval=opt.split_eval)
+
+                if opt.split_eval:
+                    eval_split_raw = []
+                    eval_split_raw.append(float(np.abs(eval_result['hitogram'])))
+                    tmp = []
+                    for key in eval_result:
+                        if key == 'hitogram':
+                            continue
+                        tmp.append(eval_result[key])
+                    eval_split_raw.append(float(np.mean(np.abs(tmp))))
+                    if 'eval_split' in info:
+                        info['eval_split'].append(eval_split_raw)
+                    else:
+                        info['eval_split'] = [eval_split_raw]
+      
+                    if ((eval_split_raw[0] - best_eval_split[0])/best_eval_split[0] + (eval_split_raw[1] - best_eval_split[1])/best_eval_split[1]) < 0:
+                        best_eval_split = eval_split_raw
+                        if opt.smart_save:
+                            if not opt.emd_save:
+                                try:
+                                    info['saved_split'][epoch] = [batches_done, best_eval_split]
+                                except KeyError:
+                                    info['saved_split'] = {epoch: [batches_done, best_eval_split]}
+                                try:
+                                    info['saved_batch'][epoch] = [batches_done, float(np.mean(np.abs(best_eval_split)))]
+                                except KeyError:
+                                    info['saved_batch'] = {epoch: [batches_done, float(np.mean(np.abs(best_eval_split)))]}
+                                save_weights(epoch)
+                        
 
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
@@ -674,22 +715,22 @@ def train(opt, **kwargs):
                 if (wait('hit') and batches_done > 50000 and opt.lambda_hit > 0):
                     hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach(), vmin=vmin, vmax=vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
-
-                if eval_result is not None:
-                    eval_result_mean = float(np.mean(np.abs(eval_result)))
-                    if 'eval_results' in info:
-                        info['eval_results'].append(eval_result)
-                    else:
-                        info['eval_results'] = [eval_result]
-                    if eval_result_mean < best_eval_result:
-                        best_eval_result = eval_result_mean
-                        if opt.smart_save:
-                            if not opt.emd_save:
-                                try:
-                                    info['saved_batch'][epoch] = [batches_done, best_eval_result]
-                                except KeyError:
-                                    info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
-                                save_weights(epoch)
+                if not opt.split_eval:
+                    if eval_result is not None:
+                        eval_result_mean = float(np.mean(np.abs(eval_result)))
+                        if 'eval_results' in info:
+                            info['eval_results'].append(eval_result)
+                        else:
+                            info['eval_results'] = [eval_result]
+                        if eval_result_mean < best_eval_result:
+                            best_eval_result = eval_result_mean
+                            if opt.smart_save:
+                                if not opt.emd_save:
+                                    try:
+                                        info['saved_batch'][epoch] = [batches_done, best_eval_result]
+                                    except KeyError:
+                                        info['saved_batch'] = {epoch: [batches_done, best_eval_result]}
+                                    save_weights(epoch)
                 if opt.emd_save and opt.smart_save:
                     val_results = calculate_metrics(opt.validation_path, opt.dataset_type, generator, device, None, opt.batch_size,
                                                     opt.n_cpu, opt.bins, opt.hr_height, opt.hr_width, opt.factor, pre=opt.pre_factor, amount=opt.N, thres=opt.E_thres, N=opt.n_hardest)
