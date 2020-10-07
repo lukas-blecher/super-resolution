@@ -246,8 +246,9 @@ def train(opt, **kwargs):
     mse = nn.MSELoss().to(device)
     criterion_hist = pointerList()
    #criterion_hit = nn.KLDivLoss(reduction='batchmean')
-
+    load_chk = False
     if opt.load_checkpoint:
+        load_chk = True
         # Load pretrained models
         generator.load_state_dict(torch.load(opt.load_checkpoint, map_location=device))
         generator_file = os.path.basename(opt.load_checkpoint)
@@ -265,6 +266,11 @@ def train(opt, **kwargs):
         try:
             with open(info_path, 'r') as info_file:
                 info = json.load(info_file)
+
+            #make a savecopy of old info file
+            info_path_old = info_path.replace('.json', '_old.json')
+            with open(info_path_old, 'w') as old_info:
+                json.dump(info, old_info)
         except FileNotFoundError:
             pass
 
@@ -318,8 +324,19 @@ def train(opt, **kwargs):
     binedges = []  # list with bin edges for energy distribution training
     histograms = pointerList()
     best_eval_result, best_emd_result = float('inf'), float('inf')
+    if opt.load_checkpoint:
+        try:
+            best_eval_result = list(info["saved_batch"].values())[-1][1] #set best_save to latest save
+            print('Loaded best eval result: ', best_eval_result)
+        except KeyError:
+            print('couldnt load best save')
     if opt.split_eval:
         best_eval_split = [float(10e20), float(10e20)]
+        if opt.load_checkpoint:
+            try:
+                best_eval_split = list(info["saved_split"].values())[-1][1]
+            except KeyError:
+                print('couldnt load best split')
 
     if opt.lambda_hit > 0:
         genhit_ls = [] # list for generated hitograms
@@ -343,8 +360,8 @@ def train(opt, **kwargs):
     except KeyError:
         batches_trained = 0
 
-    start_epoch = info['epochs']
-    total_batches = len(dataloader)*(opt.n_epochs - start_epoch) if n_batches == np.inf else n_batches
+    start_epoch = info['epochs'] # >0 if training is continued
+    total_batches = len(dataloader)*(opt.n_epochs - start_epoch) if n_batches == np.inf else (n_batches + batches_trained)
     batches_done = batches_trained-1
 
     # function for saving info.json
@@ -359,10 +376,16 @@ def train(opt, **kwargs):
 
     def save_weights(epoch):
         if opt.save:
-            torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
-            for k in range(2):
-                if lambdas[k] > 0:
-                    torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name, ['', '_pow'][k], epoch)))
+            if opt.load_checkpoint:
+                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d_continued.pth" % (model_name, epoch)))
+                for k in range(2):
+                    if lambdas[k] > 0:
+                        torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d_continued.pth" % (model_name, ['', '_pow'][k], epoch)))
+            else:
+                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%d.pth" % (model_name, epoch)))
+                for k in range(2):
+                    if lambdas[k] > 0:
+                        torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%d.pth" % (model_name, ['', '_pow'][k], epoch)))
 
             print('Saved model to %s' % opt.model_path)
             save_info()
@@ -373,7 +396,7 @@ def train(opt, **kwargs):
                 return False
         return True
 
-    for epoch in range(start_epoch, opt.n_epochs):
+    for epoch in range(start_epoch, opt.n_epochs + start_epoch): #if training is continued need to add starting epochs
         for i, imgs in enumerate(dataloader):
             batches_done += 1
             # batches_done = epoch * len(dataloader) + i
@@ -391,46 +414,46 @@ def train(opt, **kwargs):
             # ------------------
 
             optimizer_G.zero_grad()
+            if not load_chk or opt.lambda_hist > 0:
+                if batches_done - batches_trained < opt.warmup_batches:
+                    # Warm-up (pixel-wise loss only)
+                    if opt.learn_warmup:
+                        # Generate a high resolution image from low resolution input
+                        gen_hr = generator(imgs_lr)
+                        # Measure pixel-wise loss against ground truth
+                        loss_pixel = criterion_pixel(gen_hr, imgs_hr)
 
-            if batches_done - batches_trained < opt.warmup_batches:
-                # Warm-up (pixel-wise loss only)
-                if opt.learn_warmup:
-                    # Generate a high resolution image from low resolution input
-                    gen_hr = generator(imgs_lr)
-                    # Measure pixel-wise loss against ground truth
-                    loss_pixel = criterion_pixel(gen_hr, imgs_hr)
-
-                    loss_pixel.backward()
-                    optimizer_G.step()
-                    if batches_done % opt.report_freq == 0:
-                        for gs in ['g_loss', 'pixel_loss']:
-                            loss_dict[gs].append(loss_pixel.item())
-                        print(
-                            "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
-                            % (i, total_batches, epoch, opt.n_epochs,  loss_pixel.item())
-                        )
-                if opt.lambda_hist > 0:
-                    # find a good value to cut off the distribution
-                    imgs_hr = imgs_hr.cpu().view(-1).numpy()
-                    nnz.extend(list(imgs_hr[imgs_hr > 0]))
-                continue
-            elif batches_done - batches_trained == opt.warmup_batches:
-                if opt.lambda_hist > 0:
-                    nnz = np.array(nnz)
-                    for k in range(2):
-                        if lambdas[k] > 0:
-                            c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
-                            e_max = b[(np.cumsum(c) > len(nnz**[1, opt.scaling_power][k])*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
-                            print("found e_max to be %.2f" % e_max)
-                            sorted_nnz = np.sort(nnz)
-                            sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
-                            k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
-                            binedgesk = np.sort(k_mean.cluster_centers_.flatten())
-                            binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
-                            info['binedges%i' % k] = list(binedges[-1])
-                            histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
-                            criterion_hist[k] = KLD_hist(torch.from_numpy(binedges[-1])).to(device)
-                del nnz
+                        loss_pixel.backward()
+                        optimizer_G.step()
+                        if batches_done % opt.report_freq == 0:
+                            for gs in ['g_loss', 'pixel_loss']:
+                                loss_dict[gs].append(loss_pixel.item())
+                            print(
+                                "[Batch %d/%d] [Epoch %d/%d] [G pixel: %f]"
+                                % (i, total_batches, epoch, opt.n_epochs,  loss_pixel.item())
+                            )
+                    if opt.lambda_hist > 0:
+                        # find a good value to cut off the distribution
+                        imgs_hr = imgs_hr.cpu().view(-1).numpy()
+                        nnz.extend(list(imgs_hr[imgs_hr > 0]))
+                    continue
+                elif batches_done - batches_trained == opt.warmup_batches:
+                    if opt.lambda_hist > 0:
+                        nnz = np.array(nnz)
+                        for k in range(2):
+                            if lambdas[k] > 0:
+                                c, b = np.histogram(nnz**[1, opt.scaling_power][k], 100)
+                                e_max = b[(np.cumsum(c) > len(nnz**[1, opt.scaling_power][k])*.9).argmax()]  # set e_max to the value where 90% of the data is smaller
+                                print("found e_max to be %.2f" % e_max)
+                                sorted_nnz = np.sort(nnz)
+                                sorted_nnz = sorted_nnz[sorted_nnz <= e_max]
+                                k_mean = KMeans(n_clusters=opt.bins, random_state=0).fit(sorted_nnz.reshape(-1, 1))
+                                binedgesk = np.sort(k_mean.cluster_centers_.flatten())
+                                binedges.append(np.array([0, *(np.diff(binedgesk)/2+binedgesk[:-1]), e_max]))
+                                info['binedges%i' % k] = list(binedges[-1])
+                                histograms[k] = DiffableHistogram(binedges[-1], sigma=opt.sigma, batchwise=opt.batchwise_hist).to(device)
+                                criterion_hist[k] = KLD_hist(torch.from_numpy(binedges[-1])).to(device)
+                    del nnz
             if i == opt.warmup_batches or (batches_done % opt.update_g == 0):
                 # Main training loop
                 loss_pixel, loss_lr_pixel, loss_GAN, loss_hist, loss_nnz, loss_mask, loss_wasser, loss_hit, w_loss = [
@@ -705,16 +728,17 @@ def train(opt, **kwargs):
                 mean_grid = torch.cat((generated[0].mean(0)[None, ...], ground_truth[0].mean(0)[None, ...]), -1)
                 save_image(mean_grid, os.path.join(opt.root, image_dir, "%d_mean.png" % batches_done), nrow=1, normalize=False)
 
-                if  (wait('hit') and batches_done > 20000 and batches_done < 50000 and opt.lambda_hit > 0):
+                if  (wait('hit') and (batches_done - batches_trained) > 20000 and (batches_done - batches_trained) < 50000 and opt.lambda_hit > 0):
                     #hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach())
                     #hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
                     genhit_ls.append(gen_hit.cpu().detach().numpy())  # save hitogram arrays and corresponding batch nr in list, plot them later
                     gthit_ls.append(target.cpu().detach().numpy())
                     batch_ls.append(batches_done)
 
-                if (wait('hit') and batches_done > 50000 and opt.lambda_hit > 0):
+                if (wait('hit') and (batches_done - batches_trained) > 50000 and opt.lambda_hit > 0):
                     hit_f = plot_hist2d(gen_hit.cpu().detach(), target.cpu().detach(), vmin=vmin, vmax=vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batches_done))
+                
                 if not opt.split_eval:
                     if eval_result is not None:
                         eval_result_mean = float(np.mean(np.abs(eval_result)))
@@ -766,18 +790,18 @@ def train(opt, **kwargs):
                     else:
                         SecondDiscriminators[k].apply(weight_reset)
 
-            if ((batches_done+1) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
+            if ((batches_done - batches_trained +1)) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
                 vmin = (min(np.concatenate(gthit_ls, axis=None)) + min(np.concatenate(genhit_ls, axis=None))) / 2
                 vmax = (max(np.concatenate(gthit_ls, axis=None)) + max(np.concatenate(genhit_ls, axis=None))) / 2
                 for sr,gt,batch in zip(genhit_ls, gthit_ls, batch_ls):
                     hit_f = plot_hist2d(sr, gt, vmin= vmin, vmax= vmax)
                     hit_f.savefig(os.path.join(opt.root, image_dir, "%d_batchhito.png" % batch))                   
 
-            if (opt.save_late > 0 and (batches_done+1) == opt.save_late):
-                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%s.pth" % (model_name, 'late_save')))
+            if (opt.save_late > 0 and (batches_done - batches_trained +1) == opt.save_late):
+                torch.save(generator.state_dict(), os.path.join(opt.root, opt.model_path, "%sgenerator_%s_ep%i.pth" % (model_name, 'late_save', epoch)))
                 for k in range(2):
                     if lambdas[k] > 0:
-                        torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%s.pth" % (model_name, ['', '_pow'][k], 'late_save')))
+                        torch.save(Discriminators[k].state_dict(), os.path.join(opt.root, opt.model_path, "%sdiscriminator%s_%s_ep%i.pth" % (model_name, ['', '_pow'][k], 'late_save', epoch)))
 
 
             if batches_done == total_batches:
