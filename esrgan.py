@@ -790,7 +790,7 @@ def train(opt, **kwargs):
                     else:
                         SecondDiscriminators[k].apply(weight_reset)
 
-            if ((batches_done - batches_trained +1)) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
+            if ((batches_done - batches_trained +1) == 50000 and opt.lambda_hit > 0): # plot all hitos collected so far and determine vmin, vmax
                 vmin = (min(np.concatenate(gthit_ls, axis=None)) + min(np.concatenate(genhit_ls, axis=None))) / 2
                 vmax = (max(np.concatenate(gthit_ls, axis=None)) + max(np.concatenate(genhit_ls, axis=None))) / 2
                 for sr,gt,batch in zip(genhit_ls, gthit_ls, batch_ls):
