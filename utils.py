@@ -596,3 +596,12 @@ class Wrapper:
 
     def __exit__(self, *args, **kwargs):
         pass
+
+def PtEtaPhiM_to_EPxPyPz(pt, eta, phi, mass):
+    assert mass == 0, 'formula only valid in massless limit'
+    E = pt * np.cosh(eta) # E equals |p| for massless
+    px = pt * np.cos(phi)
+    py = pt * np.sin(phi)
+    pz = pt * np.sinh(eta)
+
+    return E, px, py, pz
