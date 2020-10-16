@@ -287,7 +287,7 @@ class MultHist:
             self.title = 'Number of constituents'
         elif self.mode == 'jetmass':
             self.title = 'Invariant Jet Mass'
-            self.xlabel = 'Jet Mass'
+            self.xlabel = 'Jet Mass [GeV]'
 
     def append(self, *argv):
         assert len(argv) == self.num
