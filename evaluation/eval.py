@@ -298,7 +298,7 @@ class MultHist:
         elif 'C_0_' in self.mode:
             self.n = int(self.mode.split('C_0_')[1])
             print('n for 2p correlator: ', self.n)
-            self.xlabel = r'$C_{%i}$' % (self.n)
+            self.xlabel = r'$C_{0.%i}$' % (self.n)
             self.title = self.xlabel
             self.display_ratio=0.92
             self.power=0.999
