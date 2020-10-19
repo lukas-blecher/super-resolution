@@ -591,6 +591,7 @@ def w_pf(event, R=0.8, p=1):
     jet = cluster(event, R=R, p=p).exclusive_jets(1) # check if correct
     delRs = np.sqrt((event['phi'][:, None]-np.array([jet[0].phi]))**2 +
                     (event['eta'][:, None]-np.array([jet[0].eta]))**2)
+    delRs = np.squeeze(delRs)
     w_pf_num = event['pT']*delRs
 
     return w_pf_num.sum()/(event['pT'].sum())
