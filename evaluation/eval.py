@@ -218,6 +218,7 @@ class MultHist:
             'meanimg' returns the mean of the hr and sr images
             'nsubj_i_j' plots ratio of the N-subjettiness for N=i and N'=j
             'jetmass' plot high level invariant mass of images
+            'w_pf' plots the jet observable w_pf ("girth")
             
     additions:
             'corr_' will plot the correlations between HR and SR in a 2d histogram aswell as in a slice plot
@@ -288,6 +289,11 @@ class MultHist:
         elif self.mode == 'jetmass':
             self.title = 'Invariant Jet Mass'
             self.xlabel = 'Jet Mass [GeV]'
+        elif self.mode == 'w_pf':
+            self.xlabel = r'$w_{PF}$'
+            self.title = r'$w_{PF}$'
+            self.display_ratio=0.92
+            self.power=0.999
 
     def append(self, *argv):
         assert len(argv) == self.num
@@ -336,6 +342,9 @@ class MultHist:
                     self.list[i].extend([nsubjettiness(event[k], self.n)/nsubjettiness(event[k], self.m) for k in range(len(Ln))])
                 elif self.mode == 'jetmass':
                     self.list[i].extend(JetMass(Ln))
+                elif self.mode == 'w_pf':
+                    event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
+                    self.list[i].extend([w_pf(event[k]) for k in range(len(Ln))])
 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
