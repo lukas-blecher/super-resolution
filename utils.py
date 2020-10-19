@@ -584,7 +584,7 @@ def nsubjettiness(event, n, R=0.8, p=1):
     if event['pT'].sum() > 0:
         return taun.sum()/(event['pT'].sum()*R)
     else:
-        return 0
+        return None
 
 def w_pf(event, R=0.8, p=1):
     from pyjet import cluster

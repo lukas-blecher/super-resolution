@@ -347,7 +347,7 @@ class MultHist:
                     self.list[i].extend(FWM(Ln, l=self.l, j=self.j))
                 elif 'nsubj' in self.mode:
                     event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
-                    self.list[i].extend([nsubjettiness(event[k], self.n)/nsubjettiness(event[k], self.m) for k in range(len(Ln))])
+                    self.list[i].extend([nsubjettiness(event[k], self.n)/nsubjettiness(event[k], self.m) for k in range(len(Ln)) if (nsubjettiness(event[k], self.n) is not None and nsubjettiness(event[k], self.m) is not None)])
                 elif self.mode == 'jetmass':
                     self.list[i].extend(JetMass(Ln))
                 elif self.mode == 'w_pf':
