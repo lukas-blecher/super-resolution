@@ -581,16 +581,16 @@ def nsubjettiness(event, n, R=0.8, p=1):
     delRs = np.sqrt((event['phi'][:, None]-np.array([[J.phi for J in subjets]]))**2 +
                     (event['eta'][:, None]-np.array([[J.eta for J in subjets]]))**2)
     taun = event['pT']*np.min(delRs, axis=1)
-
-    return taun.sum()/(event['pT'].sum()*R)
+    if event['pT'].sum() > 0:
+        return taun.sum()/(event['pT'].sum()*R)
+    else:
+        return 0
 
 def w_pf(event, R=0.8, p=1):
     from pyjet import cluster
     jet = cluster(event, R=R, p=p).exclusive_jets(1) # check if correct
-    print(jet)
-    print(jet.phi, jet.eta)
-    delRs = np.sqrt((event['phi'][:, None]-np.array([jet.phi]))**2 +
-                    (event['eta'][:, None]-np.array([jet.eta]))**2)
+    delRs = np.sqrt((event['phi'][:, None]-np.array([jet[0].phi]))**2 +
+                    (event['eta'][:, None]-np.array([jet[0].eta]))**2)
     w_pf_num = event['pT']*delRs
 
     return w_pf_num.sum()/(event['pT'].sum())
