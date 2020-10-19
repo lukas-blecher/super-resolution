@@ -597,8 +597,11 @@ def w_pf(event, R=0.8, p=1):
     return w_pf_num.sum()/(event['pT'].sum())
 
 def C_0_n(event, n):
-    pass
-
+    #calculate numerator
+    num = sum(event['pT'][i]*event['pT'][j]*np.sqrt((event['phi'][i]-event['phi'][j])**2 + (event['eta'][i]-event['eta'][j])**2)**n for i in range(len(event['phi'])) for j in range(len(event['phi'])))
+    print(num)
+    
+    return 0
 
 class Wrapper:
     '''with statement wrapper'''

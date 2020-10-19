@@ -219,6 +219,7 @@ class MultHist:
             'nsubj_i_j' plots ratio of the N-subjettiness for N=i and N'=j
             'jetmass' plot high level invariant mass of images
             'w_pf' plots the jet observable w_pf ("girth")
+            'C_0_n' plots two point pT correlator to power n
             
     additions:
             'corr_' will plot the correlations between HR and SR in a 2d histogram aswell as in a slice plot
@@ -294,6 +295,13 @@ class MultHist:
             self.title = r'$w_{PF}$'
             self.display_ratio=0.92
             self.power=0.999
+        elif 'C_0_' in self.mode:
+            self.n = int(self.mode.split('C_0_')[1])
+            print('n for 2p correlator: ', self.n)
+            self.xlabel = r'$C_{%i}$' % (self.n)
+            self.title = self.xlabel
+            self.display_ratio=0.92
+            self.power=0.999
 
     def append(self, *argv):
         assert len(argv) == self.num
@@ -345,6 +353,9 @@ class MultHist:
                 elif self.mode == 'w_pf':
                     event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
                     self.list[i].extend([w_pf(event[k]) for k in range(len(Ln))])
+                elif 'C_0_' in self.mode:
+                    event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
+                    self.list[i].extend([C_0_n(event[k], self.n) for k in range(len(Ln))])
 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
