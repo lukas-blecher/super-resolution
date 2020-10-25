@@ -590,7 +590,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 unit = r'[$\sqrt{\text{GeV}}$]' 
             plt.figure()
             bin_entries = []
-            for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
+            #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
+            for i, (ls, lab) in enumerate(zip(['r-', 'r--', 'b-','b--'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
                 if hhd.nums[m] == i:
                     continue
                 try:
