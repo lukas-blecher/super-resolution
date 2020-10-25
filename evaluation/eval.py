@@ -591,7 +591,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.figure()
             bin_entries = []
             #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
-            for i, (ls, lab) in enumerate(zip(['r-', 'r--', 'b-','b--'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
+            for i, (ls, lab) in enumerate(zip([('r','--'), ('r','-'), ('b','-'),('b','--')], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
                 if hhd.nums[m] == i:
                     continue
                 try:
@@ -612,10 +612,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     print(e)
                     entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
                 x, y = to_hist(entries, binedges)
-                plt.plot(x, y, linestyle=ls, label=lab)
+                plt.plot(x, y, color=ls[0], linestyle=ls[1], label=lab)
                 std = np.sqrt(y)
                 std[y == 0] = 0
-                plt.fill_between(x, y+std, y-std, alpha=.2)
+                plt.fill_between(x, y+std, y-std, alpha=.2, color=ls[0])
             if nth_jet_eval_mode=='hr' or nth_jet_eval_mode=='lr':
                 if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                     KLDiv = KLD_hist(torch.Tensor(binedges))
