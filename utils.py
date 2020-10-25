@@ -581,9 +581,27 @@ def nsubjettiness(event, n, R=0.8, p=1):
     delRs = np.sqrt((event['phi'][:, None]-np.array([[J.phi for J in subjets]]))**2 +
                     (event['eta'][:, None]-np.array([[J.eta for J in subjets]]))**2)
     taun = event['pT']*np.min(delRs, axis=1)
+    if event['pT'].sum() > 0:
+        return taun.sum()/(event['pT'].sum()*R)
+    else:
+        return None
 
-    return taun.sum()/(event['pT'].sum()*R)
+def w_pf(event, R=0.8, p=1):
+    from pyjet import cluster
+    jet = cluster(event, R=R, p=p).exclusive_jets(1) # check if correct
+    delRs = np.sqrt((event['phi'][:, None]-np.array([jet[0].phi]))**2 +
+                    (event['eta'][:, None]-np.array([jet[0].eta]))**2)
+    delRs = np.squeeze(delRs)
+    w_pf_num = event['pT']*delRs
 
+    return w_pf_num.sum()/(event['pT'].sum())
+
+def C_0_n(event, n):
+    #calculate numerator
+    num = sum(event['pT'][i]*event['pT'][j]*np.sqrt((event['phi'][i]-event['phi'][j])**2 + (event['eta'][i]-event['eta'][j])**2)**n for i in range(len(event['phi'])) for j in range(len(event['phi'])))
+    print(num/sum(event['pT']**2))
+    
+    return num / sum(event['pT']**2)
 
 class Wrapper:
     '''with statement wrapper'''
@@ -596,3 +614,12 @@ class Wrapper:
 
     def __exit__(self, *args, **kwargs):
         pass
+
+def PtEtaPhiM_to_EPxPyPz(pt, eta, phi, mass):
+    assert mass == 0, 'formula only valid in massless limit'
+    E = pt * np.cosh(eta) # E equals |p| for massless
+    px = pt * np.cos(phi)
+    py = pt * np.sin(phi)
+    pz = pt * np.sinh(eta)
+
+    return E, px, py, pz

@@ -33,6 +33,39 @@ w_veto_real = 0
 w_veto_gen = 0
 gpu = 0
 
+def JetMass(arr, etarange=1., phirange=1.):
+    img = np.squeeze(arr)
+    bins = img.shape[1]
+    jetMassList = []
+
+    # loop over batch, etabins, phibins
+    for pic in range(img.shape[0]):
+        ls_E, ls_px, ls_py, ls_pz = [], [], [], []
+        for etabin in range(bins):
+            for phibin in range(bins):
+                if img[pic, etabin, phibin] != 0:
+                    #get eta, phi, pt
+                    eta = etabin*2*etarange/bins-etarange
+                    phi = phibin*2*phirange/bins-phirange
+                    pt = img[pic, etabin, phibin]
+
+                    # convert to (E, px, py, pz)
+                    E, px, py, pz = PtEtaPhiM_to_EPxPyPz(pt, eta, phi, 0)
+                    ls_E.append(E)
+                    ls_px.append(px)
+                    ls_py.append(py)
+                    ls_pz.append(pz)
+
+        #calculate jet mass as sum over four momenta squared
+        E_jet = sum(ls_E)
+        px_jet = sum(ls_px)
+        py_jet = sum(ls_py)
+        pz_jet = sum(ls_pz)
+        M_2 = E_jet**2 - px_jet**2 - py_jet**2 - pz_jet**2
+        jetMassList.append(np.sqrt(np.abs(M_2)))
+
+    return jetMassList
+
 
 def FWM(arr, l=1, j=2, etarange=1., phirange=1., power=.5):  # arr: input image batch, l: # of FWM to take, j: up to which const to consider
     img = np.squeeze(arr)
@@ -184,6 +217,9 @@ class MultHist:
             'FWM_i_j' plots the fox wolfram moments for the ith hardest constituent with respect to the 1...j hardest.
             'meanimg' returns the mean of the hr and sr images
             'nsubj_i_j' plots ratio of the N-subjettiness for N=i and N'=j
+            'jetmass' plot high level invariant mass of images
+            'w_pf' plots the jet observable w_pf ("girth")
+            'C_0_n' plots two point pT correlator to power n
             
     additions:
             'corr_' will plot the correlations between HR and SR in a 2d histogram aswell as in a slice plot
@@ -251,6 +287,21 @@ class MultHist:
         elif self.mode == 'nnz':
             self.xlabel = 'Constituents'
             self.title = 'Number of constituents'
+        elif self.mode == 'jetmass':
+            self.title = 'Invariant Jet Mass'
+            self.xlabel = 'Jet Mass [GeV]'
+        elif self.mode == 'w_pf':
+            self.xlabel = r'$w_{PF}$'
+            self.title = r'$w_{PF}$'
+            self.display_ratio=0.92
+            self.power=0.999
+        elif 'C_0_' in self.mode:
+            self.n = int(self.mode.split('C_0_')[1])
+            print('n for 2p correlator: ', self.n)
+            self.xlabel = r'$C_{0.%i}$' % (self.n)
+            self.title = self.xlabel
+            self.display_ratio=0.92
+            self.power=0.999
 
     def append(self, *argv):
         assert len(argv) == self.num
@@ -295,8 +346,21 @@ class MultHist:
                 elif 'FWM_' in self.mode:
                     self.list[i].extend(FWM(Ln, l=self.l, j=self.j))
                 elif 'nsubj' in self.mode:
+                    np.seterr(divide='raise')
+                    try:
+                        event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
+                        self.list[i].extend([nsubjettiness(event[k], self.n)/nsubjettiness(event[k], self.m) for k in range(len(Ln)) if (nsubjettiness(event[k], self.n) is not None and nsubjettiness(event[k], self.m) is not None)])
+                    except FloatingPointError:
+                        continue
+
+                elif self.mode == 'jetmass':
+                    self.list[i].extend(JetMass(Ln))
+                elif self.mode == 'w_pf':
                     event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
-                    self.list[i].extend([nsubjettiness(event[k], self.n)/nsubjettiness(event[k], self.m) for k in range(len(Ln))])
+                    self.list[i].extend([w_pf(event[k]) for k in range(len(Ln))])
+                elif 'C_0_' in self.mode:
+                    event=[img2event(Ln[k], thres=self.thres) for k in range(len(Ln))]
+                    self.list[i].extend([C_0_n(event[k], self.n) for k in range(len(Ln))])
 
             except Exception as e:
                 print('Exception while adding to MultHist with mode %s' % self.mode, e)
@@ -340,7 +404,7 @@ class MultHist:
 class MultModeHist:
     def __init__(self, modes, num='standard', factor=default.factor, **kwargs):
         self.modes = modes
-        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 4, 'mean': 2, 'meannnz': 4, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2}
+        self.standard_nums = {'max': 3, 'min': 3, 'nnz': 4, 'mean': 2, 'meannnz': 4, 'wmass': 2, 'E': 2, 'hitogram': 2, 'meanimg': 2, 'jetmass': 4}
         self.hist = []
         self.nums = [num] * len(self.modes) if num != 'standard' else [self.standard_nums[self.rmAdditions(mode)]
                                                                        if '_' not in self.rmAdditions(mode) else 4 for mode in self.modes]
