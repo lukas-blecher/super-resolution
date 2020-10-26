@@ -591,7 +591,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.figure()
             bin_entries = []
             #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
-            for i, (ls, lab) in enumerate(zip([('tab:orange','--'), ('tab:orange','-'), ('blue','-'),('blue','--')], ["SR", "HR", "LR","$LR_{gen}$"])):
+            for i, (ls, lab) in enumerate(zip([('black','--'), ('black','-'), ('blue','-'),('blue','--')], ["SR", "HR", "LR","$LR_{gen}$"])):
                 if hhd.nums[m] == i:
                     continue
                 try:
