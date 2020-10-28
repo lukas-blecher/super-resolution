@@ -588,8 +588,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         if modes[m] == 'meanimg' and split_meanimg:
-                            f1.savefig(output, format='pdf', bbox_inches='tight')
-                            f2.savefig(output, format='pdf', bbox_inches='tight')
+                            f1.savefig(output, format='pdf')
+                            f2.savefig(output, format='pdf')
 
                         else:
                             plt.savefig(output, format='pdf')

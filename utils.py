@@ -418,23 +418,23 @@ def plot_mean(MeanImage, cmap='jet'):
 
 
 def plot_mean2(MeanImage, cmap='jet', mode=0):
-    #f1, ax1 = plt.subplots(1, 2)
-    #plt.subplots_adjust(wspace=.7)
-    #plt.subplots_adjust(right=.82)
+    f1, ax1 = plt.subplots(1, 2)
+    plt.subplots_adjust(wspace=.7)
+    plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
-    #xes = ax1.flatten()
-    #ax = ax1[0]
+    axes = ax1.flatten()
+    ax = ax1[0]
     ims = list(MeanImage.get_hist())
     vmax = max([i.max() for i in ims])
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
     
-    f1, ax1 = plt.subplots(figsize=(3.2,2.4))
-    plt.subplots_adjust(wspace=.7)
-    plt.subplots_adjust(right=.82)
-    ax = ax1
+    #f1, ax1 = plt.subplots(figsize=(3.2,2.4))
+    #plt.subplots_adjust(wspace=.7)
+   # plt.subplots_adjust(right=.82)
+    #ax = ax1
     image = ims[mode]
-    image = ndimage.zoom(image, zoom=0.5, order=0)
+    
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
 
@@ -469,7 +469,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
             tic.tick2line.set_visible(False)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-    #f1.delaxes(axes[1])
+    f1.delaxes(axes[1])
     return f1
 
 
