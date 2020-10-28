@@ -434,7 +434,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     plt.subplots_adjust(right=.82)
     ax = ax1
     image = ims[mode]
-    ndimage.zoom(image, zoom=0.5, order=0)
+    image = ndimage.zoom(image, zoom=0.5, order=0)
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
 
