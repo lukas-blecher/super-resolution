@@ -25,6 +25,7 @@ import scipy.ndimage as ndimage
 show = False
 normh = False
 savehito = False
+split_meanimg = False
 
 total_entries = 0
 top_veto_real = 0
@@ -535,6 +536,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     global show
     global normh
     global savehito
+    global split_meanimg
     total_kld = []
     kld_dict = {}
     return_kld_dict = False
@@ -570,16 +572,27 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         plt.show()
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
-                    f = plot_mean(hhd[m].meanimg)
+                    if split_meanimg:
+                        f_sr, f_hr = plot_mean_split(hhd[m].meanimg)
+                    else:
+                        f = plot_mean(hhd[m].meanimg)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
                     if not pdf:
-                        f.savefig((output_path+modes[m]).replace(".png", ""))
+                        if split_meanimg:
+                            f_hr.savefig((output_path+modes[m]+'_hr').replace(".png", ""))
+                            f_sr.savefig((output_path+modes[m]+'_sr').replace(".png", ""))
+                        else:
+                            f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
-                        plt.savefig(output, format='pdf')
+                        if split_meanimg:
+                            f_hr.savefig(output, format='pdf')
+                            f_sr.savefig(output, format='pdf')
+                        else:
+                            plt.savefig(output, format='pdf')
 
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
@@ -872,7 +885,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_transposed_conv", type=str_to_bool, default=False, help="Whether to use transposed convolutions in upsampling")
     parser.add_argument("--fully_transposed_conv", type=str_to_bool, default=False, help="Whether to ONLY use transposed convolutions in upsampling")   
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
-
+    parser.add_argument("--split_meanimg", action='store_true', help='save the mean image for SR / HR separately')
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
@@ -894,6 +907,7 @@ if __name__ == "__main__":
     show = opt['no_show']
     normh = opt['normhito']
     savehito = opt['savehito']
+    split_meanimg = opt['split_meanimg']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'], **opt['kwargs'])
     else:
