@@ -467,7 +467,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
                 tic.tick2line.set_visible(False)
             ax.set_xticklabels([])
             ax.set_yticklabels([])
-    return f1
+    return f2
 
 def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True, show_title=True):
     mn = min([min(a), min(b)])**power
