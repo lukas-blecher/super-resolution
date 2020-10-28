@@ -588,7 +588,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                             f1.savefig(output, format='pdf', bbox_inches='tight')
                             f2.savefig(output, format='pdf', bbox_inches='tight')
                         else:
-                            plt.savefig(output, format='pdf')
+                            plt.savefig(output, format='pdf', bbox_inches='tight')
                         
                             
 
@@ -672,7 +672,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                             out_path = output_path + ('_' + modes[m]+short[xi]+'_'+short[yi])
                             f.savefig(out_path.replace('.png', ''))
                         else:
-                            f.savefig(output, format='pdf')
+                            f.savefig(output, format='pdf', bbox_inches='tight')
                     if show:
                         f.show()
                     plt.close()
