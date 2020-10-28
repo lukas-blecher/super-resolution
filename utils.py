@@ -415,7 +415,7 @@ def plot_mean(MeanImage, cmap='jet'):
             ax.set_yticklabels([])
     return f
 
-def plot_mean(MeanImage, cmap='jet'):
+def plot_mean_split(MeanImage, cmap='jet'):
     #f, ax = plt.subplots(1, 2)
     #plt.subplots_adjust(wspace=.7)
     #plt.subplots_adjust(right=.82)
