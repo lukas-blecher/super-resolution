@@ -471,7 +471,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
     return f1, f2
 
 def plot_mean2(MeanImage, cmap='jet', mode=0):
-    f1, ax1 = plt.subplots(1, 2)
+    f1, ax1 = plt.subplots(1, 2, figsize=(3.2, 4.8))
     plt.subplots_adjust(wspace=.7)
     plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
@@ -518,7 +518,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
             tic.tick2line.set_visible(False)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-    f1.delaxes(axes[1])
+    #f1.delaxes(axes[1])
     return f1
 
 
