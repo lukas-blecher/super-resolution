@@ -574,7 +574,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
                     if split_meanimg:
-                        f1, f2 = plot_mean_split(hhd[m].meanimg)
+                        f = plot_mean2(hhd[m].meanimg)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
