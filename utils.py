@@ -352,7 +352,7 @@ def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
         vmin = min([hr.min().item(), sr.min().item()])
     if vmax == None:
         vmax = max([hr.max().item(), sr.max().item()])
-    f, ax = plt.subplots(1, 2)
+    f, ax = plt.subplots(1, 2, figsize=(6.0, 7.8))
     plt.subplots_adjust(right=.75, wspace=0.05)
     ax = ax.flatten()
     ax[0].imshow(sr, cmap=cmap, vmin=vmin, vmax=vmax)

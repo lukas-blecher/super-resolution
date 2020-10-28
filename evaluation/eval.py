@@ -589,7 +589,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     else:
                         if modes[m] == 'meanimg' and split_meanimg:
                             f1.savefig(output, format='pdf',bbox_inches='tight')
-                            f2.savefig(output, format='pdf')
+                            f2.savefig(output, format='pdf',bbox_inches='tight')
 
                         else:
                             plt.savefig(output, format='pdf')
