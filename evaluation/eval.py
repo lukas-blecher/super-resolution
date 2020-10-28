@@ -564,10 +564,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if normh:
                         gtmax = float(np.max(hr))
                         gtmin = float(np.min(hr))
-                        plt.rc('font', size=18)
+                        plt.rc('font', size=20)
                         f = plot_hist2d(sr/gtmax, hr/gtmax, vmax=1.*2, vmin=gtmin/gtmax*0.5)
                     else:
-                        plt.rc('font', size=18)
+                        plt.rc('font', size=20)
                         f = plot_hist2d(sr, hr)
                     #f.tight_layout()
                     if show:
@@ -576,7 +576,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
                     if split_meanimg:
-                        plt.rc('font', size=6)
+                        plt.rc('font', size=20)
                         f1 = plot_mean2(hhd[m].meanimg, mode=0)
                         f2 = plot_mean2(hhd[m].meanimg, mode=1)
                     #f.tight_layout()                    
@@ -588,7 +588,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         if modes[m] == 'meanimg' and split_meanimg:
-                            f1.savefig(output, format='pdf')
+                            f1.savefig(output, format='pdf', bbox_inches='tight')
                             f2.savefig(output, format='pdf')
 
                         else:
@@ -599,7 +599,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
                 continue
-            plt.rc('font', size=18)
+            plt.rc('font', size=20)
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
