@@ -363,7 +363,7 @@ def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
     #cbar_ax = f.add_axes([0.175, 0.25, 0.5, 0.025])
-    cbar_ax = f.add_axes([0.1, 0.25, 0.6, 0.025])
+    cbar_ax = f.add_axes([0.125, 0.25, 0.6, 0.025])
     f.colorbar(gt, cax=cbar_ax, orientation="horizontal") 
     return f
 
@@ -418,19 +418,19 @@ def plot_mean(MeanImage, cmap='jet'):
 
 
 def plot_mean2(MeanImage, cmap='jet', mode=0):
-    f1, ax1 = plt.subplots(1, 2)
-    plt.subplots_adjust(wspace=.7)
-    plt.subplots_adjust(right=.82)
+    #f1, ax1 = plt.subplots(1, 2)
+    #plt.subplots_adjust(wspace=.7)
+    #plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
-    axes = ax1.flatten()
-    ax = ax1[0]
+    #axes = ax1.flatten()
+    #ax = ax1[0]
     ims = list(MeanImage.get_hist())
     vmax = max([i.max() for i in ims])
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
     
-    #f1, ax1 = plt.subplots()
-    #ax = ax1
+    f1, ax1 = plt.subplots(figsize=(3.2,2.4))
+    ax = ax1
     image = ims[mode]
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
@@ -465,7 +465,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
             tic.tick2line.set_visible(False)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-    f1.delaxes(axes[1])
+    #f1.delaxes(axes[1])
     return f1
 
 
