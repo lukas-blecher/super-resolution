@@ -651,7 +651,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.ylabel(hhd[m].ylabel)
             if legend:
                 plt.legend()
-            plt.tight_layout(pad=0.05)
+            plt.tight_layout(pad=0.5)
             if output_path:
                 if not pdf:
                     out_path = output_path + ('_' + hhd.rmAdditions(modes[m]))
