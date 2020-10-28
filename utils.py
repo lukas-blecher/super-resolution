@@ -481,14 +481,18 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
 
-    f1, ax1 = plt.subplots()
-    ax = ax1
+    #f1, ax1 = plt.subplots()
+    f1, ax1 = plt.subplots(1,2)
+    plt.subplots_adjust(wspace=.7)
+    plt.subplots_adjust(right=.82)
+    axes = ax1.flatten
+    ax = axes[0]
     image = ims[mode]
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
     else:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
-    space = .03
+    space = .3
     (left, bottom), (width, height) = ax.get_position().__array__()
     rect_histx = [left, height, (width-left), (height-bottom)*space]
     rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
