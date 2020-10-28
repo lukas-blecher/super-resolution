@@ -601,6 +601,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 continue
             plt.rc('font', size=20)
             plt.rc('legend', fontsize=14)
+            plt.rc('axes', labelsize=22)
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
