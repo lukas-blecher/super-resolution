@@ -569,7 +569,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     else:
                         plt.rc('font', size=18)
                         f = plot_hist2d(sr, hr)
-                    #f.tight_layout()
+                    f.tight_layout()
                     if show:
                         plt.show()
                 elif modes[m] == 'meanimg':
@@ -579,6 +579,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         plt.rc('font', size=6)
                         f1 = plot_mean2(hhd[m].meanimg, mode=0)
                         f2 = plot_mean2(hhd[m].meanimg, mode=1)
+                        f1.tight_layout(pad=0.05)
+                        f2.tight_layout(pad=0.05)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
@@ -588,8 +590,9 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         if modes[m] == 'meanimg' and split_meanimg:
-                            f1.savefig(output, format='pdf',bbox_inches='tight')
-                            f2.savefig(output, format='pdf',bbox_inches='tight')
+                            f1.savefig(output, format='pdf')
+                            f2.savefig(output, format='pdf')
+
                         else:
                             plt.savefig(output, format='pdf')
                         
