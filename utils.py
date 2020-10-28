@@ -363,7 +363,7 @@ def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
     #cbar_ax = f.add_axes([0.175, 0.25, 0.5, 0.025])
-    cbar_ax = f.add_axes([0.125, 0.25, 0.65, 0.025])
+    cbar_ax = f.add_axes([0.125, 0.25, 0.55, 0.025])
     f.colorbar(gt, cax=cbar_ax, orientation="horizontal") 
     return f
 
@@ -429,14 +429,14 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
     
-    f1, ax1 = plt.subplots(figsize=(3.2/2,2.4/2))
+    f1, ax1 = plt.subplots()
     ax = ax1
     image = ims[mode]
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
     else:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
-    space = .3
+    space = .1
     (left, bottom), (width, height) = ax.get_position().__array__()
     rect_histx = [left, height, (width-left), (height-bottom)*space]
     rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
