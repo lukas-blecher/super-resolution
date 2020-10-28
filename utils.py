@@ -434,6 +434,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
         ax = axes[i]
         image = ims[i]
         plt.figure(f.number)
+        print(f.number)
         if log:
             im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
         else:
