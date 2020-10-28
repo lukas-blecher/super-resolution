@@ -443,18 +443,18 @@ def plot_mean_split(MeanImage, cmap='jet'):
         rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
         rect_col = [width, bottom, 0.02, height-bottom]
 
-        axHistx = plt.axes(rect_histx)
+        axHistx = f.axes(rect_histx)
         axHistx.plot(image.sum(0))
         if log:
             axHistx.set_yscale('log')
         axHistx.set_title(['SR', 'HR'][i])
-        axHisty = plt.axes(rect_histy)
+        axHisty = f.axes(rect_histy)
         axHisty.invert_yaxis()
         axHisty.invert_xaxis()
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
         if log:
             axHisty.set_xscale('log')
-        axCol = plt.axes(rect_col)
+        axCol = f.axes(rect_col)
         if log:
             f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
         else:
