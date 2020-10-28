@@ -574,7 +574,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
                     if split_meanimg:
-                        f = plot_mean_split(hhd[m].meanimg)
+                        f1, f2 = plot_mean_split(hhd[m].meanimg)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
@@ -583,7 +583,13 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if not pdf:
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
-                        plt.savefig(output, format='pdf')
+                        if modes[m] == 'meanimg' and split_meanimg:
+                            for i in range(2):
+                                plt.savefig(output, format='pdf')
+                        else:
+                            plt.savefig(output, format='pdf')
+                        
+                            
 
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
