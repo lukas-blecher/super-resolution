@@ -572,29 +572,16 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         plt.show()
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
-                    if split_meanimg:
-                        f_sr, f_hr = plot_mean_split(hhd[m].meanimg)
-                        f_hr.savefig((output_path+modes[m]+'_hr').replace(".png", ""))
-                        f_sr.savefig((output_path+modes[m]+'_sr').replace(".png", ""))
-                    else:
-                        f = plot_mean(hhd[m].meanimg)
+                    f = plot_mean(hhd[m].meanimg)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
                 sr, hr = .1+torch.Tensor(sr)[None, None, ...], .1+torch.Tensor(hr)[None, None, ...]
                 if output_path:
                     if not pdf:
-                        if split_meanimg:
-                            f_hr.savefig((output_path+modes[m]+'_hr').replace(".png", ""))
-                            f_sr.savefig((output_path+modes[m]+'_sr').replace(".png", ""))
-                        else:
-                            f.savefig((output_path+modes[m]).replace(".png", ""))
+                        f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
-                        if split_meanimg:
-                            f_hr.savefig(output, format='pdf')
-                            f_sr.savefig(output, format='pdf')
-                        else:
-                            plt.savefig(output, format='pdf')
+                        plt.savefig(output, format='pdf')
 
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
