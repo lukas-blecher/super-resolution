@@ -403,9 +403,9 @@ def plot_mean(MeanImage, cmap='jet'):
             axHisty.set_xscale('log')
         axCol = plt.axes(rect_col)
         if log:
-            f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False, orientation="horizontal"))
+            f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
         else:
-            f.colorbar(im, cax=axCol, ax=ax, orientation="horizontal")
+            f.colorbar(im, cax=axCol, ax=ax)
         for ax in (ax, axHisty, axHistx):
             for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                         *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
