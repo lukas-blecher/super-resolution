@@ -429,7 +429,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
     
-    f1, ax1 = plt.subplots()
+    f1, ax1 = plt.subplots(figsize=(3.2,2.4))
     plt.subplots_adjust(wspace=.7)
     plt.subplots_adjust(right=.82)
     ax = ax1
