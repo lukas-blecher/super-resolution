@@ -439,7 +439,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
         else:
             im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
         space = .3
-        (left, bottom), (width, height) = ax.get_position().__array__()
+        (left, bottom), (width, height) = ax1.get_position().__array__()
         rect_histx = [left, height, (width-left), (height-bottom)*space]
         rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
         rect_col = [width, bottom, 0.02, height-bottom]
