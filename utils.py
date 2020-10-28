@@ -486,7 +486,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     plt.subplots_adjust(wspace=.7)
     plt.subplots_adjust(right=.82)
     axes = ax_help.flatten()
-    ax = ax_help[0]
+    ax = axes[0]
     (left, bottom), (width, height) = ax.get_position().__array__()
     del f_help
     del ax_help
