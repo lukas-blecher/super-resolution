@@ -600,6 +600,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
                 continue
             plt.rc('font', size=20)
+            plt.rc('legend', fontsize=14)
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
