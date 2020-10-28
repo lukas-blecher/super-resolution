@@ -429,8 +429,6 @@ def plot_mean_split(MeanImage, cmap='jet'):
     vmax = max([i.max() for i in ims])
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
-    rect_histx, rect_histy, rect_col = [None, None], [None, None], [None, None]
-    axHistx, axHisty, axCol = [None, None], [None, None], [None, None]
     for i in range(2):
         f = figs[i]
         ax = axes[i]
@@ -441,27 +439,27 @@ def plot_mean_split(MeanImage, cmap='jet'):
             im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
-        rect_histx[i] = [left, height, (width-left), (height-bottom)*space]
-        rect_histy[i] = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
-        rect_col[i] = [width, bottom, 0.02, height-bottom]
+        rect_histx = [left, height, (width-left), (height-bottom)*space]
+        rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
+        rect_col = [width, bottom, 0.02, height-bottom]
 
-        axHistx[i] = plt.axes(rect_histx[i])
-        axHistx[i].plot(image.sum(0))
+        axHistx = plt.sca(rect_histx)
+        axHistx.plot(image.sum(0))
         if log:
-            axHistx[i].set_yscale('log')
-        axHistx[i].set_title(['SR', 'HR'][i])
-        axHisty[i] = plt.axes(rect_histy[i])
-        axHisty[i].invert_yaxis()
-        axHisty[i].invert_xaxis()
-        axHisty[i].plot(image.sum(1), np.arange(image.shape[0]))
+            axHistx.set_yscale('log')
+        axHistx.set_title(['SR', 'HR'][i])
+        axHisty = plt.sca(rect_histy)
+        axHisty.invert_yaxis()
+        axHisty.invert_xaxis()
+        axHisty.plot(image.sum(1), np.arange(image.shape[0]))
         if log:
-            axHisty[i].set_xscale('log')
-        axCol[i] = plt.axes(rect_col[i])
+            axHisty.set_xscale('log')
+        axCol = plt.sca(rect_col)
         if log:
             f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
         else:
             f.colorbar(im, cax=axCol, ax=ax)
-        for ax in (ax, axHisty[i], axHistx[i]):
+        for ax in (ax, axHisty, axHistx):
             for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                         *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
                 tic.tick1line.set_visible(False)
