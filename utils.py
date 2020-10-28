@@ -429,6 +429,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
     vmax = max([i.max() for i in ims])
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
+    rect_histx, rect_histy, rect_col = [None, None], [None, None], [None, None]
     for i in range(2):
         f = figs[i]
         ax = axes[i]
@@ -439,22 +440,22 @@ def plot_mean_split(MeanImage, cmap='jet'):
             im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
         space = .3
         (left, bottom), (width, height) = ax.get_position().__array__()
-        rect_histx = [left, height, (width-left), (height-bottom)*space]
-        rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
-        rect_col = [width, bottom, 0.02, height-bottom]
+        rect_histx[i] = [left, height, (width-left), (height-bottom)*space]
+        rect_histy[i] = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
+        rect_col[i] = [width, bottom, 0.02, height-bottom]
 
-        axHistx = plt.axes(rect_histx)
+        axHistx = plt.axes(rect_histx[i])
         axHistx.plot(image.sum(0))
         if log:
             axHistx.set_yscale('log')
         axHistx.set_title(['SR', 'HR'][i])
-        axHisty = plt.axes(rect_histy)
+        axHisty = plt.axes(rect_histy[i])
         axHisty.invert_yaxis()
         axHisty.invert_xaxis()
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
         if log:
             axHisty.set_xscale('log')
-        axCol = plt.axes(rect_col)
+        axCol = plt.axes(rect_col[i])
         if log:
             f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
         else:
@@ -466,8 +467,6 @@ def plot_mean_split(MeanImage, cmap='jet'):
                 tic.tick2line.set_visible(False)
             ax.set_xticklabels([])
             ax.set_yticklabels([])
-        figs[i] = f
-        del f, ax
     return f1
 
 def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True, show_title=True):
