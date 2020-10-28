@@ -465,7 +465,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
             tic.tick2line.set_visible(False)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-    #f1.delaxes(axes[1])
+    f1.delaxes(axes[1])
     return f1
 
 
