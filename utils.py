@@ -443,18 +443,18 @@ def plot_mean_split(MeanImage, cmap='jet'):
         rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
         rect_col = [width, bottom, 0.02, height-bottom]
 
-        axHistx = f.axes(rect_histx)
+        axHistx = plt.axes(rect_histx)
         axHistx.plot(image.sum(0))
         if log:
             axHistx.set_yscale('log')
         axHistx.set_title(['SR', 'HR'][i])
-        axHisty = f.axes(rect_histy)
+        axHisty = plt.axes(rect_histy)
         axHisty.invert_yaxis()
         axHisty.invert_xaxis()
         axHisty.plot(image.sum(1), np.arange(image.shape[0]))
         if log:
             axHisty.set_xscale('log')
-        axCol = f.axes(rect_col)
+        axCol = plt.axes(rect_col)
         if log:
             f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
         else:
@@ -466,7 +466,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
                 tic.tick2line.set_visible(False)
             ax.set_xticklabels([])
             ax.set_yticklabels([])
-    return f
+    return f1
 
 def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True, show_title=True):
     mn = min([min(a), min(b)])**power
