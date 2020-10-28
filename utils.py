@@ -470,7 +470,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
             ax.set_yticklabels([])
     return f1, f2
 
-def plot_mean2(MeanImage, cmap='jet'):
+def plot_mean2(MeanImage, cmap='jet', mode=0):
     #f, ax = plt.subplots(1, 2)
     #plt.subplots_adjust(wspace=.7)
     #plt.subplots_adjust(right=.82)
@@ -483,7 +483,7 @@ def plot_mean2(MeanImage, cmap='jet'):
 
     f1, ax1 = plt.subplots()
     ax = ax1
-    image = ims[0]
+    image = ims[mode]
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
     else:
@@ -498,7 +498,7 @@ def plot_mean2(MeanImage, cmap='jet'):
     axHistx.plot(image.sum(0))
     if log:
         axHistx.set_yscale('log')
-    axHistx.set_title(['SR', 'HR'][0])
+    axHistx.set_title(['SR', 'HR'][mode])
     axHisty = plt.axes(rect_histy)
     axHisty.invert_yaxis()
     axHisty.invert_xaxis()

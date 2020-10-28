@@ -574,7 +574,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
                     if split_meanimg:
-                        f = plot_mean2(hhd[m].meanimg)
+                        f1 = plot_mean2(hhd[m].meanimg, mode=0)
+                        f2 = plot_mean2(hhd[m].meanimg, mode=1)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
@@ -584,8 +585,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         if modes[m] == 'meanimg' and split_meanimg:
-                            #for i in range(2):
-                            plt.savefig(output, format='pdf')
+                            for i in range(2):
+                                plt.savefig(output, format='pdf')
                         else:
                             plt.savefig(output, format='pdf')
                         
