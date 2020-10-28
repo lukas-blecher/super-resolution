@@ -569,7 +569,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     else:
                         plt.rc('font', size=18)
                         f = plot_hist2d(sr, hr)
-                    f.tight_layout()
+                    #f.tight_layout()
                     if show:
                         plt.show()
                 elif modes[m] == 'meanimg':
@@ -579,8 +579,6 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         plt.rc('font', size=6)
                         f1 = plot_mean2(hhd[m].meanimg, mode=0)
                         f2 = plot_mean2(hhd[m].meanimg, mode=1)
-                        f1.tight_layout(pad=0.05)
-                        f2.tight_layout(pad=0.05)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
@@ -606,7 +604,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
                 unit = r'[$\sqrt{\text{GeV}}$]' 
-            plt.figure()
+            plt.figure(figsize=(6.4, 4.0))
             bin_entries = []
             #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
             for i, (ls, lab) in enumerate(zip([('black','--'), ('black','-'), ('#E50000','-'),('#E50000','--')], ["SR", "HR", "LR",r"$\mathrm{LR_{gen}}$"])):
