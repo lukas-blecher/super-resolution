@@ -485,7 +485,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     f1, ax1 = plt.subplots(1,2)
     plt.subplots_adjust(wspace=.7)
     plt.subplots_adjust(right=.82)
-    axes = ax1.flatten
+    axes = ax1.flatten()
     ax = axes[0]
     image = ims[mode]
     if log:
