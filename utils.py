@@ -363,7 +363,7 @@ def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
     #cbar_ax = f.add_axes([0.175, 0.25, 0.5, 0.025])
-    cbar_ax = f.add_axes([0.05, 0.25, 0.6, 0.025])
+    cbar_ax = f.add_axes([0.1, 0.25, 0.6, 0.025])
     f.colorbar(gt, cax=cbar_ax, orientation="horizontal") 
     return f
 
@@ -418,7 +418,7 @@ def plot_mean(MeanImage, cmap='jet'):
 
 
 def plot_mean2(MeanImage, cmap='jet', mode=0):
-    f1, ax1 = plt.subplots(1, 2, figsize=(3.2, 4.8))
+    f1, ax1 = plt.subplots(1, 2)
     plt.subplots_adjust(wspace=.7)
     plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
