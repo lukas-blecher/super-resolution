@@ -573,6 +573,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
+                    if split_meanimg:
+                        f = plot_mean_split(hhd[m].meanimg)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
