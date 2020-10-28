@@ -471,35 +471,26 @@ def plot_mean_split(MeanImage, cmap='jet'):
     return f1, f2
 
 def plot_mean2(MeanImage, cmap='jet', mode=0):
-    #f, ax = plt.subplots(1, 2)
-    #plt.subplots_adjust(wspace=.7)
-    #plt.subplots_adjust(right=.82)
+    f1, ax1 = plt.subplots(1, 2)
+    plt.subplots_adjust(wspace=.7)
+    plt.subplots_adjust(right=.82)
     # f.patch.set_facecolor('w')
-    #axes = ax.flatten()
+    axes = ax1.flatten()
+    ax = ax1[0]
     ims = list(MeanImage.get_hist())
     vmax = max([i.max() for i in ims])
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
-
     
-    f_help, ax_help = plt.subplots(1,2)
-    plt.subplots_adjust(wspace=.7)
-    plt.subplots_adjust(right=.82)
-    axes = ax_help.flatten()
-    ax = axes[0]
-    (left, bottom), (width, height) = ax.get_position().__array__()
-    del f_help
-    del ax_help
-
-    f1, ax1 = plt.subplots()
-    ax = ax1
+    #f1, ax1 = plt.subplots()
+    #ax = ax1
     image = ims[mode]
     if log:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
     else:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
     space = .3
-    
+    (left, bottom), (width, height) = ax.get_position().__array__()
     rect_histx = [left, height, (width-left), (height-bottom)*space]
     rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
     rect_col = [width, bottom, 0.02, height-bottom]
@@ -527,6 +518,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
             tic.tick2line.set_visible(False)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
+    f1.delaxes(axes[1])
     return f1
 
 
