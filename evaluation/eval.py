@@ -592,7 +592,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                             f2.savefig(output, format='pdf',bbox_inches='tight')
 
                         else:
-                            plt.savefig(output, format='pdf')
+                            plt.savefig(output, format='pdf',bbox_inches='tight')
                         
                             
 
