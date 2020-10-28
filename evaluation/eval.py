@@ -574,6 +574,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
                     if split_meanimg:
+                        plt.rc('font', size=8)
                         f1 = plot_mean2(hhd[m].meanimg, mode=0)
                         f2 = plot_mean2(hhd[m].meanimg, mode=1)
                     #f.tight_layout()                    
@@ -585,8 +586,8 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
                         if modes[m] == 'meanimg' and split_meanimg:
-                            f1.savefig(output, format='pdf', bbox_inches='tight')
-                            f2.savefig(output, format='pdf', bbox_inches='tight')
+                            f1.savefig(output, format='pdf')
+                            f2.savefig(output, format='pdf')
                         else:
                             plt.savefig(output, format='pdf', bbox_inches='tight')
                         
@@ -595,6 +596,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
                 continue
+            plt.rc('font', size=14)
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
@@ -672,7 +674,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                             out_path = output_path + ('_' + modes[m]+short[xi]+'_'+short[yi])
                             f.savefig(out_path.replace('.png', ''))
                         else:
-                            f.savefig(output, format='pdf', bbox_inches='tight')
+                            f.savefig(output, format='pdf')
                     if show:
                         f.show()
                     plt.close()
