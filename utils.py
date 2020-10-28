@@ -488,7 +488,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
     else:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
-    space = .3
+    space = .03
     (left, bottom), (width, height) = ax.get_position().__array__()
     rect_histx = [left, height, (width-left), (height-bottom)*space]
     rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
