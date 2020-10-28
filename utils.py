@@ -363,7 +363,7 @@ def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
     cbar_ax = f.add_axes([0.8, 0.25, 0.05, 0.5])
-    f.colorbar(gt, cax=cbar_ax)
+    f.colorbar(gt, cax=cbar_ax, orientation="horizontal")
     return f
 
 
@@ -403,9 +403,9 @@ def plot_mean(MeanImage, cmap='jet'):
             axHisty.set_xscale('log')
         axCol = plt.axes(rect_col)
         if log:
-            f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
+            f.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False, orientation="horizontal"))
         else:
-            f.colorbar(im, cax=axCol, ax=ax)
+            f.colorbar(im, cax=axCol, ax=ax, orientation="horizontal")
         for ax in (ax, axHisty, axHistx):
             for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                         *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
