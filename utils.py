@@ -430,7 +430,7 @@ def plot_mean_split(MeanImage, cmap='jet'):
     log = MeanImage.energy
     vmin = MeanImage.threshold if log else 0
     rect_histx, rect_histy, rect_col = [None, None], [None, None], [None, None]
-    axHistX, axHistY, axCol = [None, None], [None, None], [None, None]
+    axHistx, axHisty, axCol = [None, None], [None, None], [None, None]
     for i in range(2):
         f = figs[i]
         ax = axes[i]
