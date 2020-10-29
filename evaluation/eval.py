@@ -702,7 +702,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 #    handles.append(patch)
                 #plt.legend(handles=handles)
                 if 'E_' in modes[m]:
-                    plt.legend(title=(num_to_str(int(modes[m][2:])) + 'hardest'))
+                    if modes[m] == 'E_1':
+                        plt.legend(title='hardest pixel')
+                    else:
+                        plt.legend(title=(num_to_str(int(modes[m][2:])) + 'hardest'))
                 else:
                     plt.legend()
             plt.tight_layout(pad=0.5)
