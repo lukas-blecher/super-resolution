@@ -21,6 +21,8 @@ from PIL import Image
 from tqdm.auto import tqdm
 from scipy.special import legendre
 import scipy.ndimage as ndimage
+import matplotlib.patches as mpatches
+
 
 try:
     import cPickle as pickle
@@ -249,11 +251,11 @@ class MultHist:
             if kwargs['power'] is not None:
                 self.power = kwargs['power']
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
-        self.title, self.xlabel, self.ylabel = '', 'Energy [GeV]', 'Entries'
+        self.title, self.xlabel, self.ylabel = '', 'E [GeV]', 'Entries'
         if self.power==.5 and latex:
-            self.xlabel = r'Energy [$\sqrt{\text{GeV}}$]' 
+            self.xlabel = r'E [$\sqrt{\text{GeV}}$]' 
         elif self.power!=1:
-            self.xlabel = 'Energy [GeV$^{%s}$]'%self.power
+            self.xlabel = 'E [GeV$^{%s}$]'%self.power
         
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
@@ -672,8 +674,11 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 plt.title(hhd[m].title)
             plt.xlabel(hhd[m].xlabel)
             plt.ylabel(hhd[m].ylabel)
-            if legend:
-                plt.legend()
+            if legend: 
+                handles, labels = plt.get_legend_handles_labels()
+                patch = mpatches.Patch(color='grey', label='Manual Label')
+                handles.append(patch)
+                plt.legend(handles=handles)
             plt.tight_layout(pad=0.5)
             if output_path:
                 if not pdf:
