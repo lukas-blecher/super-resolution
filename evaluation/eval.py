@@ -606,7 +606,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
                 unit = r'[$\sqrt{\text{GeV}}$]' 
-            plt.figure(figsize=(6.4, 4.4))
+            plt.figure(figsize=(6.4, 4.0))
             bin_entries = []
             #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
             for i, (ls, lab) in enumerate(zip([('black','--'), ('black','-'), ('#E50000','-'),('#E50000','--')], ["SR", "HR", "LR",r"$\mathrm{LR_{gen}}$"])):
