@@ -446,7 +446,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     rect_histx = [left, height, (width-left), (height-bottom)*space]
     rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
     rect_col = [width, bottom, 0.02, height-bottom]
-    rect_cap = [left-(width-left)*space,height+(height-bottom)*space,(width-left)*space, (height-bottom)*space]
+    rect_cap = [left-(width-left)*space,height,(width-left)*space, (height-bottom)*space]
     axHistx = plt.axes(rect_histx)
     axHistx.plot(image.sum(0))
     if log:
@@ -465,6 +465,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     else:
         f1.colorbar(im, cax=axCol, ax=ax)
     axCap = plt.axes(rect_cap)
+    plt.text(0.5, 0.5, ['SR', 'HR'][mode], horizontalalignment='center', verticalalignment='center', transform=axCap.transAxes)
     for ax in (ax, axHisty, axHistx):
         for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                     *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
