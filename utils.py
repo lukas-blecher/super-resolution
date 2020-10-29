@@ -452,7 +452,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     if log:
         axHistx.set_yscale('log')
     #axHistx.set_title(['SR', 'HR'][mode])
-    plt.text(left-(width-left)*space,height,['SR', 'HR'][mode])
+    plt.text(left-2*(width-left)*space,height+0.5*(height-bottom)*space,['SR', 'HR'][mode])
     axHisty = plt.axes(rect_histy)
     axHisty.invert_yaxis()
     axHisty.invert_xaxis()
