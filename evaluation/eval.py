@@ -914,7 +914,7 @@ if __name__ == "__main__":
     opt = vars(opt)
     opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'threshold': opt['thres'],
                      'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title'], 'meanenergy': opt['meanenergy']}
-    if opt.save_hhd:
+    if opt['save_hhd']:
         opt['kwargs']['save_hhd'] = True
     else:
         opt['kwargs']['save_hhd'] = False
