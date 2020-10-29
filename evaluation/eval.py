@@ -552,18 +552,18 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         hhd_load_str = output_path + '_hhd.pkl'
         hhd_save_str = output_path + '_hhd.pkl'
         hhd = pickle.load( open( hhd_load_str, "rb" ) )
-
+        hhd_cp = hhd
         '''
         bad fix, but changes to hhd go here...
         '''
         for m in range(len(modes)):
             if 'E_' in modes[m]:
-                hhd[m].xlabel = r'E [$\sqrt{\text{GeV}}$]'
+                hhd_cp[m].xlabel = r'E [$\sqrt{\text{GeV}}$]'
             if modes[m] == 'jetmass':
-                hhd[m].xlabel =  r'm_{jet} [GeV]'
+                hhd_cp[m].xlabel =  r'm_{jet} [GeV]'
         
         with open(hhd_save_str, 'wb') as output:
-            pickle.dump(hhd, output, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(hhd_cp, output, pickle.HIGHEST_PROTOCOL)
     
         print('done')
         exit()
