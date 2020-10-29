@@ -565,6 +565,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         with open(hhd_save_str, 'wb') as output:
             pickle.dump(hhd, output, pickle.HIGHEST_PROTOCOL)
     
+        print('done')
         exit()
 
     ##############################
