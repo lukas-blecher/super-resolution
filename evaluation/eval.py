@@ -535,7 +535,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     
     ##############################
     if save_hhd:
-        hhd_save_str = (output_path+modes[m]+'_hhd').replace(".pkl", "")
+        hhd_save_str = (output_path + '_hhd').replace(".pkl", "")
         with open(hhd_save_str, 'wb') as output:
             pickle.dump(hhd, output, pickle.HIGHEST_PROTOCOL)
 
