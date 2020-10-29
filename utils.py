@@ -466,13 +466,14 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
         f1.colorbar(im, cax=axCol, ax=ax)
     axCap = plt.axes(rect_cap)
     plt.text(0.5, 0.5, ['SR', 'HR'][mode], horizontalalignment='center', verticalalignment='center', transform=axCap.transAxes)
-    for ax in (ax, axHisty, axHistx):
+    for ax in (ax, axHisty, axHistx, axCap):
         for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                     *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
             tic.tick1line.set_visible(False)
             tic.tick2line.set_visible(False)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
+    axCap.axis('off')
     f1.delaxes(axes[1])
     return f1
 
