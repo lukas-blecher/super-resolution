@@ -446,13 +446,13 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
     rect_histx = [left, height, (width-left), (height-bottom)*space]
     rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
     rect_col = [width, bottom, 0.02, height-bottom]
-
+    rect_cap = [left-(width-left)*space,height+(height-bottom)*space,(width-left)*space, (height-bottom)*space]
     axHistx = plt.axes(rect_histx)
     axHistx.plot(image.sum(0))
     if log:
         axHistx.set_yscale('log')
     #axHistx.set_title(['SR', 'HR'][mode])
-    f1.text(left-2*(width-left)*space,height+0.5*(height-bottom)*space,['SR', 'HR'][mode])
+    #plt.text(left-2*(width-left)*space,height+0.5*(height-bottom)*space,['SR', 'HR'][mode])
     axHisty = plt.axes(rect_histy)
     axHisty.invert_yaxis()
     axHisty.invert_xaxis()
@@ -464,6 +464,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
         f1.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
     else:
         f1.colorbar(im, cax=axCol, ax=ax)
+    axCap = plt.axes(rect_cap)
     for ax in (ax, axHisty, axHistx):
         for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
                     *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
