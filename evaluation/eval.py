@@ -22,6 +22,11 @@ from tqdm.auto import tqdm
 from scipy.special import legendre
 import scipy.ndimage as ndimage
 
+try:
+    import cPickle as pickle
+except ModuleNotFoundError:
+    import pickle
+
 show = False
 normh = False
 savehito = False
@@ -490,6 +495,7 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max',noise_factor=None, **kwargs):
 
+    save_hhd = kwargs['save_hhd']
     statement = Wrapper(output_path)
     pdf = False
     if output_path:
@@ -526,6 +532,15 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             # Generate a high resolution image from low resolution input
             gen_hr = generator(imgs_lr).detach()
             hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
+    
+    ##############################
+    if save_hhd:
+        hhd_save_str = (output_path+modes[m]+'_hhd').replace(".pkl", "")
+        with open(hhd_save_str, 'wb') as output:
+            pickle.dump(hhd, output, pickle.HIGHEST_PROTOCOL)
+
+    ##############################
+
     if 'wmass' in modes:
         print('total entries: ', total_entries)
         print('top veto real / gen:', top_veto_real, top_veto_gen)
@@ -891,6 +906,7 @@ if __name__ == "__main__":
     parser.add_argument("--fully_transposed_conv", type=str_to_bool, default=False, help="Whether to ONLY use transposed convolutions in upsampling")   
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
     parser.add_argument("--split_meanimg", action='store_true', help='save the mean image for SR / HR separately')
+    parser.add_argument('--save_hhd', action='store_true', help='save the MultiModeHist for reuse')
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
@@ -898,6 +914,11 @@ if __name__ == "__main__":
     opt = vars(opt)
     opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'threshold': opt['thres'],
                      'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title'], 'meanenergy': opt['meanenergy']}
+    if opt.save_hhd:
+        opt['kwargs']['save_hhd'] = True
+    else:
+        opt['kwargs']['save_hhd'] = False
+
     if opt['gpu'] is None:
         try:
             gpu = get_gpu_index()
