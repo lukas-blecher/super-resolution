@@ -646,11 +646,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.rc('font', size=20)
             plt.rc('legend', fontsize=14)
             plt.rc('axes', labelsize=22)
+            plt.rcParams['legend.title_fontsize'] = 14
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
                 unit = r'[$\sqrt{\text{GeV}}$]' 
-            plt.figure(figsize=(6.4, 4.1))
+            plt.figure(figsize=(6.4, 4.2))
             bin_entries = []
             #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
             for i, (ls, lab) in enumerate(zip([('black','--'), ('black','-'), ('#E50000','-'),('#E50000','--')], ["SR", "HR", "LR",r"$\mathrm{LR_{gen}}$"])):
