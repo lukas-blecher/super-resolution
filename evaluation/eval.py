@@ -675,7 +675,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.xlabel(hhd[m].xlabel)
             plt.ylabel(hhd[m].ylabel)
             if legend: 
-                handles, labels = plt.get_legend_handles_labels()
+                handles, labels = plt.gca().get_legend_handles_labels()
                 patch = mpatches.Patch(color='grey', label='Manual Label')
                 handles.append(patch)
                 plt.legend(handles=handles)
