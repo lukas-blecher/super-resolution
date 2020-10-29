@@ -560,7 +560,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if 'E_' in modes[m]:
                 hhd_cp[m].xlabel = r'E [$\sqrt{\text{GeV}}$]'
             if modes[m] == 'jetmass':
-                hhd_cp[m].xlabel =  r'm_{jet} [GeV]'
+                hhd_cp[m].xlabel =  r'$m_{jet} [\text{GeV}]$'
         
         with open(hhd_save_str, 'wb') as output:
             pickle.dump(hhd_cp, output, pickle.HIGHEST_PROTOCOL)
