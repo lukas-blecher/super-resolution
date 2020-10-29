@@ -496,6 +496,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max',noise_factor=None, **kwargs):
 
     save_hhd = kwargs['save_hhd']
+    load_hhd = kwargs['load_hhd']
     statement = Wrapper(output_path)
     pdf = False
     if output_path:
@@ -514,30 +515,36 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         legend = kwargs['legend']
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N,noise_factor=noise_factor)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=n_cpu
-    )
+    if not load_hhd:
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=n_cpu
+        )
     modes = mode if type(mode) is list else [mode]
-    hhd = MultModeHist(modes, factor=factor, **kwargs)
     pool = SumPool2d(factor)
-    print('collecting data from %s' % dataset_path)
-    for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
-        with torch.no_grad():
-            # Configure model input
-            imgs_lr = imgs["lr"].to(device)
-            imgs_hr = imgs["hr"]
-            # Generate a high resolution image from low resolution input
-            gen_hr = generator(imgs_lr).detach()
-            hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
+    if not load_hhd:
+        hhd = MultModeHist(modes, factor=factor, **kwargs)
+        print('collecting data from %s' % dataset_path)
+        for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
+            with torch.no_grad():
+                # Configure model input
+                imgs_lr = imgs["lr"].to(device)
+                imgs_hr = imgs["hr"]
+                # Generate a high resolution image from low resolution input
+                gen_hr = generator(imgs_lr).detach()
+                hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
     
     ##############################
-    if save_hhd:
-        hhd_save_str = (output_path + '_hhd').replace(".pkl", "")
+    if save_hhd and not load_hhd:
+        hhd_save_str = output_path + '_hhd.pkl'
         with open(hhd_save_str, 'wb') as output:
             pickle.dump(hhd, output, pickle.HIGHEST_PROTOCOL)
+
+    if load_hhd:
+        hhd_load_str = output_path + '_hhd.pkl'
+        hhd = pickle.load( open( hhd_load_str, "rb" ) )
 
     ##############################
 
@@ -907,6 +914,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
     parser.add_argument("--split_meanimg", action='store_true', help='save the mean image for SR / HR separately')
     parser.add_argument('--save_hhd', action='store_true', help='save the MultiModeHist for reuse')
+    parser.add_argument('--load_hhd', action='store_true', help='load the MultiModeHist for reuse')
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
@@ -918,6 +926,12 @@ if __name__ == "__main__":
         opt['kwargs']['save_hhd'] = True
     else:
         opt['kwargs']['save_hhd'] = False
+    
+    if opt['load_hhd']:
+        opt['kwargs']['load_hhd'] = True
+    else:
+        opt['kwargs']['load_hhd'] = False
+
 
     if opt['gpu'] is None:
         try:
