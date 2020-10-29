@@ -576,7 +576,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
                     if split_meanimg:
-                        plt.rc('font', size=20)
+                        plt.rc('font', size=14)
                         f1 = plot_mean2(hhd[m].meanimg, mode=0)
                         f2 = plot_mean2(hhd[m].meanimg, mode=1)
                     #f.tight_layout()                    
@@ -606,7 +606,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
                 unit = r'[$\sqrt{\text{GeV}}$]' 
-            plt.figure(figsize=(6.4, 4.0))
+            plt.figure(figsize=(6.4, 4.1))
             bin_entries = []
             #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
             for i, (ls, lab) in enumerate(zip([('black','--'), ('black','-'), ('#E50000','-'),('#E50000','--')], ["SR", "HR", "LR",r"$\mathrm{LR_{gen}}$"])):

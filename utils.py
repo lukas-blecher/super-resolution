@@ -440,7 +440,7 @@ def plot_mean2(MeanImage, cmap='jet', mode=0):
 
     else:
         im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
-    space = .3
+    space = .15
     
     (left, bottom), (width, height) = ax.get_position().__array__()
     rect_histx = [left, height, (width-left), (height-bottom)*space]
