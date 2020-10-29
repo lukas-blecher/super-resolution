@@ -677,7 +677,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             if legend: 
                 handles, labels = plt.gca().get_legend_handles_labels()
                 if 'E_' in modes[m]:
-                    patch = mpatches.Patch(color='none', label=(num_to_str(int(self.inpl), thres=1, latex=latex) + 'hardest'))
+                    patch = mpatches.Patch(color='none', label=(num_to_str(int(modes[m][2:]), thres=1, latex=latex) + 'hardest'))
                     handles.append(patch)
                 plt.legend(handles=handles)
             plt.tight_layout(pad=0.5)
