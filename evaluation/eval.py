@@ -675,10 +675,12 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             plt.xlabel(hhd[m].xlabel)
             plt.ylabel(hhd[m].ylabel)
             if legend: 
-                handles, labels = plt.gca().get_legend_handles_labels()
-                patch = mpatches.Patch(color='grey', label='Manual Label')
-                handles.append(patch)
-                plt.legend(handles=handles)
+                #handles, labels = plt.gca().get_legend_handles_labels()
+                #patch = mpatches.Patch(color='grey', label='Manual Label')
+                #handles.append(patch)
+                #plt.legend(handles=handles)
+                plt.legend()
+                plt.text('nth hardest', va='top')
             plt.tight_layout(pad=0.5)
             if output_path:
                 if not pdf:
