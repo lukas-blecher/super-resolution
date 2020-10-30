@@ -297,7 +297,7 @@ class MultHist:
             self.title = 'Number of constituents'
         elif self.mode == 'jetmass':
             self.title = 'Invariant Jet Mass'
-            self.xlabel = r'm_{jet} [GeV]'
+            self.xlabel = r'$m_{jet} [\text{GeV}]$'
         elif self.mode == 'w_pf':
             self.xlabel = r'$w_{PF}$'
             self.title = r'$w_{PF}$'
