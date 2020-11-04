@@ -599,7 +599,7 @@ def rotateImage(img, angle, pivot):
 
 
 def coord2val(x, R, bins):
-    return x*2*R/bins-R
+    return x*2*R/bins-R + R/bins
 
 
 def get_event_array(img, etarange=1, phirange=1, thres=0):

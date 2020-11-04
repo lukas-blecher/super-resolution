@@ -53,8 +53,8 @@ def JetMass(arr, etarange=1., phirange=1.):
             for phibin in range(bins):
                 if img[pic, etabin, phibin] != 0:
                     #get eta, phi, pt
-                    eta = etabin*2*etarange/bins-etarange
-                    phi = phibin*2*phirange/bins-phirange
+                    eta = etabin*2*etarange/bins-etarange + etarange/bins
+                    phi = phibin*2*phirange/bins-phirange + phirange/bins
                     pt = img[pic, etabin, phibin]
 
                     # convert to (E, px, py, pz)
@@ -181,11 +181,11 @@ class extract_const:
        # undo binning
 
     def calc_eta(self, etabin=0):
-        eta_new = float(etabin*2*self.etarange/self.bins-self.etarange)
+        eta_new = float(etabin*2*self.etarange/self.bins-self.etarange + self.etarange/self.bins)
         return eta_new
 
     def calc_phi(self, phibin=0):
-        phi_new = float(phibin*2*self.phirange/self.bins-self.phirange)
+        phi_new = float(phibin*2*self.phirange/self.bins-self.phirange + self.etarange/self.bins)
         return phi_new
 
 
@@ -199,10 +199,10 @@ def delta_r(arr, n=1, m=2, etarange=1., phirange=1.):
         m_args = np.where(tmp == np.sort(tmp.flatten())[-m])
         n_etabin, n_phibin = n_args
         m_etabin, m_phibin = m_args
-        eta_n = float(n_etabin*2*etarange/bins-etarange)
-        eta_m = float(m_etabin*2*etarange/bins-etarange)
-        phi_n = float(n_phibin*2*phirange/bins-phirange)
-        phi_m = float(m_phibin*2*phirange/bins-phirange)
+        eta_n = float(n_etabin*2*etarange/bins-etarange + etarange/bins)
+        eta_m = float(m_etabin*2*etarange/bins-etarange + etarange/bins)
+        phi_n = float(n_phibin*2*phirange/bins-phirange+phirange/bins)
+        phi_m = float(m_phibin*2*phirange/bins-phirange+phirange/bins)
         deta = eta_n - eta_m
         dphi = phi_n - phi_m
         dr = np.sqrt(deta**2 + dphi**2)
