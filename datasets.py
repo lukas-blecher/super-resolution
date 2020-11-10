@@ -275,6 +275,44 @@ class HRLRJetDataset(Dataset):
         img_lr = imglr[0]
         return {"lr": img_lr, "hr": img_hr}
 
+
+class HRLRJetDatasetMultiFaktor(Dataset):
+    def __init__(self, path, amount=None, etaBins=80, phiBins=80, factor=2, pre_factor=1, threshold=None, N=None):
+        super(HRLRJetDatasetMultiFaktor, self).__init__()
+        self.phiBins = phiBins
+        self.etaBins = etaBins
+        self.pre_factor = pre_factor
+        self.factor = factor
+        if pre_factor > 1:
+            self.pre_pool = SumPool2d(self.pre_factor)
+        self.dfhr = pd.read_hdf(path, 'table')
+        self.dflr8 = pd.read_hdf(path.replace('HR', 'LR8'), 'table')
+        self.dflr4 = pd.read_hdf(path.replace('HR', 'LR4'), 'table')
+        self.dflr2 = pd.read_hdf(path.replace('HR', 'LR2'), 'table')
+        if amount is not None:
+            self.dfhr = self.dfhr.iloc[:amount]
+            self.dflr8 = self.dflr8.iloc[:amount]
+            self.dflr4 = self.dflr4.iloc[:amount]
+            self.dflr2 = self.dflr2.iloc[:amount]
+        #self.cutter = Cutter(threshold, N)
+    def __len__(self):
+        return len(self.dfhr)
+    def __getitem__(self, item):
+        imghr = extract(torch.Tensor(self.dfhr.iloc[item][:-1]).view(-1, 2).t(), self.etaBins*self.pre_factor, self.phiBins*self.pre_factor)[None, ...]
+        imglr8 = extract(torch.Tensor(self.dflr8.iloc[item][:-1]).view(-1, 2).t(), int(self.etaBins/self.factor*self.pre_factor), int(self.phiBins/self.factor*self.pre_factor))[None, ...]
+        imglr4 = extract(torch.Tensor(self.dflr4.iloc[item][:-1]).view(-1, 2).t(), int(self.etaBins/self.factor*2*self.pre_factor), int(self.phiBins/self.factor*2*self.pre_factor))[None, ...]
+        imglr2 = extract(torch.Tensor(self.dflr2.iloc[item][:-1]).view(-1, 2).t(), int(self.etaBins/self.factor*4*self.pre_factor), int(self.phiBins/self.factor*4*self.pre_factor))[None, ...]
+        if self.pre_factor > 1:
+            imghr = self.pre_pool(imghr)
+            imglr8 = self.pre_factor(imglr8)
+            imglr4 = self.pre_factor(imglr4)
+            imglr2 = self.pre_factor(imglr2)
+        img_hr = imghr[0]
+        img_lr8 = imglr8[0]
+        img_lr4 = imglr4[0]
+        img_lr2 = imglr2[0]
+        return {"lr8": img_lr8, "lr4": img_lr4, "lr2": img_lr2, "hr": img_hr}
+
 def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amount=None, pre=1, threshold=None, N=None,noise_factor=None):
     if dataset_type == 'h5':
         return EventDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor)
@@ -286,3 +324,5 @@ def get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor=2, amoun
         return SparseJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N,noise_factor=noise_factor)
     elif dataset_type == 'hrlrjet':
         return HRLRJetDataset(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N)
+    elif dataset_type == 'hrlrjetmultifaktor':
+        return HRLRJetDatasetMultiFaktor(dataset_path, amount=amount, etaBins=hr_height, phiBins=hr_width, factor=factor, pre_factor=pre, threshold=threshold, N=N)
