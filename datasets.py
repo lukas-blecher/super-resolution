@@ -258,7 +258,7 @@ class HRLRJetDataset(Dataset):
         if pre_factor > 1:
             self.pre_pool = SumPool2d(self.pre_factor)
         self.dfhr = pd.read_hdf(path, 'table')
-        self.dflr = pd.read_hdf(path.replace('HR', 'LR'), 'table')
+        self.dflr = pd.read_hdf(path.replace('_HR', '_LR'), 'table')
         if amount is not None:
             self.dfhr = self.dfhr.iloc[:amount]
             self.dflr = self.dflr.iloc[:amount]
