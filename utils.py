@@ -353,17 +353,18 @@ def plot_hist2d(sr, hr, cmap='jet',vmin=None,vmax=None):
     if vmax == None:
         vmax = max([hr.max().item(), sr.max().item()])
     f, ax = plt.subplots(1, 2)
-    plt.subplots_adjust(right=.75)
+    plt.subplots_adjust(right=.75, wspace=0.05)
     ax = ax.flatten()
     ax[0].imshow(sr, cmap=cmap, vmin=vmin, vmax=vmax)
-    ax[0].set_title('prediction')
+    ax[0].set_title('SR')
     ax[0].axis('off')
     gt = ax[1].imshow(hr, cmap=cmap, vmin=vmin, vmax=vmax)
-    ax[1].set_title('ground truth')
+    ax[1].set_title('HR')
     ax[1].axis('off')
     #f.subplots_adjust(right=0.8)
-    cbar_ax = f.add_axes([0.8, 0.25, 0.05, 0.5])
-    f.colorbar(gt, cax=cbar_ax)
+    #cbar_ax = f.add_axes([0.175, 0.25, 0.5, 0.025])
+    cbar_ax = f.add_axes([0.125, 0.25, 0.625, 0.025])
+    f.colorbar(gt, cax=cbar_ax, orientation="horizontal") 
     return f
 
 
@@ -394,7 +395,7 @@ def plot_mean(MeanImage, cmap='jet'):
         axHistx.plot(image.sum(0))
         if log:
             axHistx.set_yscale('log')
-        axHistx.set_title(['prediction', 'ground truth'][i])
+        axHistx.set_title(['SR', 'HR'][i])
         axHisty = plt.axes(rect_histy)
         axHisty.invert_yaxis()
         axHisty.invert_xaxis()
@@ -414,6 +415,67 @@ def plot_mean(MeanImage, cmap='jet'):
             ax.set_xticklabels([])
             ax.set_yticklabels([])
     return f
+
+
+def plot_mean2(MeanImage, cmap='jet', mode=0):
+    f1, ax1 = plt.subplots(1, 2)
+    plt.subplots_adjust(wspace=.7)
+    plt.subplots_adjust(right=.82)
+    # f.patch.set_facecolor('w')
+    axes = ax1.flatten()
+    ax = ax1[0]
+    ims = list(MeanImage.get_hist())
+    vmax = max([i.max() for i in ims])
+    log = MeanImage.energy
+    vmin = MeanImage.threshold if log else 0
+    
+    #f1, ax1 = plt.subplots(figsize=(3.2,2.4))
+    #plt.subplots_adjust(wspace=.7)
+   # plt.subplots_adjust(right=.82)
+    #ax = ax1
+    image = ims[mode]
+    
+    if log:
+        im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, norm=colors.LogNorm(), vmin=vmin, vmax=vmax)
+
+    else:
+        im = ax.imshow(image, aspect='equal', interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
+    space = .25
+    
+    (left, bottom), (width, height) = ax.get_position().__array__()
+    rect_histx = [left, height, (width-left), (height-bottom)*space]
+    rect_histy = [left-(width-left)*space, bottom, (width-left)*space, height-bottom]
+    rect_col = [width, bottom, 0.02, height-bottom]
+    rect_cap = [left-(width-left)*space,height,(width-left)*space, (height-bottom)*space]
+    axHistx = plt.axes(rect_histx)
+    axHistx.plot(image.sum(0))
+    if log:
+        axHistx.set_yscale('log')
+    #axHistx.set_title(['SR', 'HR'][mode])
+    #plt.text(left-2*(width-left)*space,height+0.5*(height-bottom)*space,['SR', 'HR'][mode])
+    axHisty = plt.axes(rect_histy)
+    axHisty.invert_yaxis()
+    axHisty.invert_xaxis()
+    axHisty.plot(image.sum(1), np.arange(image.shape[0]))
+    if log:
+        axHisty.set_xscale('log')
+    axCol = plt.axes(rect_col)
+    if log:
+        f1.colorbar(im, cax=axCol, ax=ax, format=LogFormatter(10, labelOnlyBase=False))
+    else:
+        f1.colorbar(im, cax=axCol, ax=ax)
+    axCap = plt.axes(rect_cap)
+    plt.text(0.5, 0.5, ['SR', 'HR'][mode], horizontalalignment='center', verticalalignment='center', transform=axCap.transAxes)
+    for ax in (ax, axHisty, axHistx, axCap):
+        for tic in [*ax.xaxis.get_major_ticks(), *ax.xaxis.get_minor_ticks(),
+                    *ax.yaxis.get_major_ticks(), *ax.yaxis.get_minor_ticks()]:
+            tic.tick1line.set_visible(False)
+            tic.tick2line.set_visible(False)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+    axCap.axis('off')
+    f1.delaxes(axes[1])
+    return f1
 
 
 def plot_corr(a, b, power=.5, bins=50, title='', xlabel='x', ylabel='', unit='', cmap='jet', return_matrix=True, show_title=True):
@@ -537,7 +599,7 @@ def rotateImage(img, angle, pivot):
 
 
 def coord2val(x, R, bins):
-    return x*2*R/bins-R
+    return x*2*R/bins-R + R/bins
 
 
 def get_event_array(img, etarange=1, phirange=1, thres=0):

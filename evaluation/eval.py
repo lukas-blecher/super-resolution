@@ -21,10 +21,18 @@ from PIL import Image
 from tqdm.auto import tqdm
 from scipy.special import legendre
 import scipy.ndimage as ndimage
+import matplotlib.patches as mpatches
+
+
+try:
+    import cPickle as pickle
+except ModuleNotFoundError:
+    import pickle
 
 show = False
 normh = False
 savehito = False
+split_meanimg = False
 
 total_entries = 0
 top_veto_real = 0
@@ -45,8 +53,8 @@ def JetMass(arr, etarange=1., phirange=1.):
             for phibin in range(bins):
                 if img[pic, etabin, phibin] != 0:
                     #get eta, phi, pt
-                    eta = etabin*2*etarange/bins-etarange
-                    phi = phibin*2*phirange/bins-phirange
+                    eta = etabin*2*etarange/bins-etarange + etarange/bins
+                    phi = phibin*2*phirange/bins-phirange + phirange/bins
                     pt = img[pic, etabin, phibin]
 
                     # convert to (E, px, py, pz)
@@ -173,11 +181,11 @@ class extract_const:
        # undo binning
 
     def calc_eta(self, etabin=0):
-        eta_new = float(etabin*2*self.etarange/self.bins-self.etarange)
+        eta_new = float(etabin*2*self.etarange/self.bins-self.etarange + self.etarange/self.bins)
         return eta_new
 
     def calc_phi(self, phibin=0):
-        phi_new = float(phibin*2*self.phirange/self.bins-self.phirange)
+        phi_new = float(phibin*2*self.phirange/self.bins-self.phirange + self.etarange/self.bins)
         return phi_new
 
 
@@ -191,10 +199,10 @@ def delta_r(arr, n=1, m=2, etarange=1., phirange=1.):
         m_args = np.where(tmp == np.sort(tmp.flatten())[-m])
         n_etabin, n_phibin = n_args
         m_etabin, m_phibin = m_args
-        eta_n = float(n_etabin*2*etarange/bins-etarange)
-        eta_m = float(m_etabin*2*etarange/bins-etarange)
-        phi_n = float(n_phibin*2*phirange/bins-phirange)
-        phi_m = float(m_phibin*2*phirange/bins-phirange)
+        eta_n = float(n_etabin*2*etarange/bins-etarange + etarange/bins)
+        eta_m = float(m_etabin*2*etarange/bins-etarange + etarange/bins)
+        phi_n = float(n_phibin*2*phirange/bins-phirange+phirange/bins)
+        phi_m = float(m_phibin*2*phirange/bins-phirange+phirange/bins)
         deta = eta_n - eta_m
         dphi = phi_n - phi_m
         dr = np.sqrt(deta**2 + dphi**2)
@@ -243,11 +251,11 @@ class MultHist:
             if kwargs['power'] is not None:
                 self.power = kwargs['power']
         latex = (kwargs['pdf'] if 'pdf' in kwargs else 0)
-        self.title, self.xlabel, self.ylabel = '', 'Energy [GeV]', 'Entries'
+        self.title, self.xlabel, self.ylabel = '', 'E [GeV]', 'Entries'
         if self.power==.5 and latex:
-            self.xlabel = r'Energy [$\sqrt{\text{GeV}}$]' 
+            self.xlabel = r'E [$\sqrt{\text{GeV}}$]' 
         elif self.power!=1:
-            self.xlabel = 'Energy [GeV$^{%s}$]'%self.power
+            self.xlabel = 'E [GeV$^{%s}$]'%self.power
         
         if 'E_' in self.mode:
             self.inpl = self.mode[2:]
@@ -289,7 +297,7 @@ class MultHist:
             self.title = 'Number of constituents'
         elif self.mode == 'jetmass':
             self.title = 'Invariant Jet Mass'
-            self.xlabel = 'Jet Mass [GeV]'
+            self.xlabel = r'$m_{jet} [\text{GeV}]$'
         elif self.mode == 'w_pf':
             self.xlabel = r'$w_{PF}$'
             self.title = r'$w_{PF}$'
@@ -489,6 +497,8 @@ def calculate_metrics(dataset_path, dataset_type, generator, device, output_path
 def distribution(dataset_path, dataset_type, generator, device, output_path=None,
                  batch_size=4, n_cpu=0, bins=10, hr_height=40, hr_width=40, factor=2, amount=5000, pre=1, thres=None, N=None, mode='max',noise_factor=None, **kwargs):
 
+    save_hhd = kwargs['save_hhd']
+    load_hhd = kwargs['load_hhd']
     statement = Wrapper(output_path)
     pdf = False
     if output_path:
@@ -507,24 +517,59 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
         legend = kwargs['legend']
     generator.eval()
     dataset = get_dataset(dataset_type, dataset_path, hr_height, hr_width, factor, amount, pre, thres, N,noise_factor=noise_factor)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=n_cpu
-    )
+    if not load_hhd:
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=n_cpu
+        )
     modes = mode if type(mode) is list else [mode]
-    hhd = MultModeHist(modes, factor=factor, **kwargs)
     pool = SumPool2d(factor)
-    print('collecting data from %s' % dataset_path)
-    for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
-        with torch.no_grad():
-            # Configure model input
-            imgs_lr = imgs["lr"].to(device)
-            imgs_hr = imgs["hr"]
-            # Generate a high resolution image from low resolution input
-            gen_hr = generator(imgs_lr).detach()
-            hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
+    if not load_hhd:
+        hhd = MultModeHist(modes, factor=factor, **kwargs)
+        print('collecting data from %s' % dataset_path)
+        for _, imgs in tqdm(enumerate(dataloader), total=len(dataloader)):
+            with torch.no_grad():
+                # Configure model input
+                imgs_lr = imgs["lr"].to(device)
+                imgs_hr = imgs["hr"]
+                # Generate a high resolution image from low resolution input
+                gen_hr = generator(imgs_lr).detach()
+                hhd.append(gen_hr, imgs_hr, imgs_lr, pool(gen_hr))
+    
+    ##############################
+    if save_hhd and not load_hhd:
+        hhd_save_str = output_path + '_hhd.pkl'
+        with open(hhd_save_str, 'wb') as output:
+            pickle.dump(hhd, output, pickle.HIGHEST_PROTOCOL)
+
+    if load_hhd and not save_hhd:
+        hhd_load_str = output_path + '_hhd.pkl'
+        hhd = pickle.load( open( hhd_load_str, "rb" ) )
+
+    if load_hhd and save_hhd:
+        hhd_load_str = output_path + '_hhd.pkl'
+        hhd_save_str = output_path + '_hhd.pkl'
+        hhd = pickle.load( open( hhd_load_str, "rb" ) )
+        hhd_cp = hhd
+        '''
+        bad fix, but changes to hhd go here...
+        '''
+        for m in range(len(modes)):
+            if 'E_' in modes[m]:
+                hhd_cp[m].xlabel = r'E [$\sqrt{\text{GeV}}$]'
+            if modes[m] == 'jetmass':
+                hhd_cp[m].xlabel =  r'$m_{jet} [\text{GeV}]$'
+        
+        with open(hhd_save_str, 'wb') as output:
+            pickle.dump(hhd_cp, output, pickle.HIGHEST_PROTOCOL)
+    
+        print('done')
+        exit()
+
+    ##############################
+
     if 'wmass' in modes:
         print('total entries: ', total_entries)
         print('top veto real / gen:', top_veto_real, top_veto_gen)
@@ -535,6 +580,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
     global show
     global normh
     global savehito
+    global split_meanimg
     total_kld = []
     kld_dict = {}
     return_kld_dict = False
@@ -562,8 +608,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if normh:
                         gtmax = float(np.max(hr))
                         gtmin = float(np.min(hr))
+                        plt.rc('font', size=20)
                         f = plot_hist2d(sr/gtmax, hr/gtmax, vmax=1.*2, vmin=gtmin/gtmax*0.5)
                     else:
+                        plt.rc('font', size=20)
                         f = plot_hist2d(sr, hr)
                     #f.tight_layout()
                     if show:
@@ -571,6 +619,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 elif modes[m] == 'meanimg':
                     sr, hr = hhd[m].meanimg.get_hist()
                     f = plot_mean(hhd[m].meanimg)
+                    if split_meanimg:
+                        plt.rc('font', size=14)
+                        f1 = plot_mean2(hhd[m].meanimg, mode=0)
+                        f2 = plot_mean2(hhd[m].meanimg, mode=1)
                     #f.tight_layout()                    
                     if show:
                         plt.show()
@@ -579,18 +631,30 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     if not pdf:
                         f.savefig((output_path+modes[m]).replace(".png", ""))
                     else:
-                        plt.savefig(output, format='pdf')
+                        if modes[m] == 'meanimg' and split_meanimg:
+                            f1.savefig(output, format='pdf',bbox_inches='tight')
+                            f2.savefig(output, format='pdf',bbox_inches='tight')
+
+                        else:
+                            plt.savefig(output, format='pdf',bbox_inches='tight')
+                        
+                            
 
                 total_kld.append(float(kldiv((sr/sr.sum()).log(), hr/(sr.sum()))))
                 kld_dict[modes[m]] = float(kldiv((sr/sr.sum()).log(), hr/(sr.sum())))
                 continue
+            plt.rc('font', size=20)
+            plt.rc('legend', fontsize=14)
+            plt.rc('axes', labelsize=22)
+            plt.rcParams['legend.title_fontsize'] = 14
             p = hhd[m].power
             unit = '[GeV$^{%s}$]' % p if p != 1 else '[GeV]'
             if p==0.5 and pdf:
                 unit = r'[$\sqrt{\text{GeV}}$]' 
-            plt.figure()
+            plt.figure(figsize=(6.4, 4.2))
             bin_entries = []
-            for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
+            #for i, (ls, lab) in enumerate(zip(['-', '--', '-.','dotted'], ["model prediction", "ground truth", "low resolution input","downsampled output"])):
+            for i, (ls, lab) in enumerate(zip([('black','--'), ('black','-'), ('#E50000','-'),('#E50000','--')], ["SR", "HR", "LR",r"$\mathrm{LR_{gen}}$"])):
                 if hhd.nums[m] == i:
                     continue
                 try:
@@ -611,10 +675,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     print(e)
                     entries, binedges = hhd[m].histogram(hhd[m].list[i], bins, auto_range=False)
                 x, y = to_hist(entries, binedges)
-                plt.plot(x, y, linestyle=ls, label=lab)
+                plt.plot(x, y, color=ls[0], linestyle=ls[1], label=lab)
                 std = np.sqrt(y)
                 std[y == 0] = 0
-                plt.fill_between(x, y+std, y-std, alpha=.2)
+                plt.fill_between(x, y+std, y-std, alpha=.2, color=ls[0])
             if nth_jet_eval_mode=='hr' or nth_jet_eval_mode=='lr':
                 if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                     KLDiv = KLD_hist(torch.Tensor(binedges))
@@ -631,9 +695,20 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 plt.title(hhd[m].title)
             plt.xlabel(hhd[m].xlabel)
             plt.ylabel(hhd[m].ylabel)
-            if legend:
-                plt.legend()
-            plt.tight_layout()
+            if legend: 
+                #handles, labels = plt.gca().get_legend_handles_labels()
+                #if 'E_' in modes[m]:
+                #    patch = mpatches.Patch(visible=False,color='none', label=(num_to_str(int(modes[m][2:])) + 'hardest'))
+                #    handles.append(patch)
+                #plt.legend(handles=handles)
+                if 'E_' in modes[m]:
+                    if modes[m] == 'E_1':
+                        plt.legend(title='hardest pixel')
+                    else:
+                        plt.legend(title=(num_to_str(int(modes[m][2:])) + 'hardest'))
+                else:
+                    plt.legend()
+            plt.tight_layout(pad=0.5)
             if output_path:
                 if not pdf:
                     out_path = output_path + ('_' + hhd.rmAdditions(modes[m]))
@@ -871,7 +946,9 @@ if __name__ == "__main__":
     parser.add_argument("--use_transposed_conv", type=str_to_bool, default=False, help="Whether to use transposed convolutions in upsampling")
     parser.add_argument("--fully_transposed_conv", type=str_to_bool, default=False, help="Whether to ONLY use transposed convolutions in upsampling")   
     parser.add_argument("--num_final_res_blocks", type=int, default=0, help="Whether to add res blocks AFTER upsampling")
-
+    parser.add_argument("--split_meanimg", action='store_true', help='save the mean image for SR / HR separately')
+    parser.add_argument('--save_hhd', action='store_true', help='save the MultiModeHist for reuse')
+    parser.add_argument('--load_hhd', action='store_true', help='load the MultiModeHist for reuse')
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
@@ -879,6 +956,17 @@ if __name__ == "__main__":
     opt = vars(opt)
     opt['kwargs'] = {'pdf': opt['pdf'], 'mode': opt['histogram'], 'fontsize': opt['fontsize'], 'threshold': opt['thres'],
                      'power': opt['power'], 'slices': opt['slices'], 'legend': opt['legend'], 'title': opt['title'], 'meanenergy': opt['meanenergy']}
+    if opt['save_hhd']:
+        opt['kwargs']['save_hhd'] = True
+    else:
+        opt['kwargs']['save_hhd'] = False
+    
+    if opt['load_hhd']:
+        opt['kwargs']['load_hhd'] = True
+    else:
+        opt['kwargs']['load_hhd'] = False
+
+
     if opt['gpu'] is None:
         try:
             gpu = get_gpu_index()
@@ -893,6 +981,7 @@ if __name__ == "__main__":
     show = opt['no_show']
     normh = opt['normhito']
     savehito = opt['savehito']
+    split_meanimg = opt['split_meanimg']
     if opt['hyper_results'] is not None:
         evaluate_results(opt['hyper_results'], **opt['kwargs'])
     else:

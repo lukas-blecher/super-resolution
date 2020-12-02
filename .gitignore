@@ -8,3 +8,4 @@
 !options/*.json
 *.drawio
 *.json
+raw_jet_plots.py
