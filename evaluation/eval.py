@@ -684,12 +684,15 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
             # calculate wasserstein distance
             if wasserstein:
                 try:
-                    sr_list=hhd[m].list[0]
-                    hr_list=hhd[m].list[1]
-                    lr_list=hhd[m].list[2]
-                    lrgen_list=hhd[m].list[3]
+                    sr_list=np.sort(hhd[m].list[0], axis=0)
+                    hr_list=np.sort(hhd[m].list[1], axis=0)
+                    lr_list=np.sort(hhd[m].list[2], axis=0)
+                    lrgen_list=np.sort(hhd[m].list[3], axis=0)
 
-                    print(type(sr_list), sr_list.shape)
+                    wasserDist_SR_HR = wasserstein_distance(sr_list, hr_list)
+                    wasserDist_LR_LRgen = wasserstein_distance(lr_list, lrgen_list)
+
+                    
                 except IndexError:
                     print('Mode: {} does not list all 4 distributions'.format(m))
 
@@ -732,6 +735,10 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                     plt.savefig(output, format='pdf')
             if show:
                 plt.show()
+            ####
+            # include display of wasserstein dist here
+            # ...
+            ####
             plt.close()
             # plot correlations if necessary.
             if 'corr_' in modes[m]:
