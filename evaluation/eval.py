@@ -22,7 +22,7 @@ from tqdm.auto import tqdm
 from scipy.special import legendre
 import scipy.ndimage as ndimage
 import matplotlib.patches as mpatches
-
+from scipy.stats import wasserstein_distance
 
 try:
     import cPickle as pickle
@@ -499,6 +499,7 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
 
     save_hhd = kwargs['save_hhd']
     load_hhd = kwargs['load_hhd']
+    wasserstein = kwargs['wasserstein']
     statement = Wrapper(output_path)
     pdf = False
     if output_path:
@@ -679,6 +680,20 @@ def distribution(dataset_path, dataset_type, generator, device, output_path=None
                 std = np.sqrt(y)
                 std[y == 0] = 0
                 plt.fill_between(x, y+std, y-std, alpha=.2, color=ls[0])
+            ######################
+            # calculate wasserstein distance
+            if wasserstein:
+                try:
+                    sr_list=hhd[m].list[0]
+                    hr_list=hhd[m].list[1]
+                    lr_list=hhd[m].list[2]
+                    lrgen_list=hhd[m].list[3]
+
+                    print(type(sr_list), sr_list.shape)
+                except IndexError:
+                    print('Mode: {} does not list all 4 distributions'.format(m))
+
+            ######################
             if nth_jet_eval_mode=='hr' or nth_jet_eval_mode=='lr':
                 if hhd.nums[m] >= 2 and len(bin_entries) == 2:
                     KLDiv = KLD_hist(torch.Tensor(binedges))
@@ -949,6 +964,7 @@ if __name__ == "__main__":
     parser.add_argument("--split_meanimg", action='store_true', help='save the mean image for SR / HR separately')
     parser.add_argument('--save_hhd', action='store_true', help='save the MultiModeHist for reuse')
     parser.add_argument('--load_hhd', action='store_true', help='load the MultiModeHist for reuse')
+    parser.add_argument('--wasserstein', action='store_true', help='calculate wasserstein distance between distributions')
 
     opt = parser.parse_args()
     if opt.hw is not None and len(opt.hw) == 2:
@@ -965,6 +981,10 @@ if __name__ == "__main__":
         opt['kwargs']['load_hhd'] = True
     else:
         opt['kwargs']['load_hhd'] = False
+    if opt['wasserstein']:
+        opt['kwargs']['wasserstein'] = True
+    else:
+        opt['kwargs']['wasserstein'] = False
 
 
     if opt['gpu'] is None:
